@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-onetouch
+  group: seong-onetouch-v2
   cancel-in-progress: true
 
 jobs:
