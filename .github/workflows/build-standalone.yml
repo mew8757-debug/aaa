@@ -52,9 +52,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          mkdir -p winlator-src/app/src/main/assets/seong
+          set -euo pipefail
+          mkdir -p game-data
 
-          # Private draft release IDs verified before this build.
           GAME1_ID="573646841"
           GAME2_ID="573647280"
 
@@ -63,20 +63,18 @@ jobs:
             -H "Accept: application/octet-stream" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${GAME1_ID}" \
-            -o winlator-src/app/src/main/assets/seong/game1.zip
+            -o game-data/game1.zip
 
           curl --fail --location --silent --show-error \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/octet-stream" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${GAME2_ID}" \
-            -o winlator-src/app/src/main/assets/seong/game2.zip
+            -o game-data/game2.zip
 
-          test "$(stat -c%s winlator-src/app/src/main/assets/seong/game1.zip)" -gt 200000000
-          test "$(stat -c%s winlator-src/app/src/main/assets/seong/game2.zip)" -gt 450000000
-
-          echo "Bundled game data:"
-          ls -lh winlator-src/app/src/main/assets/seong/
+          test "$(stat -c%s game-data/game1.zip)" -gt 200000000
+          test "$(stat -c%s game-data/game2.zip)" -gt 450000000
+          ls -lh game-data/
 
       - name: Apply one-touch game front-end
         shell: bash
@@ -95,11 +93,12 @@ jobs:
           root = tree.getroot()
           app = root.find("application")
           app.set(ns+"label", "성삼국지 촉한영걸전")
+          app.set(ns+"largeHeap", "true")
 
           for act in app.findall("activity"):
               if act.get(ns+"name") == "com.winlator.MainActivity":
-                  for f in list(act.findall("intent-filter")):
-                      act.remove(f)
+                  for flt in list(act.findall("intent-filter")):
+                      act.remove(flt)
                   act.set(ns+"exported", "false")
 
           new_act = ET.Element("activity")
@@ -108,10 +107,10 @@ jobs:
           new_act.set(ns+"exported", "true")
           new_act.set(ns+"screenOrientation", "sensorLandscape")
           new_act.set(ns+"configChanges", "keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation")
-          filt = ET.SubElement(new_act, "intent-filter")
-          action = ET.SubElement(filt, "action")
+          flt = ET.SubElement(new_act, "intent-filter")
+          action = ET.SubElement(flt, "action")
           action.set(ns+"name", "android.intent.action.MAIN")
-          cat = ET.SubElement(filt, "category")
+          cat = ET.SubElement(flt, "category")
           cat.set(ns+"name", "android.intent.category.LAUNCHER")
           app.insert(0, new_act)
 
@@ -124,17 +123,15 @@ jobs:
           gradle = Path("winlator-src/app/build.gradle")
           s = gradle.read_text()
           s = s.replace("applicationId 'com.winlator'", "applicationId 'kr.co.seongsamgukji.oneclick'")
-          s = s.replace('versionCode 33', 'versionCode 1')
+          s = s.replace("versionCode 33", "versionCode 1")
           s = s.replace('versionName "11.2"', 'versionName "1.0.0"')
-          s = s.replace(
-              "android {\n    namespace 'com.winlator'",
-              "android {\n    namespace 'com.winlator'\n\n    aaptOptions {\n        noCompress 'zip'\n    }"
-          )
           gradle.write_text(s)
 
           fileutils = Path("winlator-src/app/src/main/java/com/winlator/core/FileUtils.java")
-          s = fileutils.read_text()
-          s = s.replace('"com.winlator.FileProvider"', '"kr.co.seongsamgukji.oneclick.FileProvider"')
+          s = fileutils.read_text().replace(
+              '"com.winlator.FileProvider"',
+              '"kr.co.seongsamgukji.oneclick.FileProvider"'
+          )
           fileutils.write_text(s)
           PY
 
@@ -143,11 +140,14 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           p = Path("winlator-src/app/src/main/java/com/winlator/XServerDisplayActivity.java")
           s = p.read_text()
 
           old = "    @Override\n    public void onBackPressed() {\n        if (environment != null) {\n            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {\n                drawerLayout.openDrawer(GravityCompat.START);\n            }\n            else drawerLayout.closeDrawers();\n        }\n    }"
+
           new = "    @Override\n    public void onBackPressed() {\n        if (xServer != null) {\n            xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));\n            xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));\n        }\n    }"
+
           if old in s:
               s = s.replace(old, new)
 
@@ -155,32 +155,91 @@ jobs:
               'renderer.setForceWindowsFullscreen(shortcut != null && shortcut.getExtra("forceFullscreen", "0").equals("1"));',
               'renderer.setForceWindowsFullscreen(true);'
           )
+
           p.write_text(s)
           PY
 
-      - name: Build one-touch APK
+      - name: Build base APK
         working-directory: winlator-src
         env:
-          GRADLE_OPTS: -Xmx4g -Dfile.encoding=UTF-8
+          GRADLE_OPTS: -Xmx3g -Dfile.encoding=UTF-8
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon :app:assembleDebug --stacktrace
 
-      - name: Verify bundled APK
+      - name: Inject game data, align and re-sign APK
         shell: bash
         run: |
-          APK="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
-          test -f "$APK"
-          test "$(stat -c%s "$APK")" -gt 800000000
-          cp "$APK" SeongSamgukji-OneTouch-v1.0.apk
-          ls -lh SeongSamgukji-OneTouch-v1.0.apk
-          sha256sum SeongSamgukji-OneTouch-v1.0.apk
+          set -euo pipefail
 
-      - name: Upload private build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SeongSamgukji-OneTouch-v1.0
-          path: SeongSamgukji-OneTouch-v1.0.apk
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
+          BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
+          WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
+          ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v1.0.apk"
+
+          test -f "$BASE"
+          cp "$BASE" "$WORK"
+
+          # Remove old v1 signature files before changing the ZIP contents.
+          zip -q -d "$WORK" 'META-INF/*.SF' 'META-INF/*.RSA' 'META-INF/*.DSA' 'META-INF/MANIFEST.MF' || true
+
+          rm -rf apk-inject
+          mkdir -p apk-inject/assets/seong
+          cp game-data/game1.zip apk-inject/assets/seong/game1.zip
+          cp game-data/game2.zip apk-inject/assets/seong/game2.zip
+
+          # The game archives are already compressed. Store them without recompression.
+          (
+            cd apk-inject
+            zip -0 -q "$WORK" assets/seong/game1.zip assets/seong/game2.zip
+          )
+
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          BUILD_TOOLS="$SDK_ROOT/build-tools/35.0.0"
+
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$WORK" "$ALIGNED"
+
+          KS="$HOME/.android/debug.keystore"
+          if [ ! -f "$KS" ]; then
+            mkdir -p "$HOME/.android"
+            keytool -genkeypair -v \
+              -keystore "$KS" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10000
+          fi
+
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$KS" \
+            --ks-key-alias androiddebugkey \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --out "$FINAL" \
+            "$ALIGNED"
+
+          "$BUILD_TOOLS/apksigner" verify --verbose "$FINAL"
+
+          test "$(stat -c%s "$FINAL")" -gt 800000000
+          ls -lh "$FINAL"
+          sha256sum "$FINAL"
+
+      - name: Upload final APK to private draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FINAL="SeongSamgukji-OneTouch-v1.0.apk"
+
+          if gh release view one-touch-v1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v1 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create one-touch-v1 "$FINAL" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v1" \
+              --notes "비공개 개인용 초안입니다. APK에 game1/game2가 내장되어 있으며 최초 실행 시 자동 설치 후 게임을 실행합니다. 공개 배포하지 마세요."
+          fi
