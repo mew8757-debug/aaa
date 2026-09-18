@@ -411,7 +411,7 @@ public class SeongSamgukjiActivity extends MainActivity {
             }
 
             String n = f.getName().toLowerCase(Locale.ROOT);
-            if (!n.endsWith(".avi")) continue;
+            if (!(n.endsWith(".avi") || n.endsWith(".wmv"))) continue;
 
             boolean startupMovie =
                     n.equals("logo.avi") ||
@@ -419,6 +419,11 @@ public class SeongSamgukjiActivity extends MainActivity {
                     n.equals("opening.avi") ||
                     n.equals("intro.avi") ||
                     n.equals("start.avi") ||
+                    n.equals("logo.wmv") ||
+                    n.equals("open.wmv") ||
+                    n.equals("opening.wmv") ||
+                    n.equals("intro.wmv") ||
+                    n.equals("start.wmv") ||
                     n.startsWith("logo_") ||
                     n.startsWith("opening_");
 
