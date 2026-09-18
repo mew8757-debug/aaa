@@ -51,6 +51,32 @@ jobs:
                       print(info.file_size, n)
           PY
 
+      - name: Print game configuration
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          wanted = [
+              "AutoDLL.ini", "System.ini", "SeongFont.ini",
+              "SeongFont.install.json", "SeongFont.runtime.log", "mp3list.txt"
+          ]
+          with zipfile.ZipFile("game1.zip") as z:
+              names = {n.lower(): n for n in z.namelist()}
+              for w in wanted:
+                  print("\n==========", w, "==========")
+                  n = names.get(w.lower())
+                  if not n:
+                      print("NOT FOUND")
+                      continue
+                  raw = z.read(n)
+                  for enc in ("utf-8-sig","cp949","euc-kr","latin1"):
+                      try:
+                          print(raw.decode(enc))
+                          break
+                      except Exception:
+                          pass
+          PY
+
       - name: Extract EXEs and identify PE
         shell: bash
         run: |
