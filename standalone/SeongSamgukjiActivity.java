@@ -409,8 +409,10 @@ public class SeongSamgukjiActivity extends MainActivity {
         collectExe(root, candidates, 0);
         if (candidates.isEmpty()) return null;
 
-        candidates.sort(Comparator.comparingInt(this::exeScore).reversed()
-                .thenComparingLong(File::length).reversed());
+        candidates.sort(
+                Comparator.<File>comparingInt(this::exeScore).reversed()
+                        .thenComparing(Comparator.comparingLong(File::length).reversed())
+        );
         return candidates.get(0);
     }
 
