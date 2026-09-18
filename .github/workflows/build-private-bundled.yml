@@ -1,0 +1,171 @@
+name: Build Private One-Touch APK
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "standalone/SeongSamgukjiBundledActivity.java"
+      - ".github/workflows/build-private-bundled.yml"
+      - "standalone/BUNDLE_TRIGGER.txt"
+  workflow_dispatch:
+
+concurrency:
+  group: seong-private-bundle
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout customization repo
+        uses: actions/checkout@v4
+
+      - name: Locate private draft game assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p game-data
+          REL_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.tag_name=="game-data") | .id' | head -n 1)"
+          if [ -z "$REL_ID" ]; then
+            echo "::error::game-data Draft Release가 없습니다."
+            exit 1
+          fi
+
+          for NAME in game1.Zip game2.Zip; do
+            ASSET_ID="$(gh api "repos/$GITHUB_REPOSITORY/releases/$REL_ID/assets?per_page=100" --jq ".[] | select(.name==\"$NAME\") | .id" | head -n 1)"
+            if [ -z "$ASSET_ID" ]; then
+              echo "::error::$NAME 가 game-data Draft Release에 없습니다."
+              exit 1
+            fi
+            echo "Downloading $NAME privately..."
+            gh api -H "Accept: application/octet-stream"               "repos/$GITHUB_REPOSITORY/releases/assets/$ASSET_ID" > "game-data/$NAME"
+          done
+
+          ls -lh game-data
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configure Android SDK, NDK and CMake
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "ndk;24.0.8215888" "cmake;3.22.1"
+
+      - name: Clone Winlator 11.2 source
+        run: git clone --depth 1 https://github.com/brunodev85/winlator-app.git winlator-src
+
+      - name: Embed game data
+        shell: bash
+        run: |
+          mkdir -p winlator-src/app/src/main/assets/seonggame
+          cp game-data/game1.Zip winlator-src/app/src/main/assets/seonggame/game1.Zip
+          cp game-data/game2.Zip winlator-src/app/src/main/assets/seonggame/game2.Zip
+          cp standalone/SeongSamgukjiBundledActivity.java             winlator-src/app/src/main/java/com/winlator/SeongSamgukjiBundledActivity.java
+
+      - name: Apply one-touch customization
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          manifest_path = Path("winlator-src/app/src/main/AndroidManifest.xml")
+          ET.register_namespace("android", "http://schemas.android.com/apk/res/android")
+          ns = "{http://schemas.android.com/apk/res/android}"
+          tree = ET.parse(manifest_path)
+          root = tree.getroot()
+          app = root.find("application")
+          app.set(ns+"label", "성삼국지 촉한영걸전")
+          app.set(ns+"largeHeap", "true")
+
+          for act in app.findall("activity"):
+              if act.get(ns+"name") == "com.winlator.MainActivity":
+                  for flt in list(act.findall("intent-filter")):
+                      act.remove(flt)
+                  act.set(ns+"exported", "false")
+
+          new_act = ET.Element("activity")
+          new_act.set(ns+"name", "com.winlator.SeongSamgukjiBundledActivity")
+          new_act.set(ns+"theme", "@style/AppThemeDark")
+          new_act.set(ns+"exported", "true")
+          new_act.set(ns+"screenOrientation", "sensor")
+          new_act.set(ns+"configChanges", "keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation")
+          flt = ET.SubElement(new_act, "intent-filter")
+          action = ET.SubElement(flt, "action")
+          action.set(ns+"name", "android.intent.action.MAIN")
+          cat = ET.SubElement(flt, "category")
+          cat.set(ns+"name", "android.intent.category.LAUNCHER")
+          app.insert(0, new_act)
+
+          for prov in app.findall("provider"):
+              if prov.get(ns+"name") == "androidx.core.content.FileProvider":
+                  prov.set(ns+"authorities", "kr.co.seongsamgukji.onetouch.FileProvider")
+
+          tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
+
+          gradle = Path("winlator-src/app/build.gradle")
+          s = gradle.read_text()
+          s = s.replace("applicationId 'com.winlator'", "applicationId 'kr.co.seongsamgukji.onetouch'")
+          s = s.replace("versionCode 33", "versionCode 1")
+          s = s.replace('versionName "11.2"', 'versionName "1.0.0"')
+          s = s.replace("    lintOptions {", "    aaptOptions {\n        noCompress 'Zip', 'zip'\n    }\n\n    lintOptions {")
+          gradle.write_text(s)
+
+          fileutils = Path("winlator-src/app/src/main/java/com/winlator/core/FileUtils.java")
+          s = fileutils.read_text().replace('"com.winlator.FileProvider"', '"kr.co.seongsamgukji.onetouch.FileProvider"')
+          fileutils.write_text(s)
+
+          # Phone Back button = ESC, and always force old Windows game fullscreen.
+          xserver = Path("winlator-src/app/src/main/java/com/winlator/XServerDisplayActivity.java")
+          s = xserver.read_text()
+          old = "    @Override\n    public void onBackPressed() {\n        if (environment != null) {\n            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {\n                drawerLayout.openDrawer(GravityCompat.START);\n            }\n            else drawerLayout.closeDrawers();\n        }\n    }"
+          new = "    @Override\n    public void onBackPressed() {\n        if (xServer != null) {\n            xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));\n            xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));\n        }\n    }"
+          if old in s:
+              s = s.replace(old, new)
+          s = s.replace(
+              'renderer.setForceWindowsFullscreen(shortcut != null && shortcut.getExtra("forceFullscreen", "0").equals("1"));',
+              'renderer.setForceWindowsFullscreen(true);'
+          )
+          xserver.write_text(s)
+          PY
+
+      - name: Build one-touch APK
+        working-directory: winlator-src
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Prepare final APK
+        run: |
+          cp winlator-src/app/build/outputs/apk/debug/app-debug.apk             "SeongSamgukji-OneTouch-v1.apk"
+          ls -lh "SeongSamgukji-OneTouch-v1.apk"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeongSamgukji-OneTouch-v1
+          path: SeongSamgukji-OneTouch-v1.apk
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Put final APK in a PRIVATE draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view one-touch-v1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v1 "SeongSamgukji-OneTouch-v1.apk" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create one-touch-v1 "SeongSamgukji-OneTouch-v1.apk"               --repo "$GITHUB_REPOSITORY" --draft               --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v1"               --notes "비공개 초안입니다. APK 하나만 설치하면 게임 데이터가 내장되어 있어 최초 실행 시 자동 설치하고 이후 바로 실행합니다."
+          fi
