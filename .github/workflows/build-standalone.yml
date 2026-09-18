@@ -97,6 +97,43 @@ jobs:
           fileutils.write_text(s)
           PY
 
+      - name: Apply phone-friendly game controls
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("winlator-src/app/src/main/java/com/winlator/XServerDisplayActivity.java")
+          s = p.read_text()
+
+          old = """    @Override
+    public void onBackPressed() {
+        if (environment != null) {
+            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                drawerLayout.openDrawer(GravityCompat.START);
+            }
+            else drawerLayout.closeDrawers();
+        }
+    }"""
+
+          new = """    @Override
+    public void onBackPressed() {
+        if (xServer != null) {
+            xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));
+            xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));
+        }
+    }"""
+
+          if old in s:
+              s = s.replace(old, new)
+
+          s = s.replace(
+              'renderer.setForceWindowsFullscreen(shortcut != null && shortcut.getExtra("forceFullscreen", "0").equals("1"));',
+              'renderer.setForceWindowsFullscreen(true);'
+          )
+
+          p.write_text(s)
+          PY
+
       - name: Build standalone APK
         working-directory: winlator-src
         run: |
