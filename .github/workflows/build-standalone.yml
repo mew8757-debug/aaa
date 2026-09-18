@@ -124,7 +124,7 @@ jobs:
           s = gradle.read_text()
           s = s.replace("applicationId 'com.winlator'", "applicationId 'kr.co.seongsamgukji.oneclick'")
           s = s.replace("versionCode 33", "versionCode 1")
-          s = s.replace('versionName "11.2"', 'versionName "1.0.0"')
+          s = s.replace('versionName "11.2"', 'versionName "1.1.0"')
           gradle.write_text(s)
 
           fileutils = Path("winlator-src/app/src/main/java/com/winlator/core/FileUtils.java")
@@ -151,11 +151,8 @@ jobs:
           if old in s:
               s = s.replace(old, new)
 
-          s = s.replace(
-              'renderer.setForceWindowsFullscreen(shortcut != null && shortcut.getExtra("forceFullscreen", "0").equals("1"));',
-              'renderer.setForceWindowsFullscreen(true);'
-          )
-
+          # Keep Winlator's normal window/fullscreen behavior. Old DirectDraw games can fail
+          # to create a visible window when forced fullscreen.
           p.write_text(s)
           PY
 
@@ -175,7 +172,7 @@ jobs:
           BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
           WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
           ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
-          FINAL="$PWD/SeongSamgukji-OneTouch-v1.0.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v2.apk"
 
           test -f "$BASE"
           cp "$BASE" "$WORK"
@@ -232,14 +229,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          FINAL="SeongSamgukji-OneTouch-v1.0.apk"
+          FINAL="SeongSamgukji-OneTouch-v2.apk"
 
-          if gh release view one-touch-v1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload one-touch-v1 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view one-touch-v2 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v2 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create one-touch-v1 "$FINAL" \
+            gh release create one-touch-v2 "$FINAL" \
               --repo "$GITHUB_REPOSITORY" \
               --draft \
-              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v1" \
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v2" \
               --notes "비공개 개인용 초안입니다. APK에 game1/game2가 내장되어 있으며 최초 실행 시 자동 설치 후 게임을 실행합니다. 공개 배포하지 마세요."
           fi
