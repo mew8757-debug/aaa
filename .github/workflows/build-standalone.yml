@@ -1,4 +1,4 @@
-name: Build Standalone SeongSamgukji APK
+name: Build OneTouch SeongSamgukji APK
 
 on:
   workflow_dispatch:
@@ -9,14 +9,15 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-standalone
+  group: seong-onetouch
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout customization repo
@@ -37,14 +38,53 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "ndk;24.0.8215888" "cmake;3.22.1"
 
-      - name: Clone Winlator 11.2 app source
-        run: |
-          git clone --depth 1 https://github.com/brunodev85/winlator-app.git winlator-src
-
-      - name: Apply standalone game front-end
+      - name: Fetch pinned Winlator 11.2 source
         shell: bash
         run: |
-          cp standalone/SeongSamgukjiActivity.java             winlator-src/app/src/main/java/com/winlator/SeongSamgukjiActivity.java
+          git init winlator-src
+          cd winlator-src
+          git remote add origin https://github.com/brunodev85/winlator-app.git
+          git fetch --depth 1 origin a030f552f452158a2db64fdb32b490fa19c0b48d
+          git checkout FETCH_HEAD
+
+      - name: Download private game data from draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p winlator-src/app/src/main/assets/seong
+
+          RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '.[] | select(.tag_name=="game-data" and .draft==true) | .id' | head -n 1)"
+          test -n "$RELEASE_ID"
+
+          GAME1_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" --jq '.[] | select(.name=="game1.Zip") | .id')"
+          GAME2_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" --jq '.[] | select(.name=="game2.Zip") | .id')"
+          test -n "$GAME1_ID"
+          test -n "$GAME2_ID"
+
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${GAME1_ID}" \
+            -o winlator-src/app/src/main/assets/seong/game1.zip
+
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${GAME2_ID}" \
+            -o winlator-src/app/src/main/assets/seong/game2.zip
+
+          test "$(stat -c%s winlator-src/app/src/main/assets/seong/game1.zip)" -gt 200000000
+          test "$(stat -c%s winlator-src/app/src/main/assets/seong/game2.zip)" -gt 450000000
+
+          echo "Bundled game data:"
+          ls -lh winlator-src/app/src/main/assets/seong/
+
+      - name: Apply one-touch game front-end
+        shell: bash
+        run: |
+          cp standalone/SeongSamgukjiActivity.java \
+            winlator-src/app/src/main/java/com/winlator/SeongSamgukjiActivity.java
 
           python3 - <<'PY'
           from pathlib import Path
@@ -56,7 +96,6 @@ jobs:
           tree = ET.parse(manifest_path)
           root = tree.getroot()
           app = root.find("application")
-
           app.set(ns+"label", "성삼국지 촉한영걸전")
 
           for act in app.findall("activity"):
@@ -69,7 +108,7 @@ jobs:
           new_act.set(ns+"name", "com.winlator.SeongSamgukjiActivity")
           new_act.set(ns+"theme", "@style/AppThemeDark")
           new_act.set(ns+"exported", "true")
-          new_act.set(ns+"screenOrientation", "sensor")
+          new_act.set(ns+"screenOrientation", "sensorLandscape")
           new_act.set(ns+"configChanges", "keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation")
           filt = ET.SubElement(new_act, "intent-filter")
           action = ET.SubElement(filt, "action")
@@ -80,62 +119,70 @@ jobs:
 
           for prov in app.findall("provider"):
               if prov.get(ns+"name") == "androidx.core.content.FileProvider":
-                  prov.set(ns+"authorities", "kr.co.seongsamgukji.standalone.FileProvider")
+                  prov.set(ns+"authorities", "kr.co.seongsamgukji.oneclick.FileProvider")
 
           tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 
           gradle = Path("winlator-src/app/build.gradle")
           s = gradle.read_text()
-          s = s.replace("applicationId 'com.winlator'", "applicationId 'kr.co.seongsamgukji.standalone'")
+          s = s.replace("applicationId 'com.winlator'", "applicationId 'kr.co.seongsamgukji.oneclick'")
           s = s.replace('versionCode 33', 'versionCode 1')
-          s = s.replace('versionName "11.2"', 'versionName "0.2.0"')
+          s = s.replace('versionName "11.2"', 'versionName "1.0.0"')
+          s = s.replace(
+              "android {\n    namespace 'com.winlator'",
+              "android {\n    namespace 'com.winlator'\n\n    aaptOptions {\n        noCompress 'zip'\n    }"
+          )
           gradle.write_text(s)
 
           fileutils = Path("winlator-src/app/src/main/java/com/winlator/core/FileUtils.java")
           s = fileutils.read_text()
-          s = s.replace('"com.winlator.FileProvider"', '"kr.co.seongsamgukji.standalone.FileProvider"')
+          s = s.replace('"com.winlator.FileProvider"', '"kr.co.seongsamgukji.oneclick.FileProvider"')
           fileutils.write_text(s)
           PY
 
-      - name: Apply phone-friendly game controls
+      - name: Apply phone-friendly controls
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path("winlator-src/app/src/main/java/com/winlator/XServerDisplayActivity.java")
           s = p.read_text()
+
           old = "    @Override\n    public void onBackPressed() {\n        if (environment != null) {\n            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {\n                drawerLayout.openDrawer(GravityCompat.START);\n            }\n            else drawerLayout.closeDrawers();\n        }\n    }"
           new = "    @Override\n    public void onBackPressed() {\n        if (xServer != null) {\n            xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));\n            xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));\n        }\n    }"
           if old in s:
               s = s.replace(old, new)
-          s = s.replace('renderer.setForceWindowsFullscreen(shortcut != null && shortcut.getExtra("forceFullscreen", "0").equals("1"));', 'renderer.setForceWindowsFullscreen(true);')
+
+          s = s.replace(
+              'renderer.setForceWindowsFullscreen(shortcut != null && shortcut.getExtra("forceFullscreen", "0").equals("1"));',
+              'renderer.setForceWindowsFullscreen(true);'
+          )
           p.write_text(s)
           PY
 
-      - name: Build standalone APK
+      - name: Build one-touch APK
         working-directory: winlator-src
+        env:
+          GRADLE_OPTS: -Xmx4g -Dfile.encoding=UTF-8
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --stacktrace
+          ./gradlew --no-daemon :app:assembleDebug --stacktrace
 
-      - name: Prepare APK
-        run: |
-          cp winlator-src/app/build/outputs/apk/debug/app-debug.apk             SeongSamgukji-Standalone-v0.2.apk
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SeongSamgukji-Standalone-v0.2
-          path: SeongSamgukji-Standalone-v0.2.apk
-          if-no-files-found: error
-
-      - name: Publish test release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Verify bundled APK
         shell: bash
         run: |
-          if gh release view standalone-v0.2 >/dev/null 2>&1; then
-            gh release upload standalone-v0.2 SeongSamgukji-Standalone-v0.2.apk --clobber
-          else
-            gh release create standalone-v0.2 SeongSamgukji-Standalone-v0.2.apk               --title "성삼국지 촉한영걸전 일체형 실행판 v0.2"               --notes "Winlator 11.2 기반 전용 실행판 테스트 빌드입니다. Winlator 앱을 따로 조작할 필요가 없습니다. 첫 실행 시 사용자가 보유한 game1.zip과 game2.zip을 선택해 설치합니다. 게임 원본 데이터는 APK에 포함하지 않습니다."
-          fi
+          APK="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+          test "$(stat -c%s "$APK")" -gt 800000000
+          cp "$APK" SeongSamgukji-OneTouch-v1.0.apk
+          ls -lh SeongSamgukji-OneTouch-v1.0.apk
+          sha256sum SeongSamgukji-OneTouch-v1.0.apk
+
+      - name: Upload private build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeongSamgukji-OneTouch-v1.0
+          path: SeongSamgukji-OneTouch-v1.0.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
