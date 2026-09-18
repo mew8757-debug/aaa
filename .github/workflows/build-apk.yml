@@ -5,11 +5,15 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+concurrency:
+  group: apk-build-main
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
@@ -39,9 +43,23 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Prepare named APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk SeongSamgukjiLauncher-v0.1.apk
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: SeongSamgukjiLauncher-v0.1-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: SeongSamgukjiLauncher-v0.1.apk
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view v0.1.0 >/dev/null 2>&1; then
+            gh release upload v0.1.0 SeongSamgukjiLauncher-v0.1.apk --clobber
+          else
+            gh release create v0.1.0 SeongSamgukjiLauncher-v0.1.apk               --title "성삼국지 촉한영걸전 Android Launcher v0.1"               --notes "Winlator 계열을 이용해 성삼국지 촉한영걸전 Windows 바로가기를 Android에서 실행하는 테스트용 런처입니다. 게임 원본 데이터는 포함하지 않습니다."
+          fi
