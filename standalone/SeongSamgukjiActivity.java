@@ -59,13 +59,18 @@ public class SeongSamgukjiActivity extends MainActivity {
     private Button launchButton;
     private ProgressBar progress;
     private File gameDir;
+    private final List<Uri> pendingUris = new ArrayList<>();
+    private boolean restartedFromGame;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // Reuse Winlator's normal initialization and RootFS installation path.
+        restartedFromGame = getIntent().hasExtra("container_id") && getIntent().hasExtra("start_path");
         super.onCreate(savedInstanceState);
 
-        gameDir = new File(getExternalFilesDir(null), "SeongSamgukji");
+        File base = getExternalFilesDir(null);
+        if (base == null) base = getFilesDir();
+        gameDir = new File(base, "SeongSamgukji");
         buildSimpleUi();
         waitForRuntime();
     }
@@ -152,8 +157,8 @@ public class SeongSamgukjiActivity extends MainActivity {
                 status.setText("설치 완료. 바로 실행할 수 있습니다.");
                 launchButton.setVisibility(View.VISIBLE);
 
-                // One-tap behavior after installation.
-                handler.postDelayed(this::launchGame, 350);
+                // One-tap behavior after installation. Do not relaunch immediately when the game itself exited.
+                if (!restartedFromGame) handler.postDelayed(this::launchGame, 700);
             }
             else {
                 status.setText("준비 완료. game1.zip과 game2.zip 두 파일을 선택하세요.");
@@ -193,12 +198,25 @@ public class SeongSamgukjiActivity extends MainActivity {
             uris.add(data.getData());
         }
 
-        if (uris.size() < 2) {
-            Toast.makeText(this, "game1.zip과 game2.zip 두 파일을 함께 선택해 주세요.", Toast.LENGTH_LONG).show();
+        for (Uri uri : uris) {
+            if (!pendingUris.contains(uri)) {
+                pendingUris.add(uri);
+                try {
+                    getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (Exception ignored) {}
+            }
+        }
+
+        if (pendingUris.size() < 2) {
+            status.setText("첫 번째 ZIP을 선택했습니다. 이제 나머지 ZIP을 선택하세요.");
+            Toast.makeText(this, "이제 나머지 game ZIP을 하나 더 선택하세요.", Toast.LENGTH_LONG).show();
+            handler.postDelayed(this::chooseGameZips, 400);
             return;
         }
 
-        installGame(uris.subList(0, 2));
+        List<Uri> selected = new ArrayList<>(pendingUris.subList(0, 2));
+        pendingUris.clear();
+        installGame(selected);
     }
 
     private void installGame(List<Uri> uris) {
@@ -461,6 +479,11 @@ public class SeongSamgukjiActivity extends MainActivity {
             if (children != null) for (File child : children) deleteRecursive(child);
         }
         file.delete();
+    }
+
+    @Override
+    public void onBackPressed() {
+        finish();
     }
 
     @Override
