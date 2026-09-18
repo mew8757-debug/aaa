@@ -1,18 +1,16 @@
 package com.winlator;
 
-import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.StatFs;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.winlator.container.Container;
 import com.winlator.container.ContainerManager;
@@ -38,39 +36,32 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * Standalone front-end for Seong Samgukji: Shu-Han Heroes.
- *
- * The Windows compatibility runtime comes from Winlator.
- * Game data is NOT bundled. On first launch the user selects game1.zip and game2.zip.
- */
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final int PICK_GAME_ZIPS = 501;
-    private static final String PREFS = "seong_samgukji_standalone";
+    private static final String PREFS = "seong_samgukji_oneclick";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
+    private static final long REQUIRED_FREE_BYTES = 2200L * 1024L * 1024L;
 
     private final Handler handler = new Handler();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private TextView status;
-    private Button installButton;
-    private Button launchButton;
     private ProgressBar progress;
+    private Button launchButton;
     private File gameDir;
-    private final List<Uri> pendingUris = new ArrayList<>();
+    private boolean installStarted;
     private boolean restartedFromGame;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // Reuse Winlator's normal initialization and RootFS installation path.
         restartedFromGame = getIntent().hasExtra("container_id") && getIntent().hasExtra("start_path");
         super.onCreate(savedInstanceState);
 
         File base = getExternalFilesDir(null);
         if (base == null) base = getFilesDir();
         gameDir = new File(base, "SeongSamgukji");
+
         buildSimpleUi();
         waitForRuntime();
     }
@@ -90,7 +81,7 @@ public class SeongSamgukjiActivity extends MainActivity {
                 LinearLayout.LayoutParams.WRAP_CONTENT));
 
         TextView sub = new TextView(this);
-        sub.setText("Android 전용 실행판\n처음 한 번만 게임 ZIP 2개를 선택하면 됩니다.");
+        sub.setText("원터치 Android 실행판\n처음 실행할 때 게임을 자동 설치합니다.");
         sub.setTextSize(16);
         sub.setGravity(Gravity.CENTER);
         sub.setPadding(0, dp(12), 0, dp(24));
@@ -101,17 +92,11 @@ public class SeongSamgukjiActivity extends MainActivity {
         root.addView(progress);
 
         status = new TextView(this);
-        status.setText("Windows 호환 실행환경을 준비하고 있습니다…");
+        status.setText("실행환경을 준비하고 있습니다…");
         status.setTextSize(15);
         status.setGravity(Gravity.CENTER);
         status.setPadding(0, dp(16), 0, dp(20));
         root.addView(status);
-
-        installButton = new Button(this);
-        installButton.setText("game1.zip + game2.zip 선택");
-        installButton.setEnabled(false);
-        installButton.setOnClickListener(v -> chooseGameZips());
-        root.addView(installButton, fullButtonParams());
 
         launchButton = new Button(this);
         launchButton.setText("게임 실행");
@@ -119,13 +104,8 @@ public class SeongSamgukjiActivity extends MainActivity {
         launchButton.setOnClickListener(v -> launchGame());
         root.addView(launchButton, fullButtonParams());
 
-        Button reinstall = new Button(this);
-        reinstall.setText("게임 다시 설치");
-        reinstall.setOnClickListener(v -> chooseGameZips());
-        root.addView(reinstall, fullButtonParams());
-
         TextView help = new TextView(this);
-        help.setText("설치 후에는 이 아이콘만 누르면 게임이 실행됩니다.\n검은 ActiveMovie 시작화면을 피하기 위해 알려진 오프닝 AVI는 자동으로 건너뜁니다.");
+        help.setText("최초 설치에는 수 분이 걸릴 수 있습니다.\n설치 중 앱을 종료하지 마세요.");
         help.setTextSize(13);
         help.setPadding(0, dp(18), 0, 0);
         root.addView(help);
@@ -148,117 +128,84 @@ public class SeongSamgukjiActivity extends MainActivity {
     private void waitForRuntime() {
         RootFS rootFS = RootFS.find(this);
         if (rootFS.isValid() && rootFS.getVersion() >= RootFSInstaller.LATEST_VERSION) {
-            progress.setVisibility(View.GONE);
-            installButton.setEnabled(true);
-
             SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-            if (prefs.getBoolean(KEY_INSTALLED, false)
-                    && new File(prefs.getString(KEY_EXE_PATH, "")).isFile()) {
-                status.setText("설치 완료. 바로 실행할 수 있습니다.");
+            String exePath = prefs.getString(KEY_EXE_PATH, "");
+
+            if (prefs.getBoolean(KEY_INSTALLED, false) && !exePath.isEmpty() && new File(exePath).isFile()) {
+                progress.setVisibility(View.GONE);
                 launchButton.setVisibility(View.VISIBLE);
+                status.setText(restartedFromGame ? "게임이 종료되었습니다." : "설치 완료. 게임을 실행합니다.");
 
-                // One-tap behavior after installation. Do not relaunch immediately when the game itself exited.
-                if (!restartedFromGame) handler.postDelayed(this::launchGame, 700);
+                if (!restartedFromGame) handler.postDelayed(this::launchGame, 600);
             }
-            else {
-                status.setText("준비 완료. game1.zip과 game2.zip 두 파일을 선택하세요.");
+            else if (!installStarted) {
+                installStarted = true;
+                installBundledGame();
             }
             return;
         }
 
-        status.setText("최초 실행환경 설치 중입니다… 잠시 기다려 주세요.");
-        handler.postDelayed(this::waitForRuntime, 700);
+        status.setText("최초 Windows 실행환경 설치 중…");
+        handler.postDelayed(this::waitForRuntime, 800);
     }
 
-    private void chooseGameZips() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
-        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                "application/zip",
-                "application/x-zip-compressed",
-                "application/octet-stream"
-        });
-        startActivityForResult(intent, PICK_GAME_ZIPS);
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode != PICK_GAME_ZIPS || resultCode != RESULT_OK || data == null) return;
-
-        List<Uri> uris = new ArrayList<>();
-        ClipData clip = data.getClipData();
-        if (clip != null) {
-            for (int i = 0; i < clip.getItemCount(); i++) uris.add(clip.getItemAt(i).getUri());
-        }
-        else if (data.getData() != null) {
-            uris.add(data.getData());
-        }
-
-        for (Uri uri : uris) {
-            if (!pendingUris.contains(uri)) {
-                pendingUris.add(uri);
-                try {
-                    getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                } catch (Exception ignored) {}
-            }
-        }
-
-        if (pendingUris.size() < 2) {
-            status.setText("첫 번째 ZIP을 선택했습니다. 이제 나머지 ZIP을 선택하세요.");
-            Toast.makeText(this, "이제 나머지 game ZIP을 하나 더 선택하세요.", Toast.LENGTH_LONG).show();
-            handler.postDelayed(this::chooseGameZips, 400);
+    private void installBundledGame() {
+        if (!hasEnoughFreeSpace()) {
+            progress.setVisibility(View.GONE);
+            status.setText("저장공간이 부족합니다. 최소 2.2GB 이상의 여유 공간을 확보한 뒤 다시 실행해 주세요.");
             return;
         }
 
-        List<Uri> selected = new ArrayList<>(pendingUris.subList(0, 2));
-        pendingUris.clear();
-        installGame(selected);
-    }
-
-    private void installGame(List<Uri> uris) {
-        installButton.setEnabled(false);
-        launchButton.setVisibility(View.GONE);
         progress.setVisibility(View.VISIBLE);
-        status.setText("게임 파일을 설치하고 있습니다… 약간 시간이 걸릴 수 있습니다.");
+        status.setText("게임 자동 설치 중…\ngame1 + game2를 풀고 있습니다.");
 
         executor.execute(() -> {
             try {
                 File work = new File(getCacheDir(), "seong_import");
                 deleteRecursive(work);
                 work.mkdirs();
+
                 deleteRecursive(gameDir);
                 gameDir.mkdirs();
 
-                int index = 0;
-                for (Uri uri : uris) {
-                    File partDir = new File(work, "part" + (++index));
-                    partDir.mkdirs();
-                    unzip(uri, partDir);
-                    File normalized = normalizeRoot(partDir);
-                    mergeInto(normalized, gameDir);
-                }
+                File part1 = new File(work, "part1");
+                File part2 = new File(work, "part2");
+                part1.mkdirs();
+                part2.mkdirs();
+
+                unzipAsset("seong/game1.zip", part1);
+                unzipAsset("seong/game2.zip", part2);
+
+                mergeInto(normalizeRoot(part1), gameDir);
+                mergeInto(normalizeRoot(part2), gameDir);
 
                 disableIntroMovies(gameDir);
 
                 File exe = findBestExe(gameDir);
                 if (exe == null) throw new Exception("게임 실행 EXE를 찾지 못했습니다.");
 
+                handler.post(() -> status.setText("게임 실행환경을 자동 구성하고 있습니다…"));
                 createOrUpdateContainer(exe);
                 deleteRecursive(work);
-
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 runOnUiThread(() -> {
                     progress.setVisibility(View.GONE);
-                    installButton.setEnabled(true);
-                    status.setText("설치 실패: " + e.getMessage());
-                    Toast.makeText(this, "설치에 실패했습니다.", Toast.LENGTH_LONG).show();
+                    status.setText("자동 설치 실패: " + e.getMessage());
                 });
             }
         });
+    }
+
+    private boolean hasEnoughFreeSpace() {
+        try {
+            File target = gameDir.getParentFile();
+            StatFs stat = new StatFs(target.getAbsolutePath());
+            return stat.getAvailableBytes() >= REQUIRED_FREE_BYTES;
+        }
+        catch (Exception e) {
+            return true;
+        }
     }
 
     private void createOrUpdateContainer(File exe) throws Exception {
@@ -288,11 +235,11 @@ public class SeongSamgukjiActivity extends MainActivity {
             if (container == null) {
                 runOnUiThread(() -> {
                     progress.setVisibility(View.GONE);
-                    installButton.setEnabled(true);
                     status.setText("실행환경 생성에 실패했습니다.");
                 });
                 return;
             }
+
             configureContainer(container);
             container.saveData();
             finishInstall(container.id, exe);
@@ -317,10 +264,9 @@ public class SeongSamgukjiActivity extends MainActivity {
 
         runOnUiThread(() -> {
             progress.setVisibility(View.GONE);
-            installButton.setEnabled(true);
             launchButton.setVisibility(View.VISIBLE);
             status.setText("설치 완료. 게임을 실행합니다.");
-            handler.postDelayed(this::launchGame, 400);
+            handler.postDelayed(this::launchGame, 500);
         });
     }
 
@@ -330,7 +276,7 @@ public class SeongSamgukjiActivity extends MainActivity {
         String exePath = prefs.getString(KEY_EXE_PATH, "");
 
         if (containerId <= 0 || exePath.isEmpty() || !new File(exePath).isFile()) {
-            status.setText("게임 파일이 아직 설치되지 않았습니다.");
+            status.setText("게임 설치 정보가 없습니다. 앱 데이터를 지운 뒤 다시 실행해 주세요.");
             launchButton.setVisibility(View.GONE);
             return;
         }
@@ -341,8 +287,8 @@ public class SeongSamgukjiActivity extends MainActivity {
         startActivity(intent);
     }
 
-    private void unzip(Uri uri, File destination) throws Exception {
-        try (InputStream raw = getContentResolver().openInputStream(uri);
+    private void unzipAsset(String assetName, File destination) throws Exception {
+        try (InputStream raw = getAssets().open(assetName);
              BufferedInputStream bis = new BufferedInputStream(raw, 65536);
              ZipArchiveInputStream zis = new ZipArchiveInputStream(bis, "MS949", true)) {
 
@@ -352,6 +298,7 @@ public class SeongSamgukjiActivity extends MainActivity {
 
             while ((entry = zis.getNextZipEntry()) != null) {
                 if (entry.isUnixSymlink()) continue;
+
                 File out = new File(destination, entry.getName());
                 String outCanonical = out.getCanonicalPath();
                 if (!outCanonical.startsWith(rootCanonical)) continue;
@@ -381,6 +328,7 @@ public class SeongSamgukjiActivity extends MainActivity {
     private void mergeInto(File src, File dst) throws Exception {
         File[] files = src.listFiles();
         if (files == null) return;
+
         for (File file : files) {
             File target = new File(dst, file.getName());
             if (file.isDirectory()) {
@@ -396,6 +344,7 @@ public class SeongSamgukjiActivity extends MainActivity {
     private void copyFile(File src, File dst) throws Exception {
         File parent = dst.getParentFile();
         if (parent != null) parent.mkdirs();
+
         try (InputStream in = new BufferedInputStream(new java.io.FileInputStream(src), 65536);
              OutputStream out = new BufferedOutputStream(new FileOutputStream(dst), 65536)) {
             byte[] buffer = new byte[65536];
@@ -417,9 +366,10 @@ public class SeongSamgukjiActivity extends MainActivity {
     }
 
     private void collectExe(File dir, List<File> out, int depth) {
-        if (depth > 6) return;
+        if (depth > 7) return;
         File[] files = dir.listFiles();
         if (files == null) return;
+
         for (File f : files) {
             if (f.isDirectory()) collectExe(f, out, depth + 1);
             else if (f.getName().toLowerCase(Locale.ROOT).endsWith(".exe")) out.add(f);
@@ -429,16 +379,19 @@ public class SeongSamgukjiActivity extends MainActivity {
     private int exeScore(File file) {
         String n = file.getName().toLowerCase(Locale.ROOT);
         int score = 0;
-        if (n.equals("ekd5.exe")) score += 10000;
-        if (n.equals("game.exe")) score += 8000;
-        if (n.contains("ekd") || n.contains("ccz")) score += 4000;
-        if (n.contains("saint") || n.contains("three") || n.contains("kingdom")) score += 3000;
-        if (file.getParentFile() != null && file.getParentFile().equals(gameDir)) score += 1200;
+
+        if (n.equals("ekd5.exe")) score += 20000;
+        if (n.equals("game.exe")) score += 10000;
+        if (n.contains("ekd") || n.contains("ccz")) score += 5000;
+        if (file.getParentFile() != null && file.getParentFile().equals(gameDir)) score += 1500;
         if (file.length() > 200_000 && file.length() < 30_000_000) score += 500;
 
-        for (String bad : Arrays.asList("setup", "install", "unins", "config", "editor", "patch", "update", "launcher")) {
-            if (n.contains(bad)) score -= 5000;
+        for (String bad : Arrays.asList(
+                "setup", "install", "unins", "config", "editor",
+                "patch", "update", "launcher", "tool")) {
+            if (n.contains(bad)) score -= 7000;
         }
+
         return score;
     }
 
@@ -447,14 +400,16 @@ public class SeongSamgukjiActivity extends MainActivity {
     }
 
     private void disableIntroMoviesRecursive(File dir, int depth) {
-        if (depth > 4) return;
+        if (depth > 5) return;
         File[] files = dir.listFiles();
         if (files == null) return;
+
         for (File f : files) {
             if (f.isDirectory()) {
                 disableIntroMoviesRecursive(f, depth + 1);
                 continue;
             }
+
             String n = f.getName().toLowerCase(Locale.ROOT);
             if (!n.endsWith(".avi")) continue;
 
@@ -476,10 +431,14 @@ public class SeongSamgukjiActivity extends MainActivity {
 
     private void deleteRecursive(File file) {
         if (file == null || !file.exists()) return;
+
         if (file.isDirectory()) {
             File[] children = file.listFiles();
-            if (children != null) for (File child : children) deleteRecursive(child);
+            if (children != null) {
+                for (File child : children) deleteRecursive(child);
+            }
         }
+
         file.delete();
     }
 
