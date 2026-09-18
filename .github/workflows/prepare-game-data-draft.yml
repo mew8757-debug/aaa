@@ -1,0 +1,25 @@
+name: Prepare Private Game Data Draft
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/prepare-game-data-draft.yml"
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create private draft release for game data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view game-data --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "game-data draft/release already exists"
+          else
+            gh release create game-data --repo "$GITHUB_REPOSITORY" --draft               --title "PRIVATE - 성삼국지 게임 데이터"               --notes "공개하지 마세요. game1.Zip 과 game2.Zip 두 파일을 이 초안 릴리스에 첨부하세요. 이 릴리스는 APK 빌드 입력 전용입니다."
+          fi
