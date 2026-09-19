@@ -1,0 +1,29 @@
+name: Analyze RPGViewer support data
+
+on:
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and inspect Addon.zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail -o Addon.zip             https://raw.githubusercontent.com/gotoshake/quick-cc/master/tools/RPGViewer30Build0311/Addon.zip
+          mkdir addon
+          unzip -q Addon.zip -d addon
+          echo "=== FILES ==="
+          find addon -type f -printf '%s %p\n' | sort
+          echo "=== TYPES ==="
+          find addon -type f -print0 | xargs -0 file
+          echo "=== TEXT/PARAMETER CANDIDATES ==="
+          for f in $(find addon -type f); do
+            case "$f" in
+              *.txt|*.ini|*.cfg|*.xml|*.dat)
+                echo "--- $f ---"
+                iconv -f gb18030 -t utf-8 "$f" 2>/dev/null || cat "$f" || true
+                ;;
+            esac
+          done
