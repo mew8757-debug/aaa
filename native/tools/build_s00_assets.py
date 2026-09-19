@@ -1428,6 +1428,85 @@ def extract_deployment_hints(commands):
     return hints
 
 
+
+def build_next_scenario_probe(filename, blob):
+    if blob is None:
+        return {
+            "filename": filename,
+            "found": False,
+        }
+    if not blob.startswith(b"EEX"):
+        return {
+            "filename": filename,
+            "found": True,
+            "size": len(blob),
+            "validEex": False,
+        }
+
+    scenes = parse_scenario_tree(blob)
+    flat = flatten_scenario_nodes(scenes)
+
+    flow_ids = {
+        0x07, 0x08, 0x0D, 0x11,
+        0x19, 0x1A,
+        0x44, 0x4A, 0x4B, 0x5A,
+    }
+    text_ids = {
+        0x14, 0x15, 0x16, 0x17, 0x18,
+        0x19, 0x1A, 0x69, 0x7A,
+    }
+
+    flow_commands = []
+    text_samples = []
+
+    for row in flat:
+        cid = row["commandId"]
+        if cid in flow_ids and len(flow_commands) < 80:
+            flow_commands.append({
+                "scene": row["scene"],
+                "section": row["section"],
+                "depth": row["depth"],
+                "commandId": cid,
+                "commandHex": f"0x{cid:02X}",
+                "params": row["params"],
+            })
+
+        if cid in text_ids and len(text_samples) < 30:
+            strings = [
+                value for value in row["params"]
+                if isinstance(value, str) and value.strip()
+            ]
+            if strings:
+                text_samples.append({
+                    "scene": row["scene"],
+                    "section": row["section"],
+                    "commandId": cid,
+                    "commandHex": f"0x{cid:02X}",
+                    "text": strings[-1],
+                })
+
+    counts = {}
+    for row in flat:
+        key = f"0x{row['commandId']:02X}"
+        counts[key] = counts.get(key, 0) + 1
+
+    return {
+        "filename": filename,
+        "found": True,
+        "validEex": True,
+        "size": len(blob),
+        "sceneCount": len(scenes),
+        "sectionCounts": [
+            len(scene["sections"])
+            for scene in scenes
+        ],
+        "commandCount": len(flat),
+        "commandCounts": counts,
+        "flowCommands": flow_commands,
+        "textSamples": text_samples,
+    }
+
+
 def main(argv):
     if len(argv) != 4:
         print("usage: build_s00_assets.py game1.Zip game2.Zip output-assets-dir")
@@ -1457,6 +1536,8 @@ def main(argv):
         spc = game1.read("Unit_spc.e5")
         pal = game1.read("Spalet.e5")
         s00 = game1.read("RS/S_00.eex")
+        r01 = read_member_by_basename(game1, "R_01.eex")
+        s01 = read_member_by_basename(game1, "S_01.eex")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -1500,6 +1581,10 @@ def main(argv):
     objective_model = extract_s00_objective_model(scenario_scenes)
     native_scene2_events = extract_scene2_native_events(scenario_scenes)
     outcome_events = extract_s00_outcome_events(scenario_scenes)
+    next_scenario_probe = {
+        "R_01.eex": build_next_scenario_probe("R_01.eex", r01),
+        "S_01.eex": build_next_scenario_probe("S_01.eex", s01),
+    }
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -1707,7 +1792,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 15,
+        "version": 16,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -1728,6 +1813,7 @@ def main(argv):
         "scenarioDiagnostics": scenario_diagnostics,
         "battleObjectives": objective_model,
         "outcomeEvents": outcome_events,
+        "nextScenarioProbe": next_scenario_probe,
         "battleEvents": native_scene2_events,
         "battleEventSummary": {
             "candidateCount": len(native_scene2_events),
