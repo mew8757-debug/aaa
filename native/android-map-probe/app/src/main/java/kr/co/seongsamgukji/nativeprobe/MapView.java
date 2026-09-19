@@ -69,6 +69,7 @@ public class MapView extends View {
     private final Set<Integer> joinedCharacterIds = new HashSet<>();
     private final Map<Integer, Integer> integerVariables = new HashMap<>();
     private final Map<Integer, Integer> rImageOverrides = new HashMap<>();
+    private final Map<Integer, Integer> portraitOverrides = new HashMap<>();
     private final Map<Integer, Integer> globalValues = new HashMap<>();
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
     private int pendingScenarioJump = -1;
@@ -169,6 +170,7 @@ public class MapView extends View {
     private JSONArray r05StoryScenes;
     private JSONArray r06StoryScenes;
     private JSONArray r07StoryScenes;
+    private JSONArray r08StoryScenes;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
@@ -187,12 +189,14 @@ public class MapView extends View {
     private boolean r05StoryActive = false;
     private boolean r06StoryActive = false;
     private boolean r07StoryActive = false;
+    private boolean r08StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
     private boolean s05Ready = false;
     private boolean s06Ready = false;
     private boolean s07Ready = false;
+    private boolean s08Ready = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
     private int rescueCharacterId = -1;
@@ -206,6 +210,7 @@ public class MapView extends View {
     private int r05StorySceneIndex = 0;
     private int r06StorySceneIndex = 0;
     private int r07StorySceneIndex = 0;
+    private int r08StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -830,6 +835,11 @@ public class MapView extends View {
                 && r07Story.optBoolean("supported", false)) {
             r07StoryScenes = r07Story.optJSONArray("scenes");
         }
+        JSONObject r08Story = battle.optJSONObject("r08Story");
+        if (r08Story != null
+                && r08Story.optBoolean("supported", false)) {
+            r08StoryScenes = r08Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -839,18 +849,21 @@ public class MapView extends View {
         r05StoryActive = false;
         r06StoryActive = false;
         r07StoryActive = false;
+        r08StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
         s05Ready = false;
         s06Ready = false;
         s07Ready = false;
+        s08Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
         r05StorySceneIndex = 0;
         r06StorySceneIndex = 0;
         r07StorySceneIndex = 0;
+        r08StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
@@ -2168,6 +2181,17 @@ public class MapView extends View {
                         battleEventWaitUntil = now + 120L;
                         return true;
 
+                    case "unitAbilityChange":
+                        applyUnitAbilityChangeAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 100L;
+                        return true;
+
+                    case "aiRangeLimit":
+                        applyAiRangeLimitAction(action);
+                        activeBattleActionIndex++;
+                        break;
+
                     case "highlightUnit":
                         applyHighlightUnitAction(action, now);
                         activeBattleActionIndex++;
@@ -2542,6 +2566,21 @@ public class MapView extends View {
             return;
         }
 
+        if (attribute == 1) {
+            if (direction == 0) {
+                integerVariables.put(
+                        variableId,
+                        portraitOverrides.getOrDefault(characterId, 0));
+            } else if (direction == 1) {
+                int value = integerVariables.getOrDefault(variableId, 0);
+                portraitOverrides.put(characterId, value);
+                lastCombatMessage = "초상 변경 · 인물 "
+                        + characterId + " → " + value;
+                combatMessageUntil = SystemClock.uptimeMillis() + 900L;
+            }
+            return;
+        }
+
         BattleUnit unit = findUnitByCharacterId(characterId);
         if (unit == null) {
             return;
@@ -2699,6 +2738,69 @@ public class MapView extends View {
         integerVariables.put(id, next);
     }
 
+
+
+    private void applyUnitAbilityChangeAction(JSONObject action) {
+        BattleUnit unit = findUnitByCharacterId(
+                action.optInt("characterId", -1));
+        if (unit == null) {
+            return;
+        }
+
+        int ability = action.optInt("ability", -1);
+        int operation = action.optInt("operation", 0);
+        int value = action.optInt("value", 0);
+
+        if (ability == 2) {
+            if (operation == 0) {
+                unit.spiritAdjustment = value;
+            } else if (operation == 1) {
+                unit.spiritAdjustment += value;
+            } else if (operation == 2) {
+                unit.spiritAdjustment -= value;
+            }
+            lastCombatMessage = unit.name
+                    + " 정신 보정 "
+                    + (unit.spiritAdjustment >= 0 ? "+" : "")
+                    + unit.spiritAdjustment;
+            combatMessageUntil = SystemClock.uptimeMillis() + 1000L;
+        }
+    }
+
+    private void applyAiRangeLimitAction(JSONObject action) {
+        int left = Math.min(
+                action.optInt("x1", 0),
+                action.optInt("x2", mapCols - 1));
+        int right = Math.max(
+                action.optInt("x1", 0),
+                action.optInt("x2", mapCols - 1));
+        int top = Math.min(
+                action.optInt("y1", 0),
+                action.optInt("y2", mapRows - 1));
+        int bottom = Math.max(
+                action.optInt("y1", 0),
+                action.optInt("y2", mapRows - 1));
+
+        JSONArray ids = action.optJSONArray("characterIds");
+        if (ids == null) {
+            return;
+        }
+        for (int i = 0; i < ids.length(); i++) {
+            BattleUnit unit = findUnitByCharacterId(ids.optInt(i, -1));
+            if (unit == null) {
+                continue;
+            }
+            unit.aiMinX = left;
+            unit.aiMinY = top;
+            unit.aiMaxX = right;
+            unit.aiMaxY = bottom;
+        }
+
+        lastCombatMessage = "AI 행동범위 · ("
+                + left + "," + top + ")~("
+                + right + "," + bottom + ")";
+        combatMessageUntil = SystemClock.uptimeMillis() + 900L;
+    }
 
     private void applyUnitHpChangeAction(JSONObject action) {
         BattleUnit unit = findUnitByCharacterId(
@@ -5881,6 +5983,13 @@ public class MapView extends View {
 
             int x = index % mapCols;
             int y = index / mapCols;
+            if (unit.aiMinX >= 0
+                    && (x < unit.aiMinX
+                    || y < unit.aiMinY
+                    || x > unit.aiMaxX
+                    || y > unit.aiMaxY)) {
+                continue;
+            }
             if (index != start
                     && occupied(x, y, unit)) {
                 continue;
