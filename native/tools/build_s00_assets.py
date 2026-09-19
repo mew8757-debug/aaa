@@ -1527,6 +1527,34 @@ def extract_s06_outcome_events(scenes):
     }
 
 
+def extract_s07_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            55,
+        ),
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                35,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            56,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
+
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
 
@@ -2022,6 +2050,11 @@ def compile_r_story_leaf(node):
             "commandId": cid,
             "params": params,
         }
+
+    if cid == 0x78:
+        action = native_action_from_node(node)
+        if action is not None:
+            return action
 
     if cid in (0x00, 0x01, 0x02, 0x51):
         return None
@@ -2685,6 +2718,8 @@ def main(argv):
         s06 = read_member_by_basename(game1, "S_06.eex")
         r07 = read_member_by_basename(game1, "R_07.eex")
         s07 = read_member_by_basename(game1, "S_07.eex")
+        r08 = read_member_by_basename(game1, "R_08.eex")
+        s08 = read_member_by_basename(game1, "S_08.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3053,6 +3088,14 @@ def main(argv):
     }
     s07_event_probe = extract_scene2_native_events(s07_scenes)
     s07_outcome_probe = probe_battle_outcome_candidates(s07_scenes)
+
+    s07_native_events = extract_scene2_native_events(
+        s07_scenes,
+        excluded_sections={35, 55, 56},
+    )
+    s07_outcome_events = extract_s07_outcome_events(s07_scenes)
+    r08_probe = build_next_scenario_probe("R_08.eex", r08)
+    s08_probe = build_next_scenario_probe("S_08.eex", s08)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -4506,7 +4549,7 @@ def main(argv):
         )
 
     s06_battle = {
-        "version": 43,
+        "version": 44,
         "source": "RS/S_06.eex",
         "battleMode": "kill-character",
         "mapId": 6,
@@ -4582,6 +4625,206 @@ def main(argv):
     }
     (battle_dir / "battle6.json").write_text(
         json.dumps(s06_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+    # S_07: Liu Bei's four-person detachment joins Gongsun Zan at Jieqiao.
+    # Victory is Yuan Shao (101) defeated; Liu Bei (0) and 30 turns are loss gates.
+    s07_units = []
+
+    def make_s07_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S07 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s07_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s07_player_ids = [0, 1, 2, 26]
+    expected_s07_players = ["유비", "관우", "장비", "간옹"]
+    if [name_of(cid) for cid in s07_player_ids] != expected_s07_players:
+        raise SystemExit(
+            "S07 player mapping mismatch: "
+            + repr([(cid, name_of(cid)) for cid in s07_player_ids])
+        )
+
+    s07_slots = sorted(
+        s07_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    )
+    if len(s07_slots) < len(s07_player_ids):
+        raise SystemExit(
+            "S07 player slot count too small: "
+            + repr(s07_slots)
+        )
+    for slot, cid in zip(s07_slots, s07_player_ids):
+        make_s07_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_07:0x4B:{slot['slot']}",
+        )
+
+    for index, row in enumerate(s07_init_probe["friendRecords"]):
+        make_s07_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_07:0x46:{index}",
+        )
+
+    for index, row in enumerate(s07_init_probe["enemyRecords"]):
+        make_s07_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_07:0x47:{index}",
+        )
+
+    s07_objective_text = (
+        s07_init_probe["objectiveTexts"][0]
+        if s07_init_probe["objectiveTexts"]
+        else ""
+    )
+    s07_popup_text = (
+        s07_init_probe["objectivePopups"][0]
+        if s07_init_probe["objectivePopups"]
+        else ""
+    )
+    s07_turn_match = re.search(r"(\d+)턴", s07_objective_text)
+    s07_turn_limit = int(s07_turn_match.group(1)) if s07_turn_match else 30
+
+    yuan_shao_id = 101
+    if name_of(yuan_shao_id) != "원소":
+        raise SystemExit(
+            f"S07 Yuan Shao mapping mismatch: "
+            f"{yuan_shao_id}={name_of(yuan_shao_id)}"
+        )
+    if name_of(0) != "유비":
+        raise SystemExit(f"S07 Liu Bei mapping mismatch: 0={name_of(0)}")
+
+    s07_battle = {
+        "version": 44,
+        "source": "RS/S_07.eex",
+        "battleMode": "kill-character",
+        "mapId": 7,
+        "map": "m007.jpg",
+        "widthTiles": map7_cols,
+        "heightTiles": map7_rows,
+        "terrainFile": "terrain7.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s07_objective_text,
+                "popupText": s07_popup_text,
+                "turnLimit": s07_turn_limit,
+                "goal": {
+                    "type": "kill-character",
+                    "characterId": yuan_shao_id,
+                    "name": name_of(yuan_shao_id),
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s07_turn_limit,
+            },
+            "protectedCharacterIds": [0],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)}
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s07_native_events,
+        "outcomeEvents": s07_outcome_events,
+        "outcomeProbe": s07_outcome_probe,
+        "nextScenarioProbe": {
+            "R_08.eex": r08_probe,
+            "S_08.eex": s08_probe,
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s07_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s07_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s07_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain7_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s07_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle7.json").write_text(
+        json.dumps(s07_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -4683,6 +4926,7 @@ def main(argv):
             + s04_units
             + s05_units
             + s06_units
+            + s07_units
         )
     })
     for sid in sprite_ids:
