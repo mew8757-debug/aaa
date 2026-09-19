@@ -1,0 +1,78 @@
+name: Analyze SeongSamgukji Runtime Requirements
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/analyze-game-runtime.yml"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download private game archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p game-data out
+          for PAIR in "573646841 game1.Zip" "573647280 game2.Zip"; do
+            set -- $PAIR
+            curl --fail --location --silent --show-error \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/octet-stream" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/$1" \
+              -o "game-data/$2"
+          done
+
+      - name: Extract and inspect likely startup files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import zipfile, os, pathlib, shutil
+          root=pathlib.Path("out/game")
+          root.mkdir(parents=True,exist_ok=True)
+          for zname in ["game-data/game1.Zip","game-data/game2.Zip"]:
+              with zipfile.ZipFile(zname) as z:
+                  z.extractall(root)
+          print("ROOT CONTENTS")
+          for p in sorted(root.iterdir(), key=lambda x:x.name.lower()):
+              print(p.name, p.stat().st_size if p.is_file() else "<DIR>")
+          print("\nINTERESTING FILES")
+          for p in sorted(root.rglob("*")):
+              if p.is_file() and (p.suffix.lower() in [".exe",".dll",".ini",".cfg",".reg",".txt"] or
+                  any(k in p.name.lower() for k in ["font","글꼴","config","setup","reg","locale"])):
+                  print(p.relative_to(root), p.stat().st_size)
+          PY
+
+          echo "=== FILE TYPES ==="
+          find out/game -type f \( -iname '*.exe' -o -iname '*.dll' \) -print0 | xargs -0 -r file
+
+          echo "=== EKD5 STRINGS ==="
+          EKD="$(find out/game -type f -iname 'Ekd5.exe' | head -n1)"
+          test -n "$EKD"
+          strings -a -el "$EKD" | head -n 400 || true
+          strings -a "$EKD" | grep -Ei 'font|charset|locale|registry|regedit|mci|avi|dll|error|ini|config|hangul|korean|949|gulim|dotum|batang' | head -n 400 || true
+
+          echo "=== FONT SETUP EXE ==="
+          FONTEXE="$(find out/game -type f -iname '*.exe' | grep -Ei 'font|글꼴' | head -n1 || true)"
+          echo "FONTEXE=$FONTEXE"
+          if [ -n "$FONTEXE" ]; then
+            file "$FONTEXE"
+            strings -a -el "$FONTEXE" | head -n 500 || true
+            strings -a "$FONTEXE" | grep -Ei 'font|reg|registry|charset|locale|949|gulim|dotum|batang|system|windows|CurrentVersion' | head -n 500 || true
+          fi
+
+          echo "=== INI/REG/TXT CONTENT ==="
+          while IFS= read -r -d '' f; do
+            echo "--- $f ---"
+            iconv -f CP949 -t UTF-8 "$f" 2>/dev/null | head -n 250 || head -n 250 "$f" || true
+          done < <(find out/game -type f \( -iname '*.ini' -o -iname '*.cfg' -o -iname '*.reg' -o -iname '*.txt' \) -print0)
