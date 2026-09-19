@@ -70,6 +70,7 @@ public class MapView extends View {
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
     private final List<JSONArray> battleActionStack = new ArrayList<>();
     private final List<Integer> battleActionIndexStack = new ArrayList<>();
+    private final List<Boolean> battleConditionalStack = new ArrayList<>();
     private final Map<Integer, Bitmap[]> idleSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> moveSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> attackSprites = new HashMap<>();
@@ -146,12 +147,21 @@ public class MapView extends View {
 
     private JSONObject activeBattleEvent;
     private JSONArray activeBattleActions;
+    private JSONArray victoryOutcomeActions;
+    private JSONArray defeatOutcomeActions;
+    private JSONArray postBattleOutcomeActions;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
     private boolean scriptEventActive = false;
     private BattleUnit duelFirstUnit;
     private BattleUnit duelSecondUnit;
+    private boolean lastBattleConditionalTaken = false;
+    private boolean outcomeFlowActive = false;
+    private String outcomeStage = "";
+    private boolean menuEnabled = true;
+    private boolean paletteResetApplied = false;
+    private boolean s00Complete = false;
 
     public MapView(Context context) {
         super(context);
@@ -385,6 +395,23 @@ public class MapView extends View {
             }
         }
 
+        JSONObject outcomeEvents = battle.optJSONObject("outcomeEvents");
+        if (outcomeEvents != null) {
+            JSONObject victory = outcomeEvents.optJSONObject("victory");
+            JSONObject defeat = outcomeEvents.optJSONObject("defeat");
+            JSONObject postBattle = outcomeEvents.optJSONObject("postBattle");
+            if (victory != null && victory.optBoolean("supported", false)) {
+                victoryOutcomeActions = victory.optJSONArray("actions");
+            }
+            if (defeat != null && defeat.optBoolean("supported", false)) {
+                defeatOutcomeActions = defeat.optJSONArray("actions");
+            }
+            if (postBattle != null
+                    && postBattle.optBoolean("supported", false)) {
+                postBattleOutcomeActions = postBattle.optJSONArray("actions");
+            }
+        }
+
         JSONArray compiledEvents = battle.optJSONArray("battleEvents");
         if (compiledEvents != null) {
             for (int i = 0; i < compiledEvents.length(); i++) {
@@ -583,7 +610,7 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v1.4 | " + round + "/" + turnLimit + "턴 "
+                "Native v1.5 | " + round + "/" + turnLimit + "턴 "
                         + (playerTurn ? "아군" : "적군")
                         + " | 단계 " + battlePhase
                         + " | 아군 " + playerCount
@@ -1178,20 +1205,34 @@ public class MapView extends View {
                         }
                         break;
 
-                    case "conditionalVariables":
-                        if (scriptVariableConditionSatisfied(action)
-                                && enterNestedBattleActions(
+                    case "conditionalVariables": {
+                        boolean taken = scriptVariableConditionSatisfied(action);
+                        lastBattleConditionalTaken = taken;
+                        if (taken && enterNestedBattleActions(
                                 action.optJSONArray("actions"))) {
                             break;
                         }
                         activeBattleActionIndex++;
                         break;
+                    }
 
                     case "conditionalTrigger": {
                         JSONObject trigger = action.optJSONObject("trigger");
-                        if (trigger != null
-                                && battleTriggerSatisfied(trigger)
-                                && enterNestedBattleActions(
+                        boolean taken = trigger != null
+                                && battleTriggerSatisfied(trigger);
+                        lastBattleConditionalTaken = taken;
+                        if (taken && enterNestedBattleActions(
+                                action.optJSONArray("actions"))) {
+                            break;
+                        }
+                        activeBattleActionIndex++;
+                        break;
+                    }
+
+                    case "elseBranch": {
+                        boolean taken = !lastBattleConditionalTaken;
+                        lastBattleConditionalTaken = taken;
+                        if (taken && enterNestedBattleActions(
                                 action.optJSONArray("actions"))) {
                             break;
                         }
@@ -1425,6 +1466,67 @@ public class MapView extends View {
                         battleEventWaitUntil = now + 160L;
                         return true;
 
+                    case "loot": {
+                        JSONArray slots = action.optJSONArray("slots");
+                        StringBuilder rewardText = new StringBuilder();
+                        if (slots != null) {
+                            for (int i = 0; i < slots.length(); i++) {
+                                JSONObject slot = slots.optJSONObject(i);
+                                if (slot == null) {
+                                    continue;
+                                }
+                                int itemId = slot.optInt("itemId", -1);
+                                if (itemId < 0) {
+                                    continue;
+                                }
+                                itemInventory.put(
+                                        itemId,
+                                        itemInventory.getOrDefault(
+                                                itemId,
+                                                0) + 1);
+                                if (rewardText.length() > 0) {
+                                    rewardText.append(", ");
+                                }
+                                rewardText.append(itemId);
+                            }
+                        }
+                        lastCombatMessage = rewardText.length() == 0
+                                ? "원본 전리품 정산"
+                                : "전리품 · 아이템 " + rewardText;
+                        combatMessageUntil = now + 1600L;
+                        activeBattleActionIndex++;
+                        break;
+                    }
+
+                    case "battleEndMarker":
+                        lastCombatMessage = "원본 전투 종료 처리";
+                        combatMessageUntil = now + 900L;
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "battleFailureMarker":
+                        lastCombatMessage = "원본 패배 처리";
+                        combatMessageUntil = now + 900L;
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "sceneEnd":
+                        lastCombatMessage = "원본 Scene 종료";
+                        combatMessageUntil = now + 700L;
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "menu":
+                        menuEnabled = action.optBoolean("enabled", false);
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "paletteReset":
+                        paletteResetApplied = true;
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 100L;
+                        return true;
+
                     case "setVariable":
                         scenarioVariables.put(
                                 action.optInt("variableId", -1),
@@ -1496,8 +1598,10 @@ public class MapView extends View {
         }
         battleActionStack.add(activeBattleActions);
         battleActionIndexStack.add(activeBattleActionIndex + 1);
+        battleConditionalStack.add(lastBattleConditionalTaken);
         activeBattleActions = actions;
         activeBattleActionIndex = 0;
+        lastBattleConditionalTaken = false;
         return true;
     }
 
@@ -1508,6 +1612,7 @@ public class MapView extends View {
         int last = battleActionStack.size() - 1;
         activeBattleActions = battleActionStack.remove(last);
         activeBattleActionIndex = battleActionIndexStack.remove(last);
+        lastBattleConditionalTaken = battleConditionalStack.remove(last);
         return true;
     }
 
@@ -1826,17 +1931,75 @@ public class MapView extends View {
         combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
     }
 
-    private void startBattleScriptEvent(JSONObject event) {
-        activeBattleEvent = event;
-        activeBattleActions = event.optJSONArray("actions");
+
+    private void prepareScriptActionSequence(JSONArray actions) {
+        activeBattleActions = actions;
         activeBattleActionIndex = 0;
         battleActionStack.clear();
         battleActionIndexStack.clear();
+        battleConditionalStack.clear();
+        lastBattleConditionalTaken = false;
         duelFirstUnit = null;
         duelSecondUnit = null;
         battleEventWaitUntil = SystemClock.uptimeMillis() + 80L;
         battleEventMovingUnit = null;
         scriptEventActive = true;
+    }
+
+    private void startVictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "S_00 적군 전멸");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "victory";
+        battleVictory = true;
+        pendingCounterAttacker = null;
+        pendingCounterTarget = null;
+        pendingCounterAt = 0L;
+        activeEnemy = null;
+        activeEnemyTarget = null;
+        activeEnemyAttackPending = false;
+        enemyTurnOrder.clear();
+        if (!victory) {
+            outcomeFlowActive = false;
+            outcomeStage = "defeat";
+        }
+        clearReachable();
+
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_00 승리 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startPostBattleCleanup() {
+        outcomeStage = "postBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS00Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_00 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS00Outcome() {
+        outcomeFlowActive = false;
+        outcomeStage = "complete";
+        s00Complete = true;
+        endBattle(true, "S_00 원본 승리 흐름 완료");
+    }
+
+    private void startBattleScriptEvent(JSONObject event) {
+        activeBattleEvent = event;
+        prepareScriptActionSequence(event.optJSONArray("actions"));
 
         int section = event.optInt("section", -1);
         if (section >= 0) {
@@ -1855,11 +2018,25 @@ public class MapView extends View {
         activeBattleActionIndex = 0;
         battleActionStack.clear();
         battleActionIndexStack.clear();
+        battleConditionalStack.clear();
+        lastBattleConditionalTaken = false;
         duelFirstUnit = null;
         duelSecondUnit = null;
         battleEventMovingUnit = null;
         battleEventWaitUntil = 0L;
         scriptEventActive = false;
+
+        if (outcomeFlowActive) {
+            if ("victory".equals(outcomeStage)) {
+                startPostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("postBattle".equals(outcomeStage)) {
+                finishS00Outcome();
+                return;
+            }
+        }
 
         checkBattleState();
         if (!battleEnded
@@ -2414,9 +2591,7 @@ public class MapView extends View {
                 }
             }
         } else if (!hasVisibleAliveEnemy()) {
-            endBattle(
-                    true,
-                    "현재 활성 적군 전멸 · S_00 승리 테스트");
+            startVictoryOutcome();
         }
     }
 
@@ -2444,6 +2619,8 @@ public class MapView extends View {
         activeBattleActions = null;
         battleActionStack.clear();
         battleActionIndexStack.clear();
+        battleConditionalStack.clear();
+        lastBattleConditionalTaken = false;
         duelFirstUnit = null;
         duelSecondUnit = null;
         battleEventMovingUnit = null;
