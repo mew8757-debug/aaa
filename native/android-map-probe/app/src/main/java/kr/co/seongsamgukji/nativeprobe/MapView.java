@@ -30,7 +30,7 @@ public class MapView extends View {
     private static final int UNIT_H = 48;
     private static final int MOVE_FRAMES = 11;
     private static final int IDLE_FRAMES = 5;
-    private static final long MOVE_STEP_MS = 165L;
+    private static final long MOVE_STEP_MS = 150L;
 
     private static final int FACTION_PLAYER = 0;
     private static final int FACTION_ALLY = 1;
@@ -45,9 +45,13 @@ public class MapView extends View {
     private final Paint hpBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hpPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint labelBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint dialogueBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint dialogueNamePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint dialogueTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final ScaleGestureDetector scaleDetector;
 
     private final List<BattleUnit> units = new ArrayList<>();
+    private final List<OpeningEvent> openingEvents = new ArrayList<>();
     private final Map<Integer, Bitmap[]> idleCache = new HashMap<>();
     private final Map<Integer, Bitmap[]> moveCache = new HashMap<>();
 
@@ -65,6 +69,15 @@ public class MapView extends View {
     private int selectedX = -1;
     private int selectedY = -1;
     private BattleUnit selectedUnit;
+
+    private int openingIndex = 0;
+    private boolean openingFinished = false;
+    private long openingWaitUntil = 0L;
+    private BattleUnit scriptedMovingUnit;
+    private String dialogueSpeaker;
+    private String dialogueText;
+    private int musicTrack = -1;
+    private int lastSound = -1;
 
     public MapView(Context context) {
         super(context);
@@ -91,7 +104,7 @@ public class MapView extends View {
         spritePaint.setAntiAlias(false);
         spritePaint.setFilterBitmap(false);
 
-        gridPaint.setColor(0x33FFFFFF);
+        gridPaint.setColor(0x2AFFFFFF);
         gridPaint.setStrokeWidth(1f);
         gridPaint.setStyle(Paint.Style.STROKE);
 
@@ -104,13 +117,20 @@ public class MapView extends View {
         labelBackPaint.setColor(0xAA000000);
 
         overlayTextPaint.setColor(Color.WHITE);
-        overlayTextPaint.setTextSize(26f);
+        overlayTextPaint.setTextSize(25f);
         overlayTextPaint.setShadowLayer(4f, 2f, 2f, Color.BLACK);
 
         unitTextPaint.setColor(Color.WHITE);
-        unitTextPaint.setTextSize(13f);
+        unitTextPaint.setTextSize(12f);
         unitTextPaint.setTextAlign(Paint.Align.CENTER);
         unitTextPaint.setShadowLayer(3f, 1f, 1f, Color.BLACK);
+
+        dialogueBackPaint.setColor(0xE61A1A1A);
+        dialogueNamePaint.setColor(0xFFFFD86B);
+        dialogueNamePaint.setTextSize(30f);
+        dialogueNamePaint.setFakeBoldText(true);
+        dialogueTextPaint.setColor(Color.WHITE);
+        dialogueTextPaint.setTextSize(27f);
 
         scaleDetector = new ScaleGestureDetector(context,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -134,8 +154,8 @@ public class MapView extends View {
     private void loadBattle(Context context) throws Exception {
         String jsonText = new String(loadBytes(context, "battle/battle0.json"), StandardCharsets.UTF_8);
         JSONObject root = new JSONObject(jsonText);
-        JSONArray array = root.getJSONArray("units");
 
+        JSONArray array = root.getJSONArray("units");
         for (int i = 0; i < array.length(); i++) {
             JSONObject item = array.getJSONObject(i);
             BattleUnit unit = new BattleUnit();
@@ -149,6 +169,7 @@ public class MapView extends View {
             unit.direction = item.optInt("direction", 2);
             unit.level = item.optInt("level", 0);
             unit.unitImage = item.getInt("unitImage");
+            unit.visible = item.optBoolean("visible", true);
 
             unit.idleFrames = idleCache.get(unit.unitImage);
             unit.moveFrames = moveCache.get(unit.unitImage);
@@ -176,12 +197,38 @@ public class MapView extends View {
             units.add(unit);
         }
 
+        JSONArray events = root.optJSONArray("openingEvents");
+        if (events != null) {
+            for (int i = 0; i < events.length(); i++) {
+                JSONObject item = events.getJSONObject(i);
+                OpeningEvent event = new OpeningEvent();
+                event.type = item.getString("type");
+                event.characterId = item.optInt("characterId", -1);
+                event.targetId = item.optInt("targetId", -1);
+                event.x = item.optInt("x", Integer.MIN_VALUE);
+                event.y = item.optInt("y", Integer.MIN_VALUE);
+                event.direction = item.optInt("direction", -1);
+                event.value = item.optInt("value", 0);
+                event.speaker = item.optString("speaker", "");
+                event.text = item.optString("text", "");
+                openingEvents.add(event);
+            }
+        }
+
+        openingFinished = openingEvents.isEmpty();
+        selectFirstPlayer();
+        if (!openingFinished) {
+            openingWaitUntil = SystemClock.uptimeMillis() + 450L;
+        }
+    }
+
+    private void selectFirstPlayer() {
         for (BattleUnit unit : units) {
-            if (unit.faction == FACTION_PLAYER) {
+            if (unit.faction == FACTION_PLAYER && unit.visible) {
                 selectedUnit = unit;
                 selectedX = unit.x;
                 selectedY = unit.y;
-                break;
+                return;
             }
         }
     }
@@ -219,8 +266,6 @@ public class MapView extends View {
                 }
 
                 int q = index * 3;
-
-                // Spalet.e5 uses B,R,G byte order in this engine generation.
                 int b = palette[q] & 0xff;
                 int r = palette[q + 1] & 0xff;
                 int g = palette[q + 2] & 0xff;
@@ -255,6 +300,7 @@ public class MapView extends View {
         if (map == null) return;
 
         boolean moving = updateMovement();
+        boolean openingBusy = pumpOpeningEvents();
 
         canvas.save();
         canvas.translate(offsetX, offsetY);
@@ -272,7 +318,7 @@ public class MapView extends View {
             canvas.drawLine(0, y * TILE, cols * TILE, y * TILE, gridPaint);
         }
 
-        if (selectedX >= 0 && selectedY >= 0) {
+        if (openingFinished && selectedX >= 0 && selectedY >= 0) {
             canvas.drawRect(new RectF(
                     selectedX * TILE,
                     selectedY * TILE,
@@ -281,50 +327,83 @@ public class MapView extends View {
         }
 
         for (BattleUnit unit : units) {
-            drawUnit(canvas, unit);
+            if (unit.visible) {
+                drawUnit(canvas, unit);
+            }
         }
 
         canvas.restore();
 
         int enemies = 0;
         int players = 0;
+        int allies = 0;
         for (BattleUnit unit : units) {
+            if (!unit.visible) continue;
             if (unit.faction == FACTION_ENEMY) enemies++;
-            if (unit.faction == FACTION_PLAYER) players++;
+            else if (unit.faction == FACTION_ALLY) allies++;
+            else if (unit.faction == FACTION_PLAYER) players++;
         }
 
-        canvas.drawText("Native v0.4  |  S_00 실제 초기 배치  |  아군 " + players + " / 적군 " + enemies,
+        canvas.drawText(
+                "Native v0.5  |  S_00 원본 오프닝 이벤트  |  아군 " + players
+                        + " / 우군 " + allies + " / 적군 " + enemies,
                 22, 36, overlayTextPaint);
-        canvas.drawText("유닛 터치=선택 · 선택한 아군의 이동 위치 터치 · 드래그=화면 이동 · 두 손가락=확대/축소",
-                22, 70, overlayTextPaint);
 
-        if (selectedUnit != null) {
+        if (!openingFinished) {
+            String status = dialogueText != null
+                    ? "원본 대사 재생 중 · 화면 터치 = 다음 대사"
+                    : "원본 S_00 이벤트 실행 중";
+            if (musicTrack >= 0) status += " · BGM " + musicTrack;
+            canvas.drawText(status, 22, 70, overlayTextPaint);
+        }
+        else {
+            canvas.drawText(
+                    "오프닝 재생 완료 · 유닛 터치=선택 · 빈 타일 터치=선택한 아군 이동 · 드래그/핀치",
+                    22, 70, overlayTextPaint);
+        }
+
+        if (openingFinished && selectedUnit != null) {
             canvas.drawText(
                     "선택: " + selectedUnit.name + "  ID " + selectedUnit.characterId
-                            + "  S이미지 #" + selectedUnit.unitImage
+                            + "  Unit #" + selectedUnit.unitImage
                             + "  (" + selectedUnit.x + "," + selectedUnit.y + ")",
                     22, 104, overlayTextPaint);
         }
 
-        if (moving) {
+        if (dialogueText != null) {
+            drawDialogueBox(canvas);
+        }
+
+        if (moving || openingBusy || !openingFinished) {
             postInvalidateDelayed(35L);
         }
     }
 
     private void drawUnit(Canvas canvas, BattleUnit unit) {
+        long now = SystemClock.uptimeMillis();
         boolean moving = unit.x != unit.targetX || unit.y != unit.targetY;
-        Bitmap[] source = moving ? unit.moveFrames : unit.idleFrames;
-        int frameIndex = moving
-                ? Math.max(0, Math.min(unit.moveFrame, source.length - 1))
-                : 0;
-        Bitmap frame = source[frameIndex];
 
+        Bitmap[] source;
+        int frameIndex;
+        if (now < unit.actionUntil && unit.idleFrames.length > 0) {
+            source = unit.idleFrames;
+            frameIndex = Math.abs(unit.actionFrame) % source.length;
+        }
+        else if (moving) {
+            source = unit.moveFrames;
+            frameIndex = Math.max(0, Math.min(unit.moveFrame, source.length - 1));
+        }
+        else {
+            source = unit.idleFrames;
+            frameIndex = 0;
+        }
+
+        Bitmap frame = source[frameIndex];
         float spriteX = unit.x * TILE;
         float spriteY = unit.y * TILE;
         canvas.drawBitmap(frame, spriteX, spriteY, spritePaint);
 
         float hpY = spriteY - 4f;
-        hpBackPaint.setColor(0xD0000000);
         if (unit.faction == FACTION_ENEMY) {
             hpPaint.setColor(0xFFFF5555);
         }
@@ -342,9 +421,209 @@ public class MapView extends View {
         String label = unit.name;
         float tw = unitTextPaint.measureText(label);
         float labelY = spriteY + TILE + 13f;
-        canvas.drawRect(cx - tw * 0.5f - 3f, labelY - 13f, cx + tw * 0.5f + 3f, labelY + 3f,
+        canvas.drawRect(
+                cx - tw * 0.5f - 3f,
+                labelY - 13f,
+                cx + tw * 0.5f + 3f,
+                labelY + 3f,
                 labelBackPaint);
         canvas.drawText(label, cx, labelY, unitTextPaint);
+    }
+
+    private void drawDialogueBox(Canvas canvas) {
+        float left = 24f;
+        float right = getWidth() - 24f;
+        float bottom = getHeight() - 22f;
+        float top = Math.max(130f, bottom - 190f);
+
+        canvas.drawRoundRect(new RectF(left, top, right, bottom), 16f, 16f, dialogueBackPaint);
+
+        float x = left + 22f;
+        float y = top + 39f;
+        String speaker = dialogueSpeaker == null || dialogueSpeaker.isEmpty() ? "대사" : dialogueSpeaker;
+        canvas.drawText(speaker, x, y, dialogueNamePaint);
+
+        y += 42f;
+        drawWrappedText(canvas, dialogueText, x, y, right - left - 44f, 35f);
+
+        dialogueTextPaint.setTextAlign(Paint.Align.RIGHT);
+        canvas.drawText("▼ 터치", right - 18f, bottom - 13f, dialogueTextPaint);
+        dialogueTextPaint.setTextAlign(Paint.Align.LEFT);
+    }
+
+    private void drawWrappedText(Canvas canvas, String text, float x, float y, float maxWidth, float lineHeight) {
+        if (text == null) return;
+
+        int maxLines = 3;
+        int lines = 0;
+        String[] paragraphs = text.replace("\r", "").split("\n", -1);
+
+        for (String paragraph : paragraphs) {
+            if (lines >= maxLines) break;
+            if (paragraph.isEmpty()) {
+                y += lineHeight;
+                lines++;
+                continue;
+            }
+
+            StringBuilder line = new StringBuilder();
+            for (int i = 0; i < paragraph.length(); i++) {
+                char ch = paragraph.charAt(i);
+                String candidate = line.toString() + ch;
+                if (dialogueTextPaint.measureText(candidate) > maxWidth && line.length() > 0) {
+                    canvas.drawText(line.toString(), x, y, dialogueTextPaint);
+                    y += lineHeight;
+                    lines++;
+                    if (lines >= maxLines) return;
+                    line.setLength(0);
+                }
+                line.append(ch);
+            }
+
+            if (line.length() > 0 && lines < maxLines) {
+                canvas.drawText(line.toString(), x, y, dialogueTextPaint);
+                y += lineHeight;
+                lines++;
+            }
+        }
+    }
+
+    private boolean pumpOpeningEvents() {
+        if (openingFinished) return false;
+        if (dialogueText != null) return true;
+
+        long now = SystemClock.uptimeMillis();
+
+        if (scriptedMovingUnit != null) {
+            if (scriptedMovingUnit.x == scriptedMovingUnit.targetX
+                    && scriptedMovingUnit.y == scriptedMovingUnit.targetY) {
+                scriptedMovingUnit = null;
+                openingIndex++;
+                openingWaitUntil = now + 90L;
+            }
+            else {
+                return true;
+            }
+        }
+
+        if (now < openingWaitUntil) {
+            return true;
+        }
+
+        while (openingIndex < openingEvents.size()) {
+            OpeningEvent event = openingEvents.get(openingIndex);
+
+            switch (event.type) {
+                case "dialogue":
+                    dialogueSpeaker = event.speaker;
+                    dialogueText = event.text;
+                    return true;
+
+                case "delay":
+                    openingIndex++;
+                    openingWaitUntil = now + Math.max(100L, event.value * 80L);
+                    return true;
+
+                case "move": {
+                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    if (unit != null) {
+                        unit.visible = true;
+                        if (event.x != Integer.MIN_VALUE) unit.targetX = event.x;
+                        if (event.y != Integer.MIN_VALUE) unit.targetY = event.y;
+                        if (event.direction >= 0) unit.direction = event.direction;
+                        unit.lastMoveStepAt = 0L;
+                        scriptedMovingUnit = unit;
+                        return true;
+                    }
+                    openingIndex++;
+                    break;
+                }
+
+                case "reveal": {
+                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    if (unit != null) unit.visible = true;
+                    openingIndex++;
+                    openingWaitUntil = now + 120L;
+                    return true;
+                }
+
+                case "hide":
+                case "retreat": {
+                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    if (unit != null) unit.visible = false;
+                    openingIndex++;
+                    openingWaitUntil = now + 140L;
+                    return true;
+                }
+
+                case "turn": {
+                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    if (unit != null) {
+                        int dir = event.direction;
+                        if (dir < 0 && event.targetId >= 0) {
+                            BattleUnit target = findUnitByCharacterId(event.targetId);
+                            if (target != null) {
+                                dir = directionToward(unit, target);
+                            }
+                        }
+                        if (dir >= 0) unit.direction = dir;
+                    }
+                    openingIndex++;
+                    openingWaitUntil = now + 130L;
+                    return true;
+                }
+
+                case "action": {
+                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    if (unit != null) {
+                        unit.actionFrame = event.value;
+                        unit.actionUntil = now + 420L;
+                    }
+                    openingIndex++;
+                    openingWaitUntil = now + 420L;
+                    return true;
+                }
+
+                case "music":
+                    musicTrack = event.value;
+                    openingIndex++;
+                    break;
+
+                case "sound":
+                    lastSound = event.value;
+                    openingIndex++;
+                    break;
+
+                case "end":
+                    openingIndex = openingEvents.size();
+                    finishOpening();
+                    return false;
+
+                default:
+                    openingIndex++;
+                    break;
+            }
+        }
+
+        finishOpening();
+        return false;
+    }
+
+    private int directionToward(BattleUnit from, BattleUnit to) {
+        int dx = to.x - from.x;
+        int dy = to.y - from.y;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+            return dx >= 0 ? 1 : 3;
+        }
+        return dy >= 0 ? 2 : 0;
+    }
+
+    private void finishOpening() {
+        openingFinished = true;
+        dialogueSpeaker = null;
+        dialogueText = null;
+        scriptedMovingUnit = null;
+        selectFirstPlayer();
     }
 
     private boolean updateMovement() {
@@ -370,7 +649,7 @@ public class MapView extends View {
 
             unit.moveFrame = (unit.moveFrame + 1) % unit.moveFrames.length;
 
-            if (unit == selectedUnit) {
+            if (unit == selectedUnit && openingFinished) {
                 selectedX = unit.x;
                 selectedY = unit.y;
             }
@@ -381,11 +660,29 @@ public class MapView extends View {
 
     private BattleUnit findUnitAt(int tx, int ty) {
         for (BattleUnit unit : units) {
-            if (unit.x == tx && unit.y == ty) {
+            if (unit.visible && unit.x == tx && unit.y == ty) {
                 return unit;
             }
         }
         return null;
+    }
+
+    private BattleUnit findUnitByCharacterId(int characterId) {
+        for (BattleUnit unit : units) {
+            if (unit.characterId == characterId) {
+                return unit;
+            }
+        }
+        return null;
+    }
+
+    private void advanceDialogue() {
+        if (dialogueText == null) return;
+        dialogueSpeaker = null;
+        dialogueText = null;
+        openingIndex++;
+        openingWaitUntil = SystemClock.uptimeMillis() + 80L;
+        invalidate();
     }
 
     @Override
@@ -411,6 +708,14 @@ public class MapView extends View {
 
                 case MotionEvent.ACTION_UP:
                     float move = Math.abs(event.getX() - downX) + Math.abs(event.getY() - downY);
+
+                    if (!openingFinished) {
+                        if (move < 24f && dialogueText != null) {
+                            advanceDialogue();
+                        }
+                        return true;
+                    }
+
                     if (move < 24f) {
                         float mx = (event.getX() - offsetX) / scale;
                         float my = (event.getY() - offsetY) / scale;
@@ -459,8 +764,23 @@ public class MapView extends View {
         int level;
         int unitImage;
         int moveFrame;
+        int actionFrame;
+        long actionUntil;
         long lastMoveStepAt;
+        boolean visible;
         Bitmap[] idleFrames;
         Bitmap[] moveFrames;
+    }
+
+    private static final class OpeningEvent {
+        String type;
+        int characterId;
+        int targetId;
+        int x;
+        int y;
+        int direction;
+        int value;
+        String speaker;
+        String text;
     }
 }
