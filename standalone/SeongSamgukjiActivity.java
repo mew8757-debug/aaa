@@ -51,7 +51,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v8";
+    private static final String PREFS = "seong_samgukji_oneclick_v9";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -228,6 +228,29 @@ public class SeongSamgukjiActivity extends MainActivity {
 
                 mergeInto(normalizeRoot(part1), gameDir);
                 mergeInto(normalizeRoot(part2), gameDir);
+
+                // The bundled Ekd5.exe is a 0.2.3-bitmap-test SeongFont patched build
+                // whose own install metadata says runtime_game_qa=NOT_RUN. Under Wine it
+                // opens briefly and exits. Restore the original executable before launch.
+                File patchedExe = new File(gameDir, "Ekd5.exe");
+                File originalBackup = new File(gameDir, "Ekd5.exe.font-original.bak");
+                if (originalBackup.isFile()) {
+                    File patchedBackup = new File(gameDir, "Ekd5.exe.font-patched.bak");
+                    if (patchedExe.isFile() && !patchedBackup.exists()) copyFile(patchedExe, patchedBackup);
+                    copyFile(originalBackup, patchedExe);
+                }
+
+                // Disable the experimental external font hook for the original executable.
+                File seongFontIni = new File(gameDir, "SeongFont.ini");
+                if (seongFontIni.isFile()) {
+                    try (PrintWriter pw = new PrintWriter(new FileOutputStream(seongFontIni, false))) {
+                        pw.println("[Font]");
+                        pw.println("Enabled=0");
+                        pw.println("Mode=Bitmap");
+                        pw.println("FontFile=");
+                        pw.println("FaceName=");
+                    }
+                }
 
                 File exe = new File(gameDir, "Ekd5.exe");
                 if (!exe.isFile()) exe = findExactExe(gameDir, "Ekd5.exe");
