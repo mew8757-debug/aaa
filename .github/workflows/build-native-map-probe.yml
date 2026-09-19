@@ -76,7 +76,7 @@ jobs:
           else
             gh release create native-battle-v1.0 "${OUT}" --draft \
               --title "PRIVATE - 성삼국지 Native Battle v1.0" \
-              --notes "v0.9 턴 루프를 유지하면서 원본 전투 의미론을 검증하기 위한 v1.0 프로브입니다. S_00.eex 전체 Scene/Section/중첩 이벤트를 재귀 파싱해 승패 관련 명령 트리를 기록하고, Data.e5의 40x30 지형발휘 원본값과 Ekd5.exe의 40x40 병종상성 행렬을 APK 자산으로 추출합니다. 두 행렬은 중립값 100 후보라는 근거는 있으나 정확한 계산 적용 순서가 아직 검증되지 않아 이번 단계에서는 피해 계산에 적용하지 않습니다. 빌드 진단 결과를 이용해 S00 실제 승패 조건과 보정 순서를 확정한 뒤 같은 v1.0에 반영합니다. 공개 배포하지 마세요." \
+              --notes "Native v1.0은 v0.9 턴 루프 위에 S_00.eex 원본 승패 상태기를 연결합니다. 1단계는 1025(우리군 또는 우군)가 (6,13)에 도착하는 목표이며, 도달 시 원본 Section 2-1의 백성5/추정/유비 대사·등장/숨김·보상 이벤트를 재생하고 0x5D 원본값으로 회합 상한을 15턴으로 바꿔 2단계 적 전멸 목표로 전환합니다. 유비(0)·추정(181) 사망, 1단계 적군(1026)의 (13,11) 마을 진입, 턴 초과를 패배 조건으로 적용합니다. 지형발휘/병종상성 행렬은 계속 원본 그대로 패키징하되 정확한 계산 순서가 검증될 때까지 피해 공식에는 섞지 않습니다. 공개 배포하지 마세요." \\
               --repo "${GITHUB_REPOSITORY}"
           fi
 
@@ -112,6 +112,15 @@ jobs:
               status["supportedAttackRangeIds"] = battle.get("supportedAttackRangeIds", [])
               status["terrainIds"] = battle.get("terrainIds", [])
               status["rawCombatSemantics"] = battle.get("rawCombatSemantics", {})
+              objectives = battle.get("battleObjectives", {})
+              status["battleObjectives"] = {
+                  "phase1": objectives.get("phase1", {}),
+                  "phase2": objectives.get("phase2", {}),
+                  "protectedCharacterIds": objectives.get("protectedCharacterIds", []),
+                  "phase1TransitionEventCount": len(
+                      objectives.get("phase1TransitionEvents", [])
+                  ),
+              }
               diag = battle.get("scenarioDiagnostics", {})
               status["scenarioDiagnostics"] = {
                   "sceneCount": diag.get("sceneCount"),

@@ -58,6 +58,8 @@ public class MapView extends View {
     private final ScaleGestureDetector scaleDetector;
     private final List<BattleUnit> units = new ArrayList<>();
     private final List<OpeningEvent> openingEvents = new ArrayList<>();
+    private final List<OpeningEvent> phaseTransitionEvents = new ArrayList<>();
+    private final List<Integer> protectedCharacterIds = new ArrayList<>();
     private final Map<Integer, Bitmap[]> idleSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> moveSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> attackSprites = new HashMap<>();
@@ -112,6 +114,25 @@ public class MapView extends View {
     private BattleUnit pendingCounterAttacker;
     private BattleUnit pendingCounterTarget;
     private long pendingCounterAt;
+
+    private int battlePhase = 1;
+    private int turnLimit = 3;
+    private int phase2TurnLimit = 15;
+    private int phase1GoalX = 6;
+    private int phase1GoalY = 13;
+    private int villageFailX = 13;
+    private int villageFailY = 11;
+    private String objectiveText = "";
+    private String objectivePopupText = "";
+    private String phase2ObjectiveText = "";
+    private String phase2PopupText = "";
+    private boolean phaseTransitionActive = false;
+    private int phaseEventIndex = 0;
+    private long phaseEventWaitUntil = 0L;
+    private BattleUnit phaseMovingUnit;
+    private boolean battleEnded = false;
+    private boolean battleVictory = false;
+    private String battleResultText = "";
 
     public MapView(Context context) {
         super(context);
@@ -293,6 +314,53 @@ public class MapView extends View {
                                 eventList.getJSONObject(i)));
             }
         }
+
+        JSONObject objectives = battle.optJSONObject("battleObjectives");
+        if (objectives != null) {
+            JSONObject phase1 = objectives.optJSONObject("phase1");
+            if (phase1 != null) {
+                objectiveText = phase1.optString("objectiveText", "");
+                objectivePopupText = phase1.optString("popupText", "");
+                turnLimit = phase1.optInt("turnLimit", 3);
+
+                JSONObject goal = phase1.optJSONObject("goal");
+                if (goal != null) {
+                    phase1GoalX = goal.optInt("x", phase1GoalX);
+                    phase1GoalY = goal.optInt("y", phase1GoalY);
+                }
+
+                JSONObject failure = phase1.optJSONObject("villageFailure");
+                if (failure != null) {
+                    villageFailX = failure.optInt("x", villageFailX);
+                    villageFailY = failure.optInt("y", villageFailY);
+                }
+            }
+
+            JSONObject phase2 = objectives.optJSONObject("phase2");
+            if (phase2 != null) {
+                phase2ObjectiveText = phase2.optString("objectiveText", "");
+                phase2PopupText = phase2.optString("popupText", "");
+                phase2TurnLimit = phase2.optInt("turnLimit", 15);
+            }
+
+            JSONArray protectedIds = objectives.optJSONArray(
+                    "protectedCharacterIds");
+            if (protectedIds != null) {
+                for (int i = 0; i < protectedIds.length(); i++) {
+                    protectedCharacterIds.add(protectedIds.optInt(i));
+                }
+            }
+
+            JSONArray transition = objectives.optJSONArray(
+                    "phase1TransitionEvents");
+            if (transition != null) {
+                for (int i = 0; i < transition.length(); i++) {
+                    phaseTransitionEvents.add(
+                            OpeningEvent.fromJson(
+                                    transition.getJSONObject(i)));
+                }
+            }
+        }
     }
 
     private void ensureSprite(Context context, int spriteId)
@@ -414,6 +482,8 @@ public class MapView extends View {
         long now = SystemClock.uptimeMillis();
         boolean moving = updateMovement();
         boolean openingBusy = pumpOpeningEvents();
+        checkBattleState();
+        boolean phaseBusy = pumpPhaseTransitionEvents();
         boolean counterBusy = updatePendingCounter(now);
         boolean enemyBusy = updateEnemyTurn(now);
 
@@ -478,8 +548,9 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v0.9 | " + round + "턴 "
+                "Native v1.0 | " + round + "/" + turnLimit + "턴 "
                         + (playerTurn ? "아군" : "적군")
+                        + " | 단계 " + battlePhase
                         + " | 아군 " + playerCount
                         + " / 우군 " + allyCount
                         + " / 적군 " + enemyCount,
@@ -498,15 +569,36 @@ public class MapView extends View {
                 status += " · SFX " + lastSound;
             }
             canvas.drawText(status, 22, 65, overlayTextPaint);
-        } else if (playerTurn) {
+        } else if (battleEnded) {
             canvas.drawText(
-                    "파란 타일 1회 이동 · 붉은 적 공격 · 생존 적은 사거리 내 반격 · 턴 종료",
+                    "전투 " + (battleVictory ? "승리" : "패배")
+                            + " · " + battleResultText,
+                    22,
+                    65,
+                    overlayTextPaint);
+        } else if (phaseTransitionActive) {
+            canvas.drawText(
+                    "원본 S_00 목표 전환 이벤트 재생 중",
+                    22,
+                    65,
+                    overlayTextPaint);
+        } else if (playerTurn) {
+            String objective = objectivePopupText == null
+                    || objectivePopupText.isEmpty()
+                    ? (battlePhase == 1
+                    ? "마을에 도착하라!"
+                    : "적군을 전멸시켜라!")
+                    : objectivePopupText;
+            canvas.drawText(
+                    "목표: " + objective
+                            + " · 이동 1회 / 공격 / 반격 / 턴 종료",
                     22,
                     65,
                     overlayTextPaint);
         } else {
             canvas.drawText(
-                    "적군 자동 행동 중 · 원본 지형 이동비용으로 접근/공격",
+                    "목표: " + objectivePopupText
+                            + " · 적군 자동 행동 중",
                     22,
                     65,
                     overlayTextPaint);
@@ -551,7 +643,10 @@ public class MapView extends View {
                     overlayTextPaint);
         }
 
-        if (openingFinished && playerTurn) {
+        if (openingFinished
+                && playerTurn
+                && !battleEnded
+                && !phaseTransitionActive) {
             drawEndTurnButton(canvas);
         }
 
@@ -561,6 +656,7 @@ public class MapView extends View {
 
         if (moving
                 || openingBusy
+                || phaseBusy
                 || counterBusy
                 || enemyBusy
                 || !openingFinished
@@ -596,6 +692,8 @@ public class MapView extends View {
 
     private void drawReachableTiles(Canvas canvas) {
         if (!openingFinished
+                || battleEnded
+                || phaseTransitionActive
                 || !playerTurn
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
@@ -630,6 +728,8 @@ public class MapView extends View {
 
     private void drawAttackTargets(Canvas canvas) {
         if (!openingFinished
+                || battleEnded
+                || phaseTransitionActive
                 || !playerTurn
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
@@ -982,6 +1082,317 @@ public class MapView extends View {
         return false;
     }
 
+    private boolean pumpPhaseTransitionEvents() {
+        if (!phaseTransitionActive || battleEnded) {
+            return false;
+        }
+        if (dialogueText != null) {
+            return true;
+        }
+
+        long now = SystemClock.uptimeMillis();
+
+        if (phaseMovingUnit != null) {
+            if (!phaseMovingUnit.isMoving()) {
+                phaseMovingUnit = null;
+                phaseEventIndex++;
+                phaseEventWaitUntil = now + 90L;
+            } else {
+                return true;
+            }
+        }
+
+        if (now < phaseEventWaitUntil) {
+            return true;
+        }
+
+        while (phaseEventIndex < phaseTransitionEvents.size()) {
+            OpeningEvent event = phaseTransitionEvents.get(phaseEventIndex);
+
+            switch (event.type) {
+                case "dialogue":
+                    dialogueSpeaker = event.speaker;
+                    dialogueText = event.text;
+                    return true;
+
+                case "delay":
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now
+                            + Math.max(100L, event.value * 80L);
+                    return true;
+
+                case "move": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit == null) {
+                        phaseEventIndex++;
+                        break;
+                    }
+                    unit.visible = true;
+                    unit.clearMovePath();
+                    if (event.x != Integer.MIN_VALUE) {
+                        unit.targetX = event.x;
+                    }
+                    if (event.y != Integer.MIN_VALUE) {
+                        unit.targetY = event.y;
+                    }
+                    if (event.direction >= 0) {
+                        unit.direction = event.direction;
+                    }
+                    unit.lastMoveStepAt = 0L;
+                    if (unit.isMoving()) {
+                        phaseMovingUnit = unit;
+                        return true;
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 90L;
+                    return true;
+                }
+
+                case "reveal": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit != null) {
+                        unit.visible = true;
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 120L;
+                    return true;
+                }
+
+                case "hide":
+                case "retreat": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit != null) {
+                        unit.visible = false;
+                        unit.clearMovePath();
+                        unit.targetX = unit.x;
+                        unit.targetY = unit.y;
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 140L;
+                    return true;
+                }
+
+                case "turn": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit != null) {
+                        int direction = event.direction;
+                        if (direction < 0 && event.targetId >= 0) {
+                            BattleUnit target = findUnitByCharacterId(
+                                    event.targetId);
+                            if (target != null) {
+                                direction = directionToward(unit, target);
+                            }
+                        }
+                        if (direction >= 0) {
+                            unit.direction = direction;
+                        }
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 130L;
+                    return true;
+                }
+
+                case "action": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit != null) {
+                        unit.actionFrame = event.value;
+                        unit.actionUntil = now + 420L;
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 420L;
+                    return true;
+                }
+
+                case "music":
+                    musicTrack = event.value;
+                    phaseEventIndex++;
+                    break;
+
+                case "sound":
+                    lastSound = event.value;
+                    phaseEventIndex++;
+                    break;
+
+                case "reward":
+                    lastCombatMessage = "원본 보상 이벤트 · 아이템 "
+                            + event.value + " → 인물 " + event.targetId;
+                    combatMessageUntil = now + 1800L;
+                    phaseEventIndex++;
+                    break;
+
+                case "turnLimit":
+                    turnLimit = Math.max(1, event.value);
+                    phaseEventIndex++;
+                    break;
+
+                case "objective":
+                    objectiveText = event.text;
+                    phaseEventIndex++;
+                    break;
+
+                case "objectivePopup":
+                    objectivePopupText = event.text;
+                    phaseEventIndex++;
+                    break;
+
+                case "phaseComplete":
+                    battlePhase = Math.max(2, event.value);
+                    turnLimit = phase2TurnLimit;
+                    if (phase2ObjectiveText != null
+                            && !phase2ObjectiveText.isEmpty()) {
+                        objectiveText = phase2ObjectiveText;
+                    }
+                    if (phase2PopupText != null
+                            && !phase2PopupText.isEmpty()) {
+                        objectivePopupText = phase2PopupText;
+                    }
+                    phaseEventIndex++;
+                    finishPhaseTransition();
+                    return false;
+
+                default:
+                    phaseEventIndex++;
+                    break;
+            }
+        }
+
+        finishPhaseTransition();
+        return false;
+    }
+
+    private void startPhaseTransition() {
+        if (battleEnded || phaseTransitionActive || battlePhase != 1) {
+            return;
+        }
+        phaseTransitionActive = true;
+        phaseEventIndex = 0;
+        phaseEventWaitUntil = SystemClock.uptimeMillis() + 120L;
+        phaseMovingUnit = null;
+        pendingCounterAttacker = null;
+        pendingCounterTarget = null;
+        pendingCounterAt = 0L;
+        clearReachable();
+        lastCombatMessage = "마을 도착 · 원본 목표 전환 이벤트";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void finishPhaseTransition() {
+        phaseTransitionActive = false;
+        phaseMovingUnit = null;
+        battlePhase = 2;
+        turnLimit = phase2TurnLimit;
+        lastCombatMessage = "2단계 · "
+                + (phase2PopupText == null
+                || phase2PopupText.isEmpty()
+                ? "적군을 전멸시켜라!"
+                : phase2PopupText);
+        combatMessageUntil = SystemClock.uptimeMillis() + 2200L;
+        if (playerTurn && !battleEnded) {
+            selectFirstPlayer();
+            refreshReachable();
+        }
+        invalidate();
+    }
+
+    private void checkBattleState() {
+        if (!openingFinished || battleEnded || phaseTransitionActive) {
+            return;
+        }
+
+        for (int characterId : protectedCharacterIds) {
+            BattleUnit unit = findUnitByCharacterId(characterId);
+            if (unit != null && !unit.isAlive()) {
+                endBattle(
+                        false,
+                        unit.name + " 사망 · 원본 패배 조건");
+                return;
+            }
+        }
+
+        if (round > turnLimit) {
+            endBattle(
+                    false,
+                    turnLimit + "턴 초과 · 원본 패배 조건");
+            return;
+        }
+
+        if (battlePhase == 1) {
+            for (BattleUnit unit : units) {
+                if (unit.visible
+                        && unit.isAlive()
+                        && !unit.isEnemy()
+                        && unit.x == phase1GoalX
+                        && unit.y == phase1GoalY) {
+                    startPhaseTransition();
+                    return;
+                }
+            }
+
+            for (BattleUnit unit : units) {
+                if (unit.visible
+                        && unit.isAlive()
+                        && unit.isEnemy()
+                        && unit.x == villageFailX
+                        && unit.y == villageFailY) {
+                    endBattle(
+                            false,
+                            "마을이 점령당했다 · 원본 좌표 이벤트");
+                    return;
+                }
+            }
+        } else if (!hasVisibleAliveEnemy()) {
+            endBattle(
+                    true,
+                    "현재 활성 적군 전멸 · S_00 승리 테스트");
+        }
+    }
+
+    private boolean hasVisibleAliveEnemy() {
+        for (BattleUnit unit : units) {
+            if (unit.visible
+                    && unit.isAlive()
+                    && unit.isEnemy()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void endBattle(boolean victory, String reason) {
+        if (battleEnded) {
+            return;
+        }
+        battleEnded = true;
+        battleVictory = victory;
+        battleResultText = reason;
+        phaseTransitionActive = false;
+        pendingCounterAttacker = null;
+        pendingCounterTarget = null;
+        pendingCounterAt = 0L;
+        activeEnemy = null;
+        activeEnemyTarget = null;
+        activeEnemyAttackPending = false;
+        enemyTurnOrder.clear();
+        clearReachable();
+
+        for (BattleUnit unit : units) {
+            unit.clearMovePath();
+            unit.targetX = unit.x;
+            unit.targetY = unit.y;
+        }
+
+        lastCombatMessage = (victory ? "승리 · " : "패배 · ")
+                + reason;
+        combatMessageUntil = SystemClock.uptimeMillis() + 4000L;
+        invalidate();
+    }
+
     private int directionToward(
             BattleUnit from,
             BattleUnit to) {
@@ -1227,6 +1638,8 @@ public class MapView extends View {
             BattleUnit attacker,
             BattleUnit target) {
         return openingFinished
+                && !battleEnded
+                && !phaseTransitionActive
                 && playerTurn
                 && attacker != null
                 && attacker.isPlayer()
@@ -1387,6 +1800,8 @@ public class MapView extends View {
 
     private boolean canEndPlayerTurn() {
         if (!openingFinished
+                || battleEnded
+                || phaseTransitionActive
                 || !playerTurn
                 || pendingCounterAttacker != null) {
             return false;
@@ -1448,7 +1863,10 @@ public class MapView extends View {
     }
 
     private boolean updateEnemyTurn(long now) {
-        if (!openingFinished || playerTurn) {
+        if (!openingFinished
+                || battleEnded
+                || phaseTransitionActive
+                || playerTurn) {
             return false;
         }
 
@@ -1556,10 +1974,15 @@ public class MapView extends View {
         pendingCounterAt = 0L;
 
         resetSideTurnState(false);
-        selectFirstPlayer();
-        refreshReachable();
+        checkBattleState();
+        if (!battleEnded && !phaseTransitionActive) {
+            selectFirstPlayer();
+            refreshReachable();
+        }
 
-        lastCombatMessage = round + "턴 · 아군 행동 시작";
+        lastCombatMessage = battleEnded
+                ? battleResultText
+                : round + "턴 · 아군 행동 시작";
         combatMessageUntil = SystemClock.uptimeMillis()
                 + 1200L;
         invalidate();
@@ -1750,9 +2173,14 @@ public class MapView extends View {
         }
         dialogueSpeaker = null;
         dialogueText = null;
-        openingIndex++;
-        openingWaitUntil = SystemClock.uptimeMillis()
-                + 80L;
+
+        if (phaseTransitionActive) {
+            phaseEventIndex++;
+            phaseEventWaitUntil = SystemClock.uptimeMillis() + 80L;
+        } else {
+            openingIndex++;
+            openingWaitUntil = SystemClock.uptimeMillis() + 80L;
+        }
         invalidate();
     }
 
@@ -1900,7 +2328,14 @@ public class MapView extends View {
                         return true;
                     }
 
-                    if (!playerTurn) {
+                    if (phaseTransitionActive) {
+                        if (moved < 24f && dialogueText != null) {
+                            advanceDialogue();
+                        }
+                        return true;
+                    }
+
+                    if (battleEnded || !playerTurn) {
                         return true;
                     }
 
