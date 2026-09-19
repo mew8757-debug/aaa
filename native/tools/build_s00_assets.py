@@ -2297,6 +2297,16 @@ def compile_r06_story(blob):
         "S_06.eex",
     )
 
+def compile_r07_story(blob):
+    return compile_r_story(
+        blob,
+        "R_07.eex",
+        9,
+        10,
+        "S_07.eex",
+    )
+
+
 
 def build_next_scenario_probe(filename, blob):
     if blob is None:
@@ -2681,6 +2691,7 @@ def main(argv):
         map4_bytes = read_member_by_basename(game2, "m004.jpg")
         map5_bytes = read_member_by_basename(game2, "m005.jpg")
         map6_bytes = read_member_by_basename(game2, "m006.jpg")
+        map7_bytes = read_member_by_basename(game2, "m007.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -2693,6 +2704,8 @@ def main(argv):
             map5_bytes = read_member_by_basename(game1, "m005.jpg")
         if map6_bytes is None:
             map6_bytes = read_member_by_basename(game1, "m006.jpg")
+        if map7_bytes is None:
+            map7_bytes = read_member_by_basename(game1, "m007.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -2712,6 +2725,8 @@ def main(argv):
         raise SystemExit("m005.jpg not found in game1/game2")
     if map6_bytes is None:
         raise SystemExit("m006.jpg not found in game1/game2")
+    if map7_bytes is None:
+        raise SystemExit("m007.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
@@ -2820,6 +2835,23 @@ def main(argv):
     )
     (map_dir / "m006.jpg").write_bytes(map6_bytes)
     (battle_dir / "terrain6.bin").write_bytes(terrain6_cells)
+
+    map7_width, map7_height = jpeg_dimensions(map7_bytes)
+    if map7_width % 48 != 0 or map7_height % 48 != 0:
+        raise SystemExit(
+            f"m007 dimensions not divisible by 48: "
+            f"{map7_width}x{map7_height}"
+        )
+    map7_cols = map7_width // 48
+    map7_rows = map7_height // 48
+    terrain7_cells = extract_hexzmap_cells(
+        hexz,
+        7,
+        map7_cols,
+        map7_rows,
+    )
+    (map_dir / "m007.jpg").write_bytes(map7_bytes)
+    (battle_dir / "terrain7.bin").write_bytes(terrain7_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -3005,6 +3037,22 @@ def main(argv):
     s06_outcome_events = extract_s06_outcome_events(s06_scenes)
     r07_probe = build_next_scenario_probe("R_07.eex", r07)
     s07_probe = build_next_scenario_probe("S_07.eex", s07)
+
+    r07_story = compile_r07_story(r07)
+    s07_scenes = parse_scenario_tree(s07)
+    s07_init_probe = probe_s01_initialization(s07)
+    s07_init_probe["map"] = {
+        "filename": "m007.jpg",
+        "width": map7_width,
+        "height": map7_height,
+        "cols": map7_cols,
+        "rows": map7_rows,
+        "terrainCellCount": len(terrain7_cells),
+        "terrainIds": sorted(set(terrain7_cells)),
+        "hexzmapEntry": 7,
+    }
+    s07_event_probe = extract_scene2_native_events(s07_scenes)
+    s07_outcome_probe = probe_battle_outcome_candidates(s07_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -4458,7 +4506,7 @@ def main(argv):
         )
 
     s06_battle = {
-        "version": 42,
+        "version": 43,
         "source": "RS/S_06.eex",
         "battleMode": "kill-character",
         "mapId": 6,
@@ -4501,6 +4549,11 @@ def main(argv):
             "R_07.eex": r07_probe,
             "S_07.eex": s07_probe,
         },
+
+        "r07Story": r07_story,
+        "s07InitProbe": s07_init_probe,
+        "s07EventProbe": s07_event_probe,
+        "s07OutcomeProbe": s07_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s06_native_events),
             "coreSupportedCount": sum(
