@@ -12,29 +12,46 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class MapView extends View {
     private static final float TILE = 48f;
     private static final int UNIT_W = 48;
     private static final int UNIT_H = 48;
-    private static final int UNIT_FRAMES = 11;
-    private static final long MOVE_STEP_MS = 170L;
+    private static final int MOVE_FRAMES = 11;
+    private static final int IDLE_FRAMES = 5;
+    private static final long MOVE_STEP_MS = 165L;
 
-    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private static final int FACTION_PLAYER = 0;
+    private static final int FACTION_ALLY = 1;
+    private static final int FACTION_ENEMY = 2;
+
+    private final Paint mapPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint spritePaint = new Paint();
     private final Paint gridPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint overlayTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint unitTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint selectedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hpBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint hpPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint labelBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final ScaleGestureDetector scaleDetector;
 
+    private final List<BattleUnit> units = new ArrayList<>();
+    private final Map<Integer, Bitmap[]> idleCache = new HashMap<>();
+    private final Map<Integer, Bitmap[]> moveCache = new HashMap<>();
+
     private Bitmap map;
-    private Bitmap[] moveFrames;
-    private Bitmap[] idleFrames;
     private byte[] palette;
 
     private float scale = 1f;
@@ -47,13 +64,7 @@ public class MapView extends View {
 
     private int selectedX = -1;
     private int selectedY = -1;
-
-    private int unitX = 10;
-    private int unitY = 8;
-    private int targetX = unitX;
-    private int targetY = unitY;
-    private int moveFrame = 0;
-    private long lastMoveStepAt = 0L;
+    private BattleUnit selectedUnit;
 
     public MapView(Context context) {
         super(context);
@@ -67,31 +78,39 @@ public class MapView extends View {
         }
 
         try {
-            palette = loadBytes(context, "sprites/spalet_000.bin");
-            if (palette.length != 256 * 3) throw new IOException("palette size=" + palette.length);
-            moveFrames = loadIndexedFrames(context, "sprites/unit_mov_000.bin", 48, 48, 11);
-            idleFrames = loadIndexedFrames(context, "sprites/unit_spc_000.bin", 48, 48, 5);
+            palette = loadBytes(context, "sprites/palette.bin");
+            if (palette.length < 256 * 3) {
+                throw new IOException("palette size=" + palette.length);
+            }
+            loadBattle(context);
         }
-        catch (IOException e) {
-            throw new RuntimeException("native sprite decode failed", e);
+        catch (Exception e) {
+            throw new RuntimeException("native battle data load failed", e);
         }
 
         spritePaint.setAntiAlias(false);
         spritePaint.setFilterBitmap(false);
 
-        gridPaint.setColor(0x44FFFFFF);
+        gridPaint.setColor(0x33FFFFFF);
         gridPaint.setStrokeWidth(1f);
         gridPaint.setStyle(Paint.Style.STROKE);
 
         selectedPaint.setColor(0x66FFFF00);
         selectedPaint.setStyle(Paint.Style.FILL);
 
-        hpBackPaint.setColor(0xCC000000);
+        hpBackPaint.setColor(0xD0000000);
         hpPaint.setColor(0xFF55FF55);
 
-        textPaint.setColor(Color.WHITE);
-        textPaint.setTextSize(28f);
-        textPaint.setShadowLayer(4f, 2f, 2f, Color.BLACK);
+        labelBackPaint.setColor(0xAA000000);
+
+        overlayTextPaint.setColor(Color.WHITE);
+        overlayTextPaint.setTextSize(26f);
+        overlayTextPaint.setShadowLayer(4f, 2f, 2f, Color.BLACK);
+
+        unitTextPaint.setColor(Color.WHITE);
+        unitTextPaint.setTextSize(13f);
+        unitTextPaint.setTextAlign(Paint.Align.CENTER);
+        unitTextPaint.setShadowLayer(3f, 1f, 1f, Color.BLACK);
 
         scaleDetector = new ScaleGestureDetector(context,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -112,12 +131,69 @@ public class MapView extends View {
                 });
     }
 
+    private void loadBattle(Context context) throws Exception {
+        String jsonText = new String(loadBytes(context, "battle/battle0.json"), StandardCharsets.UTF_8);
+        JSONObject root = new JSONObject(jsonText);
+        JSONArray array = root.getJSONArray("units");
+
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject item = array.getJSONObject(i);
+            BattleUnit unit = new BattleUnit();
+            unit.characterId = item.getInt("characterId");
+            unit.name = item.getString("name");
+            unit.faction = item.getInt("faction");
+            unit.x = item.getInt("x");
+            unit.y = item.getInt("y");
+            unit.targetX = unit.x;
+            unit.targetY = unit.y;
+            unit.direction = item.optInt("direction", 2);
+            unit.level = item.optInt("level", 0);
+            unit.unitImage = item.getInt("unitImage");
+
+            unit.idleFrames = idleCache.get(unit.unitImage);
+            unit.moveFrames = moveCache.get(unit.unitImage);
+
+            if (unit.idleFrames == null) {
+                unit.idleFrames = loadIndexedFrames(
+                        context,
+                        String.format("sprites/spc_%04d.bin", unit.unitImage),
+                        UNIT_W,
+                        UNIT_H,
+                        IDLE_FRAMES);
+                idleCache.put(unit.unitImage, unit.idleFrames);
+            }
+
+            if (unit.moveFrames == null) {
+                unit.moveFrames = loadIndexedFrames(
+                        context,
+                        String.format("sprites/mov_%04d.bin", unit.unitImage),
+                        UNIT_W,
+                        UNIT_H,
+                        MOVE_FRAMES);
+                moveCache.put(unit.unitImage, unit.moveFrames);
+            }
+
+            units.add(unit);
+        }
+
+        for (BattleUnit unit : units) {
+            if (unit.faction == FACTION_PLAYER) {
+                selectedUnit = unit;
+                selectedX = unit.x;
+                selectedY = unit.y;
+                break;
+            }
+        }
+    }
+
     private byte[] loadBytes(Context context, String assetName) throws IOException {
         try (InputStream in = context.getAssets().open(assetName);
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
             int n;
-            while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+            while ((n = in.read(buffer)) != -1) {
+                out.write(buffer, 0, n);
+            }
             return out.toByteArray();
         }
     }
@@ -127,7 +203,7 @@ public class MapView extends View {
         byte[] raw = loadBytes(context, assetName);
         int frameBytes = width * height;
         if (raw.length < frameBytes * frameCount) {
-            throw new IOException("sprite payload too small: " + raw.length);
+            throw new IOException(assetName + " payload too small: " + raw.length);
         }
 
         Bitmap[] frames = new Bitmap[frameCount];
@@ -139,12 +215,20 @@ public class MapView extends View {
                 int index = raw[base + i] & 0xff;
                 if (index == 0) {
                     pixels[i] = Color.TRANSPARENT;
+                    continue;
+                }
+
+                int q = index * 3;
+
+                // Spalet.e5 uses B,R,G byte order in this engine generation.
+                int b = palette[q] & 0xff;
+                int r = palette[q + 1] & 0xff;
+                int g = palette[q + 2] & 0xff;
+
+                if (r >= 248 && g <= 8 && b >= 248) {
+                    pixels[i] = Color.TRANSPARENT;
                 }
                 else {
-                    int q = index * 3;
-                    int r = palette[q] & 0xff;
-                    int g = palette[q + 1] & 0xff;
-                    int b = palette[q + 2] & 0xff;
                     pixels[i] = Color.argb(255, r, g, b);
                 }
             }
@@ -170,13 +254,13 @@ public class MapView extends View {
         super.onDraw(canvas);
         if (map == null) return;
 
-        updateUnitMovement();
+        boolean moving = updateMovement();
 
         canvas.save();
         canvas.translate(offsetX, offsetY);
         canvas.scale(scale, scale);
 
-        canvas.drawBitmap(map, 0, 0, paint);
+        canvas.drawBitmap(map, 0, 0, mapPaint);
 
         int cols = map.getWidth() / (int) TILE;
         int rows = map.getHeight() / (int) TILE;
@@ -196,51 +280,112 @@ public class MapView extends View {
                     (selectedY + 1) * TILE), selectedPaint);
         }
 
-        // Exact indexed-color sprite: Spalet.e5 RGB palette + original Unit_*.e5 indexes.
-        boolean moving = unitX != targetX || unitY != targetY;
-        Bitmap[] source = moving ? moveFrames : idleFrames;
-        int frameIndex = moving ? Math.max(0, Math.min(moveFrame, source.length - 1)) : 0;
-        Bitmap frame = source[frameIndex];
-        float spriteX = unitX * TILE;
-        float spriteY = unitY * TILE;
-        canvas.drawBitmap(frame, spriteX, spriteY, spritePaint);
-
-        // Temporary HP bar used only to make the native unit position obvious.
-        float hpY = spriteY - 5f;
-        canvas.drawRect(spriteX + 4f, hpY, spriteX + 44f, hpY + 4f, hpBackPaint);
-        canvas.drawRect(spriteX + 5f, hpY + 1f, spriteX + 41f, hpY + 3f, hpPaint);
+        for (BattleUnit unit : units) {
+            drawUnit(canvas, unit);
+        }
 
         canvas.restore();
 
-        canvas.drawText("Native v0.3  |  실제 맵 + S형상 + Spalet 원색", 24, 40, textPaint);
-        canvas.drawText("터치: 유닛 이동  ·  드래그: 화면 이동  ·  두 손가락: 확대/축소", 24, 76, textPaint);
-
-        if (selectedX >= 0) {
-            canvas.drawText("선택 타일 (" + selectedX + ", " + selectedY + ") / 유닛 (" + unitX + ", " + unitY + ")",
-                    24, 112, textPaint);
+        int enemies = 0;
+        int players = 0;
+        for (BattleUnit unit : units) {
+            if (unit.faction == FACTION_ENEMY) enemies++;
+            if (unit.faction == FACTION_PLAYER) players++;
         }
 
-        if (unitX != targetX || unitY != targetY) {
-            postInvalidateDelayed(40L);
+        canvas.drawText("Native v0.4  |  S_00 실제 초기 배치  |  아군 " + players + " / 적군 " + enemies,
+                22, 36, overlayTextPaint);
+        canvas.drawText("유닛 터치=선택 · 선택한 아군의 이동 위치 터치 · 드래그=화면 이동 · 두 손가락=확대/축소",
+                22, 70, overlayTextPaint);
+
+        if (selectedUnit != null) {
+            canvas.drawText(
+                    "선택: " + selectedUnit.name + "  ID " + selectedUnit.characterId
+                            + "  S이미지 #" + selectedUnit.unitImage
+                            + "  (" + selectedUnit.x + "," + selectedUnit.y + ")",
+                    22, 104, overlayTextPaint);
+        }
+
+        if (moving) {
+            postInvalidateDelayed(35L);
         }
     }
 
-    private void updateUnitMovement() {
-        if (unitX == targetX && unitY == targetY) {
-            moveFrame = 0;
-            return;
+    private void drawUnit(Canvas canvas, BattleUnit unit) {
+        boolean moving = unit.x != unit.targetX || unit.y != unit.targetY;
+        Bitmap[] source = moving ? unit.moveFrames : unit.idleFrames;
+        int frameIndex = moving
+                ? Math.max(0, Math.min(unit.moveFrame, source.length - 1))
+                : 0;
+        Bitmap frame = source[frameIndex];
+
+        float spriteX = unit.x * TILE;
+        float spriteY = unit.y * TILE;
+        canvas.drawBitmap(frame, spriteX, spriteY, spritePaint);
+
+        float hpY = spriteY - 4f;
+        hpBackPaint.setColor(0xD0000000);
+        if (unit.faction == FACTION_ENEMY) {
+            hpPaint.setColor(0xFFFF5555);
+        }
+        else if (unit.faction == FACTION_ALLY) {
+            hpPaint.setColor(0xFF55AAFF);
+        }
+        else {
+            hpPaint.setColor(0xFF55FF55);
         }
 
+        canvas.drawRect(spriteX + 4f, hpY, spriteX + 44f, hpY + 4f, hpBackPaint);
+        canvas.drawRect(spriteX + 5f, hpY + 1f, spriteX + 41f, hpY + 3f, hpPaint);
+
+        float cx = spriteX + TILE * 0.5f;
+        String label = unit.name;
+        float tw = unitTextPaint.measureText(label);
+        float labelY = spriteY + TILE + 13f;
+        canvas.drawRect(cx - tw * 0.5f - 3f, labelY - 13f, cx + tw * 0.5f + 3f, labelY + 3f,
+                labelBackPaint);
+        canvas.drawText(label, cx, labelY, unitTextPaint);
+    }
+
+    private boolean updateMovement() {
+        boolean anyMoving = false;
         long now = SystemClock.uptimeMillis();
-        if (now - lastMoveStepAt < MOVE_STEP_MS) return;
-        lastMoveStepAt = now;
 
-        if (unitX < targetX) unitX++;
-        else if (unitX > targetX) unitX--;
-        else if (unitY < targetY) unitY++;
-        else if (unitY > targetY) unitY--;
+        for (BattleUnit unit : units) {
+            if (unit.x == unit.targetX && unit.y == unit.targetY) {
+                unit.moveFrame = 0;
+                continue;
+            }
 
-        moveFrame = (moveFrame + 1) % moveFrames.length;
+            anyMoving = true;
+            if (now - unit.lastMoveStepAt < MOVE_STEP_MS) {
+                continue;
+            }
+            unit.lastMoveStepAt = now;
+
+            if (unit.x < unit.targetX) unit.x++;
+            else if (unit.x > unit.targetX) unit.x--;
+            else if (unit.y < unit.targetY) unit.y++;
+            else if (unit.y > unit.targetY) unit.y--;
+
+            unit.moveFrame = (unit.moveFrame + 1) % unit.moveFrames.length;
+
+            if (unit == selectedUnit) {
+                selectedX = unit.x;
+                selectedY = unit.y;
+            }
+        }
+
+        return anyMoving;
+    }
+
+    private BattleUnit findUnitAt(int tx, int ty) {
+        for (BattleUnit unit : units) {
+            if (unit.x == tx && unit.y == ty) {
+                return unit;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -272,12 +417,27 @@ public class MapView extends View {
                         int tx = (int) (mx / TILE);
                         int ty = (int) (my / TILE);
 
-                        if (tx >= 0 && ty >= 0 && tx < map.getWidth() / 48 && ty < map.getHeight() / 48) {
-                            selectedX = tx;
-                            selectedY = ty;
-                            targetX = tx;
-                            targetY = ty;
-                            lastMoveStepAt = 0L;
+                        if (tx >= 0 && ty >= 0
+                                && tx < map.getWidth() / 48
+                                && ty < map.getHeight() / 48) {
+                            BattleUnit hit = findUnitAt(tx, ty);
+
+                            if (hit != null) {
+                                selectedUnit = hit;
+                                selectedX = hit.x;
+                                selectedY = hit.y;
+                            }
+                            else if (selectedUnit != null && selectedUnit.faction == FACTION_PLAYER) {
+                                selectedUnit.targetX = tx;
+                                selectedUnit.targetY = ty;
+                                selectedUnit.lastMoveStepAt = 0L;
+                                selectedX = tx;
+                                selectedY = ty;
+                            }
+                            else {
+                                selectedX = tx;
+                                selectedY = ty;
+                            }
                             invalidate();
                         }
                     }
@@ -285,5 +445,22 @@ public class MapView extends View {
             }
         }
         return true;
+    }
+
+    private static final class BattleUnit {
+        int characterId;
+        String name;
+        int faction;
+        int x;
+        int y;
+        int targetX;
+        int targetY;
+        int direction;
+        int level;
+        int unitImage;
+        int moveFrame;
+        long lastMoveStepAt;
+        Bitmap[] idleFrames;
+        Bitmap[] moveFrames;
     }
 }
