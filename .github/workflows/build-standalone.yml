@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-onetouch-v11
+  group: seong-onetouch-v12
   cancel-in-progress: true
 
 jobs:
@@ -121,8 +121,23 @@ jobs:
           # IMPORTANT: keep applicationId 'com.winlator'. Native Winlator code contains
           # hard-coded /data/data/com.winlator paths for cache/X11/Vortek sockets.
           s = s.replace("versionCode 33", "versionCode 1")
-          s = s.replace('versionName "11.2"', 'versionName "2.0.0"')
+          s = s.replace('versionName "11.2"', 'versionName "2.1.0"')
           gradle.write_text(s)
+
+          # Keep XServer/Winlator environment alive when a direct exec_path launcher
+          # process exits. The Windows child can still be running even though the
+          # helper process has already returned; immediately calling exit() tears
+          # down XServer and kills the child about a second after its window appears.
+          xserver = Path("winlator-src/app/src/main/java/com/winlator/XServerDisplayActivity.java")
+          xs = xserver.read_text()
+          old = 'guestProgramLauncherComponent.setTerminationCallback((status) -> exit());'
+          new = '''guestProgramLauncherComponent.setTerminationCallback((status) -> {
+                if (!getIntent().hasExtra("exec_path")) exit();
+            });'''
+          if old not in xs:
+              raise SystemExit("Expected termination callback not found")
+          xs = xs.replace(old, new, 1)
+          xserver.write_text(xs)
           PY
 
       - name: Build base APK
@@ -141,7 +156,7 @@ jobs:
           BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
           WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
           ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
-          FINAL="$PWD/SeongSamgukji-OneTouch-v11.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v12.apk"
 
           test -f "$BASE"
           cp "$BASE" "$WORK"
@@ -198,14 +213,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          FINAL="SeongSamgukji-OneTouch-v11.apk"
+          FINAL="SeongSamgukji-OneTouch-v12.apk"
 
-          if gh release view one-touch-v11 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload one-touch-v11 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view one-touch-v12 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v12 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create one-touch-v11 "$FINAL" \
+            gh release create one-touch-v12 "$FINAL" \
               --repo "$GITHUB_REPOSITORY" \
               --draft \
-              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v11" \
-              --notes "비공개 개인용 수정판입니다. Wine 로그에서 RPC_S_SERVER_UNAVAILABLE 및 Failed to start RpcSs service를 확인했고, Startup Selection을 Normal로 변경해 RpcSs를 포함한 Windows 서비스를 모두 로드합니다. DirectShow와 Windows Media Decoder 활성화는 유지합니다. 공개 배포하지 마세요."
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v12" \
+              --notes "비공개 개인용 수정판입니다. Windows 파일관리자(wfm.exe)까지 1초 후 함께 사라지는 테스트로 게임 자체가 아니라 direct exec 런처 종료 시 XServerDisplayActivity가 즉시 exit()하며 전체 Wine 환경을 내리는 문제가 확인됐습니다. v12는 exec_path 실행에서 헬퍼 프로세스 종료만으로 XServer/Wine 환경을 종료하지 않도록 수정합니다. 공개 배포하지 마세요."
           fi
