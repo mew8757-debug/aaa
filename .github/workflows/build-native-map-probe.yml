@@ -1,4 +1,4 @@
-name: Build Native Android Battle v2.0
+name: Build Native Android Battle v2.1
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v2.0 APK
+      - name: Build native v2.1 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v2.0.apk"
+          OUT="SeongSamgukji-Native-Battle-v2.1.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v2.0 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v2.0 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v2.1 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v2.1 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v2.0 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v2.0" \
-              --notes "Native v2.0은 S00 승리→R01 스토리/선택/출발 뒤 원본 S_01 전투로 실제 전환합니다. battle1.json에는 M001(21x20), terrain1, 세 형제 3개 플레이어 슬롯, 원본 0x46 우군 10명, 0x47 적군 29명, 20턴/유비·주준 보호/적 전멸 목표, 지원 가능한 Scene2 전장 이벤트를 담습니다. 런타임은 battle1을 다시 로드해 기존 지형 이동·공격·반격·적 AI 엔진을 재사용합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v2.1 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v2.1" \
+              --notes "Native v2.1은 S_01 전장 이벤트의 원본 0x12 선택상자/0x13 case를 R01과 같은 Android 터치 선택 UI로 실행하고, 0x3A 금전·장절·충간/전역값 연산을 네이티브 globalValueOp에 연결합니다. battle1 진단에는 남은 미지원 명령의 raw 파라미터도 기록해 0x6B 법술, 0x58 전장장애, 0x78 정수변수, 0x31 변형을 다음 단계에서 정확히 구현합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v2.0 build status
+      - name: Record v2.1 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "2.0.0",
+              "version": "2.1.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -274,7 +274,7 @@ jobs:
                   ),
               }
 
-          Path("native/build-status/v2.0.json").write_text(
+          Path("native/build-status/v2.1.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -282,11 +282,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v2.0.json
+          git add native/build-status/v2.1.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v2.0 build status"
+          git commit -m "Record native v2.1 build status"
           git push

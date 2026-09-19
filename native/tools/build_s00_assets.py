@@ -556,6 +556,14 @@ def native_action_from_node(node):
             "targetId": int(params[3]),
         }
 
+    if cid == 0x3A and len(params) >= 3:
+        return {
+            "type": "globalValueOp",
+            "globalId": int(params[0]),
+            "operation": int(params[1]),
+            "value": int(params[2]),
+        }
+
     if cid == 0x0B and len(params) >= 2:
         return {
             "type": "setVariable",
@@ -775,6 +783,82 @@ def native_trigger_from_node(node):
 
 def compile_native_action_tree(node):
     nested_count = 1 if node["children"] else 0
+    cid = node["commandId"]
+    params = node["params"]
+
+    if node["children"] and cid == 0x12:
+        raw = ""
+        if params and isinstance(params[0], str):
+            raw = params[0].replace("\r", "")
+        options = [
+            line.strip()
+            for line in raw.split("\n")
+            if line.strip()
+        ]
+        cases = []
+        unsupported_ids = []
+        unsupported_actions = []
+        total_nested = nested_count
+
+        for child in node["children"]:
+            if child["commandId"] == 0x01:
+                continue
+
+            if child["commandId"] == 0x13:
+                case_actions = []
+                case_value = (
+                    int(child["params"][0])
+                    if child["params"]
+                    else len(cases) + 1
+                )
+                total_nested += 1 if child["children"] else 0
+
+                for grandchild in child["children"]:
+                    (
+                        action,
+                        child_unsupported_ids,
+                        child_unsupported_actions,
+                        child_nested,
+                    ) = compile_native_action_tree(grandchild)
+                    total_nested += child_nested
+                    unsupported_ids.extend(child_unsupported_ids)
+                    unsupported_actions.extend(
+                        child_unsupported_actions
+                    )
+                    if action is not None:
+                        case_actions.append(action)
+
+                cases.append({
+                    "value": case_value,
+                    "actions": case_actions,
+                })
+                continue
+
+            (
+                action,
+                child_unsupported_ids,
+                child_unsupported_actions,
+                child_nested,
+            ) = compile_native_action_tree(child)
+            total_nested += child_nested
+            unsupported_ids.extend(child_unsupported_ids)
+            unsupported_actions.extend(child_unsupported_actions)
+            if action is not None:
+                cases.append({
+                    "value": len(cases) + 1,
+                    "actions": [action],
+                })
+
+        return (
+            {
+                "type": "choice",
+                "options": options,
+                "cases": cases,
+            },
+            unsupported_ids,
+            unsupported_actions,
+            total_nested,
+        )
 
     if node["children"]:
         child_actions = []
@@ -2435,7 +2519,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 20,
+        "version": 21,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
@@ -2475,6 +2559,7 @@ def main(argv):
                     "coreSupported": event["coreSupported"],
                     "unsupportedTriggerIds": event["unsupportedTriggerIds"],
                     "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
                     "nestedBranchCount": event["nestedBranchCount"],
                     "nestedSupported": event["nestedSupported"],
                 }
