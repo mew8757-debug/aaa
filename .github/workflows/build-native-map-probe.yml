@@ -73,6 +73,27 @@ jobs:
               raise SystemExit('Unit_mov payload truncated')
           (assets/'sprites'/'unit_mov_000.bin').write_bytes(payload)
           print('Unit_mov record0=',unpacked,stored,offset,'payload=',len(payload))
+
+          with zipfile.ZipFile('/tmp/game1.zip') as z:
+              spc=z.read('Unit_spc.e5')
+              palfile=z.read('Spalet.e5')
+
+          spc_unpacked, spc_stored, spc_offset = struct.unpack_from('>III', spc, 0x110)
+          spc_expected = 48 * 48 * 5
+          if spc_unpacked != spc_expected or spc_stored < spc_expected:
+              raise SystemExit(f'Unexpected Unit_spc record: {spc_unpacked}/{spc_stored}/{spc_offset}')
+          (assets/'sprites'/'unit_spc_000.bin').write_bytes(
+              spc[spc_offset:spc_offset+spc_expected])
+
+          pal_unpacked, pal_stored, pal_offset = struct.unpack_from('>III', palfile, 0x110)
+          if pal_unpacked != 768 or pal_stored < 768:
+              raise SystemExit(f'Unexpected Spalet record: {pal_unpacked}/{pal_stored}/{pal_offset}')
+          palette=palfile[pal_offset:pal_offset+768]
+          if len(palette) != 768:
+              raise SystemExit('Spalet palette truncated')
+          (assets/'sprites'/'spalet_000.bin').write_bytes(palette)
+          print('Unit_spc record0=',spc_unpacked,spc_stored,spc_offset)
+          print('Spalet palette0=',pal_unpacked,pal_stored,pal_offset)
           PY
 
       - name: Build native map probe APK
@@ -86,10 +107,10 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-MapProbe-v0.2.apk"
+          OUT="SeongSamgukji-Native-MapProbe-v0.3.apk"
           cp "$APK" "$OUT"
-          if gh release view native-map-probe-v0.2 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload native-map-probe-v0.2 "$OUT" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view native-map-probe-v0.3 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload native-map-probe-v0.3 "$OUT" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create native-map-probe-v0.2 "$OUT" --draft               --title "PRIVATE - 성삼국지 Native Map Probe v0.2"               --notes "Winlator/Wine 없이 실제 m000.jpg 전투맵과 Unit_mov.e5의 첫 유닛 레코드(48x48x11 프레임)를 Android에서 직접 디코딩합니다. 맵 터치로 실제 유닛 데이터를 타일 단위로 이동시키며 핀치 줌/드래그를 지원합니다. 팔레트는 현재 인덱스 명암으로 표시하며 정확한 Koei 팔레트 복원은 다음 단계입니다. 공개 배포하지 마세요."               --repo "$GITHUB_REPOSITORY"
+            gh release create native-map-probe-v0.3 "$OUT" --draft               --title "PRIVATE - 성삼국지 Native Map Probe v0.3"               --notes "Winlator/Wine 없이 실제 m000.jpg, Unit_mov.e5, Unit_spc.e5, Spalet.e5를 Android에서 직접 읽는 네이티브 프로토타입입니다. Spalet의 256색 RGB 팔레트를 적용해 원본 S형상을 실제 색으로 렌더링하고, 맵 터치 이동/핀치 줌/드래그를 지원합니다. 공개 배포하지 마세요."               --repo "$GITHUB_REPOSITORY"
           fi
