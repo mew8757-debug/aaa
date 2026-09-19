@@ -13,6 +13,7 @@ public class BattleUnit {
     public final int attackRangeId;
     public final int level;
     public final int maxHp;
+    public final int maxMp;
     public final int attack;
     public final int defense;
     public final String faction;
@@ -20,6 +21,8 @@ public class BattleUnit {
 
     public boolean visible;
     public int hp;
+    public int mp;
+    public int auxiliaryItem;
     public int x;
     public int y;
     public int direction;
@@ -57,6 +60,8 @@ public class BattleUnit {
             int attackRangeId,
             int level,
             int maxHp,
+            int maxMp,
+            int auxiliaryItem,
             int attack,
             int defense,
             String faction,
@@ -75,6 +80,9 @@ public class BattleUnit {
         this.level = level;
         this.maxHp = Math.max(1, maxHp);
         this.hp = this.maxHp;
+        this.maxMp = Math.max(0, maxMp);
+        this.mp = this.maxMp;
+        this.auxiliaryItem = auxiliaryItem;
         this.attack = Math.max(0, attack);
         this.defense = Math.max(0, defense);
         this.faction = faction;
