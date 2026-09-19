@@ -879,11 +879,14 @@ def compile_native_action_tree(node):
     return action, [], [], 0
 
 
-def extract_scene2_native_events(scenes):
+def extract_scene2_native_events(scenes, excluded_sections=None):
     if len(scenes) < 2:
         return []
 
-    excluded_sections = {1, 20, 21, 31, 33, 34}
+    if excluded_sections is None:
+        excluded_sections = {1, 20, 21, 31, 33, 34}
+    else:
+        excluded_sections = set(excluded_sections)
     trigger_ids = {0x25, 0x26, 0x2E, 0x36, 0x3F, 0x40, 0x41}
     events = []
 
@@ -2117,6 +2120,11 @@ def main(argv):
         "S_01.eex": build_next_scenario_probe("S_01.eex", s01),
     }
     r01_story = compile_r01_story(r01)
+    s01_scenes = parse_scenario_tree(s01)
+    s01_native_events = extract_scene2_native_events(
+        s01_scenes,
+        excluded_sections={37, 38, 52, 53, 54},
+    )
     s01_init_probe = probe_s01_initialization(s01)
     s01_init_probe["map"] = {
         "filename": "m001.jpg",
@@ -2317,6 +2325,174 @@ def main(argv):
     for index, (cid, flag, x, y, direction) in enumerate(enemies):
         append_unit(cid, ENEMY, flag != 0, x, y, direction, f"S_00:0x47:{index}")
 
+
+    # S_01 second battle: keep the playable party from S_00/R_01
+    # in slot order, then use the verified 0x46/0x47 deployment records.
+    s01_units = []
+
+    def make_s01_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S01 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s01_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    continuing_party = [cid for cid, _x, _y, _direction in player]
+    for slot in sorted(
+        s01_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    ):
+        slot_index = int(slot["slot"])
+        if slot_index < 0 or slot_index >= len(continuing_party):
+            continue
+        cid = continuing_party[slot_index]
+        make_s01_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_01:0x4B:{slot_index}",
+        )
+
+    for index, row in enumerate(s01_init_probe["friendRecords"]):
+        make_s01_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_01:0x46:{index}",
+        )
+
+    for index, row in enumerate(s01_init_probe["enemyRecords"]):
+        make_s01_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_01:0x47:{index}",
+        )
+
+    s01_objective_text = (
+        s01_init_probe["objectiveTexts"][0]
+        if s01_init_probe["objectiveTexts"]
+        else ""
+    )
+    s01_popup_text = (
+        s01_init_probe["objectivePopups"][0]
+        if s01_init_probe["objectivePopups"]
+        else ""
+    )
+    s01_turn_match = re.search(r"(\d+)턴", s01_objective_text)
+    s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
+
+    s01_battle = {
+        "version": 20,
+        "source": "RS/S_01.eex",
+        "battleMode": "enemy-annihilation",
+        "mapId": 1,
+        "map": "m001.jpg",
+        "widthTiles": map1_cols,
+        "heightTiles": map1_rows,
+        "terrainFile": "terrain1.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s01_objective_text,
+                "popupText": s01_popup_text,
+                "turnLimit": s01_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s01_turn_limit,
+            },
+            "protectedCharacterIds": [0, 118],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s01_native_events,
+        "battleEventSummary": {
+            "candidateCount": len(s01_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s01_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s01_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain1_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s01_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle1.json").write_text(
+        json.dumps(s01_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
@@ -2335,7 +2511,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 19,
+        "version": 20,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -2405,7 +2581,10 @@ def main(argv):
         encoding="utf-8",
     )
 
-    sprite_ids = sorted({u["spriteId"] for u in units})
+    sprite_ids = sorted({
+        u["spriteId"]
+        for u in units + s01_units
+    })
     for sid in sprite_ids:
         specs = (
             ("unit_mov", mov, 48, 48, 11),
@@ -2457,6 +2636,18 @@ def main(argv):
         len(s01_init_probe["friendRecords"]),
         "enemies=",
         len(s01_init_probe["enemyRecords"]),
+    )
+    print(
+        "s01 units=",
+        len(s01_units),
+        "visible=",
+        sum(1 for u in s01_units if u["visible"]),
+        "events=",
+        len(s01_native_events),
+        "core-supported=",
+        sum(1 for e in s01_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s01_turn_limit,
     )
     print(
         "units=", len(units),
