@@ -66,6 +66,7 @@ public class MapView extends View {
     private final Set<Integer> firedBattleSections = new HashSet<>();
     private final Set<Integer> reinforcementCharacterIds = new HashSet<>();
     private final Map<Integer, Integer> scenarioVariables = new HashMap<>();
+    private final Set<Integer> joinedCharacterIds = new HashSet<>();
     private final Map<Integer, Integer> integerVariables = new HashMap<>();
     private final Map<Integer, Integer> globalValues = new HashMap<>();
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
@@ -163,6 +164,7 @@ public class MapView extends View {
     private JSONArray r02StoryScenes;
     private JSONArray r03StoryScenes;
     private JSONArray r05StoryScenes;
+    private JSONArray r06StoryScenes;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
@@ -179,10 +181,12 @@ public class MapView extends View {
     private boolean r02StoryActive = false;
     private boolean r03StoryActive = false;
     private boolean r05StoryActive = false;
+    private boolean r06StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
     private boolean s05Ready = false;
+    private boolean s06Ready = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
     private int rescueCharacterId = -1;
@@ -194,6 +198,7 @@ public class MapView extends View {
     private int r02StorySceneIndex = 0;
     private int r03StorySceneIndex = 0;
     private int r05StorySceneIndex = 0;
+    private int r06StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -769,6 +774,7 @@ public class MapView extends View {
         r02StoryScenes = null;
         r03StoryScenes = null;
         r05StoryScenes = null;
+        r06StoryScenes = null;
 
         JSONObject s01Outcomes = battle.optJSONObject("outcomeEvents");
         if (s01Outcomes != null) {
@@ -806,6 +812,11 @@ public class MapView extends View {
                 && r05Story.optBoolean("supported", false)) {
             r05StoryScenes = r05Story.optJSONArray("scenes");
         }
+        JSONObject r06Story = battle.optJSONObject("r06Story");
+        if (r06Story != null
+                && r06Story.optBoolean("supported", false)) {
+            r06StoryScenes = r06Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -813,14 +824,17 @@ public class MapView extends View {
         r02StoryActive = false;
         r03StoryActive = false;
         r05StoryActive = false;
+        r06StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
         s05Ready = false;
+        s06Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
         r05StorySceneIndex = 0;
+        r06StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
@@ -1795,6 +1809,27 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
 
+                    case "storyChapter":
+                        storyTitle = action.optString("text", storyTitle);
+                        lastCombatMessage = currentStoryLabel()
+                                + (storyTitle.isEmpty()
+                                ? " · 장 전환"
+                                : " · " + storyTitle);
+                        combatMessageUntil = now + 1600L;
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "joinCharacter": {
+                        int joinedId = action.optInt("characterId", -1);
+                        if (joinedId >= 0) {
+                            joinedCharacterIds.add(joinedId);
+                            lastCombatMessage = "인물 합류 · " + joinedId;
+                            combatMessageUntil = now + 1200L;
+                        }
+                        activeBattleActionIndex++;
+                        break;
+                    }
+
                     case "storyLocation":
                         storyLocation = action.optString("text", "");
                         lastCombatMessage = "장소 · " + storyLocation;
@@ -1825,10 +1860,17 @@ public class MapView extends View {
                         break;
 
                     case "deploymentTest":
+                        String nextBattle = r06StoryActive
+                                ? "S_06"
+                                : (r05StoryActive
+                                ? "S_05"
+                                : (r03StoryActive
+                                ? "S_03"
+                                : (r02StoryActive
+                                ? "S_02"
+                                : "S_01")));
                         lastCombatMessage = "원본 출전 확인 · "
-                                + (r02StoryActive
-                                ? "S_02 준비"
-                                : "S_01 준비");
+                                + nextBattle + " 준비";
                         combatMessageUntil = now + 1000L;
                         activeBattleActionIndex++;
                         break;
@@ -2940,6 +2982,9 @@ public class MapView extends View {
 
 
     private String currentStoryLabel() {
+        if (r06StoryActive) {
+            return "R_06";
+        }
         if (r05StoryActive) {
             return "R_05";
         }
