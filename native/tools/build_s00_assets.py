@@ -541,6 +541,13 @@ def native_action_from_node(node):
             "revive": int(params[7]) != 0,
         }
 
+    if cid == 0x6F and params:
+        return {
+            "type": "discardItem",
+            "itemId": int(params[0]),
+            "count": 1,
+        }
+
     if cid == 0x4F and len(params) >= 6:
         return {
             "type": "turn",
@@ -2366,6 +2373,43 @@ def probe_selected_scenario_sections(scenes, selections):
     return result
 
 
+
+def probe_battle_outcome_candidates(scenes):
+    flat = flatten_scenario_nodes(scenes)
+    section_keys = set()
+
+    for scene in scenes:
+        if scene["scene"] != 2:
+            continue
+        for section in scene["sections"]:
+            rows = [
+                row for row in flat
+                if row["scene"] == 2
+                and row["section"] == section["section"]
+            ]
+            root_ids = {
+                row["commandId"]
+                for row in rows
+                if row["depth"] == 0
+            }
+            all_ids = {row["commandId"] for row in rows}
+            if 0x42 in root_ids or 0x43 in root_ids:
+                section_keys.add((2, section["section"]))
+                continue
+            if 0x36 in root_ids and 0x49 in all_ids:
+                section_keys.add((2, section["section"]))
+
+    if len(scenes) >= 3:
+        scene3 = scenes[2]
+        if scene3["sections"]:
+            section_keys.add((3, scene3["sections"][0]["section"]))
+
+    return probe_selected_scenario_sections(
+        scenes,
+        sorted(section_keys),
+    )
+
+
 def main(argv):
     if len(argv) != 4:
         print("usage: build_s00_assets.py game1.Zip game2.Zip output-assets-dir")
@@ -2590,6 +2634,7 @@ def main(argv):
         "hexzmapEntry": 3,
     }
     s03_event_probe = extract_scene2_native_events(s03_scenes)
+    s03_outcome_probe = probe_battle_outcome_candidates(s03_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -3085,7 +3130,7 @@ def main(argv):
         )
 
     s02_battle = {
-        "version": 26,
+        "version": 31,
         "source": "RS/S_02.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 2,
@@ -3147,6 +3192,7 @@ def main(argv):
                 for event in s03_event_probe
             ],
         },
+        "s03OutcomeProbe": s03_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s02_native_events),
             "coreSupportedCount": sum(
@@ -3196,7 +3242,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 26,
+        "version": 31,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
