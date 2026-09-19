@@ -69,6 +69,7 @@ public class MapView extends View {
     private final Map<Integer, Integer> integerVariables = new HashMap<>();
     private final Map<Integer, Integer> globalValues = new HashMap<>();
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
+    private int pendingScenarioJump = -1;
     private final List<JSONArray> battleActionStack = new ArrayList<>();
     private final List<Integer> battleActionIndexStack = new ArrayList<>();
     private final List<Boolean> battleConditionalStack = new ArrayList<>();
@@ -757,6 +758,7 @@ public class MapView extends View {
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
+        pendingScenarioJump = -1;
 
         openingIndex = 0;
         openingWaitUntil = 0L;
@@ -1015,7 +1017,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v3.2 | R_01 Scene "
+            header = "Native v3.3 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1025,7 +1027,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v3.2 | R_02 Scene "
+            header = "Native v3.3 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1035,7 +1037,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v3.2 | R_03 Scene "
+            header = "Native v3.3 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1045,7 +1047,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v3.2 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v3.3 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -2072,6 +2074,14 @@ public class MapView extends View {
 
                     case "battleFailureMarker":
                         lastCombatMessage = "원본 패배 처리";
+                        combatMessageUntil = now + 900L;
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "scenarioJump":
+                        pendingScenarioJump = action.optInt("target", -1);
+                        lastCombatMessage = "원본 시나리오 점프 · "
+                                + pendingScenarioJump;
                         combatMessageUntil = now + 900L;
                         activeBattleActionIndex++;
                         break;
@@ -3178,7 +3188,12 @@ public class MapView extends View {
                             : battleResultText);
             return;
         }
-        endBattle(true, "S_03 원본 승리 흐름 완료");
+        endBattle(
+                true,
+                pendingScenarioJump >= 0
+                        ? "S_03 원본 승리 흐름 완료 · 다음 점프 "
+                        + pendingScenarioJump
+                        : "S_03 원본 승리 흐름 완료");
     }
 
     private String currentBattleLabel() {
