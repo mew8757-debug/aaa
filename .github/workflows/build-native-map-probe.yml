@@ -1,4 +1,4 @@
-name: Build Native Android Battle v2.5
+name: Build Native Android Battle v2.6
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v2.5 APK
+      - name: Build native v2.6 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v2.5.apk"
+          OUT="SeongSamgukji-Native-Battle-v2.6.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v2.5 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v2.5 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v2.6 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v2.6 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v2.5 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v2.5" \
-              --notes "Native v2.5는 v2.4의 S01 종료→R02 스토리 흐름을 유지하면서 원본 S_02.eex와 M002를 다음 전투 자산으로 준비합니다. M002 JPEG 크기에서 타일 수를 계산하고 Hexzmap entry 2 terrain2.bin을 생성하며, S02 Scene1 Section1의 0x4A/0x4B/0x46/0x47 배치, 목표/턴/작전개시를 build-status에 기록합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v2.6 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v2.6" \
+              --notes "Native v2.6은 R02 원본 스토리/출전 종료 뒤 battle2.json을 실제 로드해 S_02 전투에 진입합니다. battle2는 M002 28x24, terrain2, 세 형제 3개 플레이어 슬롯, 원본 0x46 우군/0x47 적군 배치, 원본 이름 역매칭으로 확정한 유비·공손찬·간옹 보호 조건, 20턴/적 전멸 목표, 현재 완전 해석 가능한 Scene2 이벤트를 포함합니다. battle1/battle2 공용 로더로 기존 지형 이동·공격·반격·적 AI를 그대로 재사용합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v2.5 build status
+      - name: Record v2.6 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "2.5.0",
+              "version": "2.6.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -306,7 +306,53 @@ jobs:
                   "s02InitProbe": battle1.get("s02InitProbe", {}),
               }
 
-          Path("native/build-status/v2.5.json").write_text(
+
+          battle2_path = Path("native/android-map-probe/app/src/main/assets/battle/battle2.json")
+          if battle2_path.exists():
+              battle2 = json.loads(
+                  battle2_path.read_text(encoding="utf-8")
+              )
+              status["s02Battle"] = {
+                  "source": battle2.get("source"),
+                  "battleMode": battle2.get("battleMode"),
+                  "map": battle2.get("map"),
+                  "widthTiles": battle2.get("widthTiles"),
+                  "heightTiles": battle2.get("heightTiles"),
+                  "terrainIds": battle2.get("terrainIds", []),
+                  "unitCount": len(battle2.get("units", [])),
+                  "playerCount": sum(
+                      1 for u in battle2.get("units", [])
+                      if u.get("faction") == "player"
+                  ),
+                  "allyCount": sum(
+                      1 for u in battle2.get("units", [])
+                      if u.get("faction") == "ally"
+                  ),
+                  "enemyCount": sum(
+                      1 for u in battle2.get("units", [])
+                      if u.get("faction") == "enemy"
+                  ),
+                  "visibleEnemyCount": sum(
+                      1 for u in battle2.get("units", [])
+                      if u.get("faction") == "enemy"
+                      and u.get("visible")
+                  ),
+                  "hiddenEnemyCount": sum(
+                      1 for u in battle2.get("units", [])
+                      if u.get("faction") == "enemy"
+                      and not u.get("visible")
+                  ),
+                  "battleObjectives": battle2.get(
+                      "battleObjectives",
+                      {},
+                  ),
+                  "battleEventSummary": battle2.get(
+                      "battleEventSummary",
+                      {},
+                  ),
+              }
+
+          Path("native/build-status/v2.6.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -314,11 +360,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v2.5.json
+          git add native/build-status/v2.6.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v2.5 build status"
+          git commit -m "Record native v2.6 build status"
           git push

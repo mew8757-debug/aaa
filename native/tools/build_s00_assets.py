@@ -2485,6 +2485,8 @@ def main(argv):
         "terrainIds": sorted(set(terrain1_cells)),
         "hexzmapEntry": 1,
     }
+    s02_scenes = parse_scenario_tree(s02)
+    s02_native_events = extract_scene2_native_events(s02_scenes)
     s02_init_probe = probe_s01_initialization(s02)
     s02_init_probe["map"] = {
         "filename": "m002.jpg",
@@ -2795,7 +2797,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 25,
+        "version": 26,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
@@ -2862,6 +2864,201 @@ def main(argv):
         encoding="utf-8",
     )
 
+    # S_02 third battle: reuse the continuing three-player party,
+    # then apply the original 0x46/0x47 deployment table.
+    s02_units = []
+
+    def make_s02_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S02 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s02_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    for slot in sorted(
+        s02_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    ):
+        slot_index = int(slot["slot"])
+        if slot_index < 0 or slot_index >= len(continuing_party):
+            continue
+        cid = continuing_party[slot_index]
+        make_s02_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_02:0x4B:{slot_index}",
+        )
+
+    for index, row in enumerate(s02_init_probe["friendRecords"]):
+        make_s02_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_02:0x46:{index}",
+        )
+
+    for index, row in enumerate(s02_init_probe["enemyRecords"]):
+        make_s02_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_02:0x47:{index}",
+        )
+
+    s02_objective_text = (
+        s02_init_probe["objectiveTexts"][0]
+        if s02_init_probe["objectiveTexts"]
+        else ""
+    )
+    s02_popup_text = (
+        s02_init_probe["objectivePopups"][0]
+        if s02_init_probe["objectivePopups"]
+        else ""
+    )
+    s02_turn_match = re.search(r"(\d+)턴", s02_objective_text)
+    s02_turn_limit = int(s02_turn_match.group(1)) if s02_turn_match else 20
+
+    protected_names = {"유비", "공손찬", "간옹"}
+    protected_candidates = set(continuing_party)
+    protected_candidates.update(
+        row["person"]
+        for row in s02_init_probe["friendRecords"]
+    )
+    s02_protected_ids = sorted(
+        cid
+        for cid in protected_candidates
+        if name_of(cid) in protected_names
+    )
+    if {name_of(cid) for cid in s02_protected_ids} != protected_names:
+        raise SystemExit(
+            "S02 protected-name mapping incomplete: "
+            + repr([
+                (cid, name_of(cid))
+                for cid in sorted(protected_candidates)
+                if name_of(cid) in protected_names
+            ])
+        )
+
+    s02_battle = {
+        "version": 26,
+        "source": "RS/S_02.eex",
+        "battleMode": "enemy-annihilation",
+        "mapId": 2,
+        "map": "m002.jpg",
+        "widthTiles": map2_cols,
+        "heightTiles": map2_rows,
+        "terrainFile": "terrain2.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s02_objective_text,
+                "popupText": s02_popup_text,
+                "turnLimit": s02_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s02_turn_limit,
+            },
+            "protectedCharacterIds": s02_protected_ids,
+            "protectedCharacters": [
+                {
+                    "characterId": cid,
+                    "name": name_of(cid),
+                }
+                for cid in s02_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s02_native_events,
+        "battleEventSummary": {
+            "candidateCount": len(s02_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s02_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s02_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain2_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s02_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle2.json").write_text(
+        json.dumps(s02_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
@@ -2880,7 +3077,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 24,
+        "version": 26,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -2952,7 +3149,7 @@ def main(argv):
 
     sprite_ids = sorted({
         u["spriteId"]
-        for u in units + s01_units
+        for u in units + s01_units + s02_units
     })
     for sid in sprite_ids:
         specs = (
@@ -3041,6 +3238,23 @@ def main(argv):
         sum(1 for e in s01_native_events if e["coreSupported"]),
         "turnLimit=",
         s01_turn_limit,
+    )
+    print(
+        "s02 units=",
+        len(s02_units),
+        "visible=",
+        sum(1 for u in s02_units if u["visible"]),
+        "events=",
+        len(s02_native_events),
+        "core-supported=",
+        sum(1 for e in s02_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s02_turn_limit,
+        "protected=",
+        [
+            (cid, name_of(cid))
+            for cid in s02_protected_ids
+        ],
     )
     print(
         "s01 outcome supported=",
