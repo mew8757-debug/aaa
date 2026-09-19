@@ -2226,6 +2226,16 @@ def compile_r05_story(blob):
     )
 
 
+def compile_r06_story(blob):
+    return compile_r_story(
+        blob,
+        "R_06.eex",
+        13,
+        14,
+        "S_06.eex",
+    )
+
+
 def build_next_scenario_probe(filename, blob):
     if blob is None:
         return {
@@ -2606,6 +2616,7 @@ def main(argv):
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
         map4_bytes = read_member_by_basename(game2, "m004.jpg")
         map5_bytes = read_member_by_basename(game2, "m005.jpg")
+        map6_bytes = read_member_by_basename(game2, "m006.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -2616,6 +2627,8 @@ def main(argv):
             map4_bytes = read_member_by_basename(game1, "m004.jpg")
         if map5_bytes is None:
             map5_bytes = read_member_by_basename(game1, "m005.jpg")
+        if map6_bytes is None:
+            map6_bytes = read_member_by_basename(game1, "m006.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -2633,6 +2646,8 @@ def main(argv):
         raise SystemExit("m004.jpg not found in game1/game2")
     if map5_bytes is None:
         raise SystemExit("m005.jpg not found in game1/game2")
+    if map6_bytes is None:
+        raise SystemExit("m006.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
@@ -2724,6 +2739,23 @@ def main(argv):
     )
     (map_dir / "m005.jpg").write_bytes(map5_bytes)
     (battle_dir / "terrain5.bin").write_bytes(terrain5_cells)
+
+    map6_width, map6_height = jpeg_dimensions(map6_bytes)
+    if map6_width % 48 != 0 or map6_height % 48 != 0:
+        raise SystemExit(
+            f"m006 dimensions not divisible by 48: "
+            f"{map6_width}x{map6_height}"
+        )
+    map6_cols = map6_width // 48
+    map6_rows = map6_height // 48
+    terrain6_cells = extract_hexzmap_cells(
+        hexz,
+        6,
+        map6_cols,
+        map6_rows,
+    )
+    (map_dir / "m006.jpg").write_bytes(map6_bytes)
+    (battle_dir / "terrain6.bin").write_bytes(terrain6_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -2886,6 +2918,22 @@ def main(argv):
     s05_outcome_events = extract_s05_outcome_events(s05_scenes)
     r06_probe = build_next_scenario_probe("R_06.eex", r06)
     s06_probe = build_next_scenario_probe("S_06.eex", s06)
+    r06_story = compile_r06_story(r06)
+
+    s06_scenes = parse_scenario_tree(s06)
+    s06_init_probe = probe_s01_initialization(s06)
+    s06_init_probe["map"] = {
+        "filename": "m006.jpg",
+        "width": map6_width,
+        "height": map6_height,
+        "cols": map6_cols,
+        "rows": map6_rows,
+        "terrainCellCount": len(terrain6_cells),
+        "terrainIds": sorted(set(terrain6_cells)),
+        "hexzmapEntry": 6,
+    }
+    s06_event_probe = extract_scene2_native_events(s06_scenes)
+    s06_outcome_probe = probe_battle_outcome_candidates(s06_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -4096,7 +4144,7 @@ def main(argv):
         )
 
     s05_battle = {
-        "version": 38,
+        "version": 40,
         "source": "RS/S_05.eex",
         "battleMode": "kill-character",
         "mapId": 5,
@@ -4140,6 +4188,28 @@ def main(argv):
             "R_06.eex": r06_probe,
             "S_06.eex": s06_probe,
         },
+        "r06Story": r06_story,
+        "s06InitProbe": s06_init_probe,
+        "s06EventProbe": {
+            "candidateCount": len(s06_event_probe),
+            "coreSupportedCount": sum(
+                1 for event in s06_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s06_event_probe
+            ],
+        },
+        "s06OutcomeProbe": s06_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s05_native_events),
             "coreSupportedCount": sum(
@@ -4328,6 +4398,46 @@ def main(argv):
         map4_rows,
         "terrain ids=",
         sorted(set(terrain4_cells)),
+    )
+    print(
+        "s06 map=",
+        map6_width,
+        "x",
+        map6_height,
+        "tiles=",
+        map6_cols,
+        "x",
+        map6_rows,
+        "terrain ids=",
+        sorted(set(terrain6_cells)),
+    )
+    print(
+        "r06 story supported=",
+        r06_story["supported"],
+        "scenes=",
+        r06_story["sceneCount"],
+        "unsupported=",
+        r06_story["unsupportedActionIds"],
+    )
+    print(
+        "s06 init slots=",
+        s06_init_probe["playerSlots"],
+        "forced=",
+        s06_init_probe["forcedPlayers"],
+        "friends=",
+        len(s06_init_probe["friendRecords"]),
+        "enemies=",
+        len(s06_init_probe["enemyRecords"]),
+        "objectives=",
+        s06_init_probe["objectiveTexts"],
+        "events=",
+        len(s06_event_probe),
+        "core-supported=",
+        sum(1 for e in s06_event_probe if e["coreSupported"]),
+    )
+    print(
+        "s06 outcome candidates=",
+        s06_outcome_probe,
     )
     print(
         "s05 map=",
