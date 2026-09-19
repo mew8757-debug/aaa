@@ -315,6 +315,7 @@ public class MapView extends View {
                     u.getInt("x"),
                     u.getInt("y"),
                     u.optInt("direction", 2));
+            unit.aiPolicy = u.optInt("aiPolicy", unit.aiPolicy);
             units.add(unit);
             if (u.optBoolean("reinforcement", false)) {
                 reinforcementCharacterIds.add(unit.characterId);
@@ -576,7 +577,7 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v1.1 | " + round + "/" + turnLimit + "턴 "
+                "Native v1.2 | " + round + "/" + turnLimit + "턴 "
                         + (playerTurn ? "아군" : "적군")
                         + " | 단계 " + battlePhase
                         + " | 아군 " + playerCount
@@ -1317,6 +1318,11 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
 
+                    case "aiPolicy":
+                        applyAiPolicyAction(action);
+                        activeBattleActionIndex++;
+                        break;
+
                     case "setVariable":
                         scenarioVariables.put(
                                 action.optInt("variableId", -1),
@@ -1374,6 +1380,58 @@ public class MapView extends View {
         }
 
         return false;
+    }
+
+
+    private void applyAiPolicyAction(JSONObject action) {
+        int targetMode = action.optInt("targetMode", 0);
+
+        if (targetMode != 1) {
+            BattleUnit unit = findUnitByCharacterId(
+                    action.optInt("characterId", -1));
+            if (unit != null) {
+                applyAiPolicy(unit, action);
+            }
+            return;
+        }
+
+        int x1 = action.optInt("x1", 0);
+        int y1 = action.optInt("y1", 0);
+        int x2 = action.optInt("x2", mapCols - 1);
+        int y2 = action.optInt("y2", mapRows - 1);
+        int left = Math.min(x1, x2);
+        int right = Math.max(x1, x2);
+        int top = Math.min(y1, y2);
+        int bottom = Math.max(y1, y2);
+        int camp = action.optInt("camp", 6);
+
+        for (BattleUnit unit : units) {
+            if (!unit.visible
+                    || !unit.isAlive()
+                    || unit.x < left
+                    || unit.x > right
+                    || unit.y < top
+                    || unit.y > bottom
+                    || !matchesCamp(unit, camp)) {
+                continue;
+            }
+            applyAiPolicy(unit, action);
+        }
+    }
+
+    private void applyAiPolicy(
+            BattleUnit unit,
+            JSONObject action) {
+        unit.aiPolicy = action.optInt("policy", unit.aiPolicy);
+        unit.aiTargetCharacterId = action.optInt(
+                "targetCharacterId",
+                -1);
+        unit.aiTargetX = action.optInt("targetX", -1);
+        unit.aiTargetY = action.optInt("targetY", -1);
+
+        lastCombatMessage = unit.name
+                + " AI 정책 " + unit.aiPolicy;
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
     }
 
     private void startBattleScriptEvent(JSONObject event) {
@@ -2505,14 +2563,8 @@ public class MapView extends View {
             if (activeEnemyAttackPending) {
                 activeEnemyAttackPending = false;
 
-                BattleUnit target = activeEnemyTarget;
-                if (target == null
-                        || !target.visible
-                        || !target.isAlive()) {
-                    target = findNearestOpponent(activeEnemy);
-                    activeEnemyTarget = target;
-                }
-
+                BattleUnit target = findAiAttackTarget(activeEnemy);
+                activeEnemyTarget = target;
                 if (target != null
                         && canStrike(activeEnemy, target)) {
                     performEnemyAttack(activeEnemy, target);
@@ -2538,22 +2590,20 @@ public class MapView extends View {
                 continue;
             }
 
-            BattleUnit target = findNearestOpponent(enemy);
-            if (target == null) {
-                finishEnemyTurn();
-                return false;
-            }
-
             activeEnemy = enemy;
-            activeEnemyTarget = target;
 
-            if (canStrike(enemy, target)) {
-                performEnemyAttack(enemy, target);
+            BattleUnit immediateTarget = findAiAttackTarget(enemy);
+            if (immediateTarget != null) {
+                activeEnemyTarget = immediateTarget;
+                performEnemyAttack(enemy, immediateTarget);
                 return true;
             }
 
+            BattleUnit combatTarget = findAiCombatTarget(enemy);
+            activeEnemyTarget = combatTarget;
+
             if (!enemy.moved
-                    && planAiMove(enemy, target)) {
+                    && planAiPolicyMove(enemy, combatTarget)) {
                 activeEnemyAttackPending = true;
                 return true;
             }
@@ -2633,25 +2683,141 @@ public class MapView extends View {
         return best;
     }
 
+    private BattleUnit findAiCombatTarget(BattleUnit unit) {
+        if (unit == null) {
+            return null;
+        }
+
+        if (unit.aiPolicy == 3
+                && unit.aiTargetCharacterId >= 0) {
+            BattleUnit specified = findUnitByCharacterId(
+                    unit.aiTargetCharacterId);
+            if (specified != null
+                    && specified.visible
+                    && specified.isAlive()
+                    && opposingSides(unit, specified)) {
+                return specified;
+            }
+        }
+
+        return findNearestOpponent(unit);
+    }
+
+    private BattleUnit findAiAttackTarget(BattleUnit unit) {
+        if (unit == null) {
+            return null;
+        }
+
+        if (unit.aiPolicy == 3) {
+            BattleUnit specified = findAiCombatTarget(unit);
+            return specified != null
+                    && canStrike(unit, specified)
+                    ? specified
+                    : null;
+        }
+
+        BattleUnit best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (BattleUnit candidate : units) {
+            if (!candidate.visible
+                    || !candidate.isAlive()
+                    || !opposingSides(unit, candidate)
+                    || !canStrike(unit, candidate)) {
+                continue;
+            }
+
+            int distance = Math.abs(candidate.x - unit.x)
+                    + Math.abs(candidate.y - unit.y);
+            if (best == null
+                    || distance < bestDistance
+                    || (distance == bestDistance
+                    && candidate.characterId < best.characterId)) {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    private boolean planAiPolicyMove(
+            BattleUnit unit,
+            BattleUnit combatTarget) {
+        if (unit == null) {
+            return false;
+        }
+
+        switch (unit.aiPolicy) {
+            case 0:
+            case 2:
+                unit.moved = true;
+                return false;
+
+            case 3:
+                return combatTarget != null
+                        && planAiMove(unit, combatTarget);
+
+            case 4:
+            case 6:
+                if (inBounds(unit.aiTargetX, unit.aiTargetY)) {
+                    return planAiMoveToward(
+                            unit,
+                            unit.aiTargetX,
+                            unit.aiTargetY);
+                }
+                unit.moved = true;
+                return false;
+
+            case 5: {
+                BattleUnit follow = findUnitByCharacterId(
+                        unit.aiTargetCharacterId);
+                if (follow != null
+                        && follow.visible
+                        && follow.isAlive()) {
+                    return planAiMoveToward(
+                            unit,
+                            follow.x,
+                            follow.y);
+                }
+                unit.moved = true;
+                return false;
+            }
+
+            case 1:
+            default:
+                return combatTarget != null
+                        && planAiMove(unit, combatTarget);
+        }
+    }
+
     private boolean planAiMove(
             BattleUnit unit,
             BattleUnit target) {
+        if (target == null) {
+            return false;
+        }
+        return planAiMoveToward(unit, target.x, target.y);
+    }
+
+    private boolean planAiMoveToward(
+            BattleUnit unit,
+            int goalX,
+            int goalY) {
         if (unit == null
-                || target == null
                 || !unit.visible
                 || !unit.isAlive()
                 || unit.moved
                 || unit.acted
                 || unit.isMoving()
-                || unit.movePoints <= 0) {
+                || unit.movePoints <= 0
+                || !inBounds(goalX, goalY)) {
             return false;
         }
 
         PathSearch search = computeReachability(unit);
         int start = tileIndex(unit.x, unit.y);
         int bestIndex = start;
-        int bestDistance = Math.abs(target.x - unit.x)
-                + Math.abs(target.y - unit.y);
+        int bestDistance = Math.abs(goalX - unit.x)
+                + Math.abs(goalY - unit.y);
         int bestCost = 0;
 
         for (int index = 0;
@@ -2670,8 +2836,8 @@ public class MapView extends View {
                 continue;
             }
 
-            int distance = Math.abs(target.x - x)
-                    + Math.abs(target.y - y);
+            int distance = Math.abs(goalX - x)
+                    + Math.abs(goalY - y);
 
             if (distance < bestDistance
                     || (distance == bestDistance
