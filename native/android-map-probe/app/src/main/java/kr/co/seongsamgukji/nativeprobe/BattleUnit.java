@@ -37,6 +37,12 @@ public class BattleUnit {
     public int aiTargetCharacterId;
     public int aiTargetX;
     public int aiTargetY;
+    public int debuffMask;
+    public int attackCondition;
+    public int defenseCondition;
+    public int spiritCondition;
+    public int burstCondition;
+    public int moraleCondition;
 
     public final List<Integer> movePath = new ArrayList<>();
     public int movePathIndex;
@@ -91,6 +97,12 @@ public class BattleUnit {
         this.aiTargetCharacterId = -1;
         this.aiTargetX = -1;
         this.aiTargetY = -1;
+        this.debuffMask = 0;
+        this.attackCondition = 1;
+        this.defenseCondition = 1;
+        this.spiritCondition = 1;
+        this.burstCondition = 1;
+        this.moraleCondition = 1;
         this.movePathIndex = 0;
     }
 

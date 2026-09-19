@@ -66,6 +66,10 @@ public class MapView extends View {
     private final Set<Integer> firedBattleSections = new HashSet<>();
     private final Set<Integer> reinforcementCharacterIds = new HashSet<>();
     private final Map<Integer, Integer> scenarioVariables = new HashMap<>();
+    private final Map<Integer, Integer> integerVariables = new HashMap<>();
+    private final Map<Integer, Integer> itemInventory = new HashMap<>();
+    private final List<JSONArray> battleActionStack = new ArrayList<>();
+    private final List<Integer> battleActionIndexStack = new ArrayList<>();
     private final Map<Integer, Bitmap[]> idleSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> moveSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> attackSprites = new HashMap<>();
@@ -146,6 +150,8 @@ public class MapView extends View {
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
     private boolean scriptEventActive = false;
+    private BattleUnit duelFirstUnit;
+    private BattleUnit duelSecondUnit;
 
     public MapView(Context context) {
         super(context);
@@ -577,7 +583,7 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v1.3 | " + round + "/" + turnLimit + "턴 "
+                "Native v1.4 | " + round + "/" + turnLimit + "턴 "
                         + (playerTurn ? "아군" : "적군")
                         + " | 단계 " + battlePhase
                         + " | 아군 " + playerCount
@@ -1165,6 +1171,34 @@ public class MapView extends View {
 
                 String type = action.optString("type", "");
                 switch (type) {
+                    case "sequence":
+                        if (!enterNestedBattleActions(
+                                action.optJSONArray("actions"))) {
+                            activeBattleActionIndex++;
+                        }
+                        break;
+
+                    case "conditionalVariables":
+                        if (scriptVariableConditionSatisfied(action)
+                                && enterNestedBattleActions(
+                                action.optJSONArray("actions"))) {
+                            break;
+                        }
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "conditionalTrigger": {
+                        JSONObject trigger = action.optJSONObject("trigger");
+                        if (trigger != null
+                                && battleTriggerSatisfied(trigger)
+                                && enterNestedBattleActions(
+                                action.optJSONArray("actions"))) {
+                            break;
+                        }
+                        activeBattleActionIndex++;
+                        break;
+                    }
+
                     case "dialogue":
                         dialogueSpeaker = action.optString("speaker", "");
                         dialogueText = action.optString("text", "");
@@ -1309,14 +1343,21 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
 
-                    case "reward":
+                    case "reward": {
+                        int itemId = action.optInt("value", -1);
+                        if (itemId >= 0) {
+                            itemInventory.put(
+                                    itemId,
+                                    itemInventory.getOrDefault(itemId, 0) + 1);
+                        }
                         lastCombatMessage = "원본 보상 이벤트 · 아이템 "
-                                + action.optInt("value", -1)
+                                + itemId
                                 + " → 인물 "
                                 + action.optInt("targetId", -1);
                         combatMessageUntil = now + 1800L;
                         activeBattleActionIndex++;
                         break;
+                    }
 
                     case "aiPolicy":
                         applyAiPolicyAction(action);
@@ -1327,6 +1368,61 @@ public class MapView extends View {
                         applyRelativeMoveAction(action);
                         activeBattleActionIndex++;
                         battleEventWaitUntil = now + 120L;
+                        return true;
+
+                    case "intVariableOp":
+                        applyIntegerVariableAction(action);
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "statusChange":
+                        applyStatusChangeAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 160L;
+                        return true;
+
+                    case "duelStart":
+                        startScriptedDuel(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 240L;
+                        return true;
+
+                    case "duelIntro":
+                    case "duelDialogue":
+                        showDuelDialogue(action);
+                        return true;
+
+                    case "duelGesture":
+                        applyDuelGesture(action, now);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 320L;
+                        return true;
+
+                    case "duelAttack":
+                    case "duelCharge":
+                        applyDuelAttack(action, now);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 420L;
+                        return true;
+
+                    case "duelClash":
+                        lastCombatMessage = "일기토 · 공방";
+                        combatMessageUntil = now + 800L;
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 260L;
+                        return true;
+
+                    case "duelDefeat":
+                        applyDuelDefeat(action, now);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 420L;
+                        return true;
+
+                    case "duelEnd":
+                        duelFirstUnit = null;
+                        duelSecondUnit = null;
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 160L;
                         return true;
 
                     case "setVariable":
@@ -1363,6 +1459,10 @@ public class MapView extends View {
                 }
             }
 
+            if (restoreParentBattleActions()) {
+                return true;
+            }
+
             finishBattleScriptEvent();
             return false;
         }
@@ -1388,6 +1488,253 @@ public class MapView extends View {
         return false;
     }
 
+
+
+    private boolean enterNestedBattleActions(JSONArray actions) {
+        if (actions == null || actions.length() == 0) {
+            return false;
+        }
+        battleActionStack.add(activeBattleActions);
+        battleActionIndexStack.add(activeBattleActionIndex + 1);
+        activeBattleActions = actions;
+        activeBattleActionIndex = 0;
+        return true;
+    }
+
+    private boolean restoreParentBattleActions() {
+        if (battleActionStack.isEmpty()) {
+            return false;
+        }
+        int last = battleActionStack.size() - 1;
+        activeBattleActions = battleActionStack.remove(last);
+        activeBattleActionIndex = battleActionIndexStack.remove(last);
+        return true;
+    }
+
+    private boolean scriptVariableConditionSatisfied(JSONObject action) {
+        JSONArray requiredTrue = action.optJSONArray(
+                "requireTrueVariables");
+        if (requiredTrue != null) {
+            for (int i = 0; i < requiredTrue.length(); i++) {
+                int id = requiredTrue.optInt(i, -1);
+                if (id >= 0
+                        && scenarioVariables.getOrDefault(id, 0) == 0) {
+                    return false;
+                }
+            }
+        }
+
+        JSONArray requiredFalse = action.optJSONArray(
+                "requireFalseVariables");
+        if (requiredFalse != null) {
+            for (int i = 0; i < requiredFalse.length(); i++) {
+                int id = requiredFalse.optInt(i, -1);
+                if (id >= 0
+                        && scenarioVariables.getOrDefault(id, 0) != 0) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private void applyIntegerVariableAction(JSONObject action) {
+        int id = action.optInt("variableId", -1);
+        if (id < 0) {
+            return;
+        }
+
+        int current = integerVariables.getOrDefault(id, 0);
+        int value = action.optInt("value", 0);
+        int operation = action.optInt("operation", 2);
+        int next = current;
+
+        switch (operation) {
+            case 0:
+                next = current + value;
+                break;
+            case 1:
+                next = current - value;
+                break;
+            case 2:
+                next = value;
+                break;
+            case 3:
+                next = current * value;
+                break;
+            case 4:
+                if (value != 0) {
+                    next = current / value;
+                }
+                break;
+            case 5:
+                if (value != 0) {
+                    next = current % value;
+                }
+                break;
+            case 6:
+                next = value;
+                break;
+            default:
+                return;
+        }
+        integerVariables.put(id, next);
+    }
+
+    private void applyStatusChangeAction(JSONObject action) {
+        int targetMode = action.optInt("targetMode", 0);
+
+        if (targetMode == 0) {
+            BattleUnit unit = findUnitByCharacterId(
+                    action.optInt("characterId", -1));
+            if (unit != null) {
+                applyStatusChange(unit, action);
+            }
+            return;
+        }
+
+        if (targetMode != 2) {
+            return;
+        }
+
+        int left = Math.min(
+                action.optInt("x1", 0),
+                action.optInt("x2", mapCols - 1));
+        int right = Math.max(
+                action.optInt("x1", 0),
+                action.optInt("x2", mapCols - 1));
+        int top = Math.min(
+                action.optInt("y1", 0),
+                action.optInt("y2", mapRows - 1));
+        int bottom = Math.max(
+                action.optInt("y1", 0),
+                action.optInt("y2", mapRows - 1));
+        int camp = action.optInt("camp", 6);
+
+        for (BattleUnit unit : units) {
+            if (!unit.visible
+                    || !unit.isAlive()
+                    || unit.x < left
+                    || unit.x > right
+                    || unit.y < top
+                    || unit.y > bottom
+                    || !matchesCamp(unit, camp)) {
+                continue;
+            }
+            applyStatusChange(unit, action);
+        }
+    }
+
+    private void applyStatusChange(
+            BattleUnit unit,
+            JSONObject action) {
+        int condition = action.optInt("condition", 6);
+        int change = action.optInt("change", 3);
+
+        if (change >= 0 && change <= 2) {
+            switch (condition) {
+                case 0:
+                    unit.attackCondition = change;
+                    break;
+                case 1:
+                    unit.defenseCondition = change;
+                    break;
+                case 2:
+                    unit.spiritCondition = change;
+                    break;
+                case 3:
+                    unit.burstCondition = change;
+                    break;
+                case 4:
+                    unit.moraleCondition = change;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        int rawMask = action.optInt("debuffMask", 0);
+        int statusBits = rawMask & 0x7f;
+        if (statusBits != 0) {
+            if (rawMask < 128) {
+                unit.debuffMask |= statusBits;
+            } else {
+                unit.debuffMask &= ~statusBits;
+            }
+        }
+
+        if ((unit.debuffMask & 0x08) != 0) {
+            lastCombatMessage = unit.name + " · 혼란";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+        }
+    }
+
+    private void startScriptedDuel(JSONObject action) {
+        duelFirstUnit = findUnitByCharacterId(
+                action.optInt("firstCharacterId", -1));
+        duelSecondUnit = findUnitByCharacterId(
+                action.optInt("secondCharacterId", -1));
+
+        String first = duelFirstUnit == null
+                ? "?"
+                : duelFirstUnit.name;
+        String second = duelSecondUnit == null
+                ? "?"
+                : duelSecondUnit.name;
+        lastCombatMessage = "일기토 · " + first + " vs " + second;
+        combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+    }
+
+    private BattleUnit duelUnitForSide(int side) {
+        return side == 0 ? duelSecondUnit : duelFirstUnit;
+    }
+
+    private void showDuelDialogue(JSONObject action) {
+        BattleUnit unit = duelUnitForSide(action.optInt("side", 0));
+        dialogueSpeaker = unit == null ? "일기토" : unit.name;
+        dialogueText = action.optString("text", "");
+
+        int gesture = action.optInt("gesture", -1);
+        if (unit != null && gesture >= 0) {
+            unit.actionFrame = gesture;
+            unit.actionUntil = SystemClock.uptimeMillis() + 420L;
+        }
+    }
+
+    private void applyDuelGesture(JSONObject action, long now) {
+        BattleUnit unit = duelUnitForSide(action.optInt("side", 0));
+        if (unit == null) {
+            return;
+        }
+        unit.actionFrame = action.optInt("gesture", 0);
+        unit.actionUntil = now + 420L;
+    }
+
+    private void applyDuelAttack(JSONObject action, long now) {
+        BattleUnit unit = duelUnitForSide(action.optInt("side", 0));
+        if (unit == null) {
+            return;
+        }
+        unit.attackStartedAt = now;
+        unit.attackUntil = now + ATTACK_ANIMATION_MS;
+        lastCombatMessage = "일기토 · "
+                + unit.name
+                + (action.optBoolean("critical", false)
+                ? " 치명타 연출"
+                : " 공격 연출");
+        combatMessageUntil = now + 900L;
+    }
+
+    private void applyDuelDefeat(JSONObject action, long now) {
+        BattleUnit unit = duelUnitForSide(action.optInt("side", 0));
+        if (unit == null) {
+            return;
+        }
+        unit.actionFrame = 10;
+        unit.actionUntil = now + 520L;
+        lastCombatMessage = "일기토 · " + unit.name + " 패배 연출";
+        combatMessageUntil = now + 1000L;
+    }
 
     private void applyRelativeMoveAction(JSONObject action) {
         BattleUnit unit = findUnitByCharacterId(
@@ -1483,6 +1830,10 @@ public class MapView extends View {
         activeBattleEvent = event;
         activeBattleActions = event.optJSONArray("actions");
         activeBattleActionIndex = 0;
+        battleActionStack.clear();
+        battleActionIndexStack.clear();
+        duelFirstUnit = null;
+        duelSecondUnit = null;
         battleEventWaitUntil = SystemClock.uptimeMillis() + 80L;
         battleEventMovingUnit = null;
         scriptEventActive = true;
@@ -1502,6 +1853,10 @@ public class MapView extends View {
         activeBattleEvent = null;
         activeBattleActions = null;
         activeBattleActionIndex = 0;
+        battleActionStack.clear();
+        battleActionIndexStack.clear();
+        duelFirstUnit = null;
+        duelSecondUnit = null;
         battleEventMovingUnit = null;
         battleEventWaitUntil = 0L;
         scriptEventActive = false;
@@ -2087,6 +2442,10 @@ public class MapView extends View {
         scriptEventActive = false;
         activeBattleEvent = null;
         activeBattleActions = null;
+        battleActionStack.clear();
+        battleActionIndexStack.clear();
+        duelFirstUnit = null;
+        duelSecondUnit = null;
         battleEventMovingUnit = null;
         pendingCounterAttacker = null;
         pendingCounterTarget = null;
@@ -2633,6 +2992,15 @@ public class MapView extends View {
                     || enemy.acted) {
                 enemyTurnIndex++;
                 continue;
+            }
+
+            if ((enemy.debuffMask & 0x08) != 0) {
+                enemy.acted = true;
+                lastCombatMessage = enemy.name + " · 혼란으로 행동 불가";
+                combatMessageUntil = now + 900L;
+                enemyTurnIndex++;
+                enemyNextActionAt = now + ENEMY_PAUSE_MS;
+                return true;
             }
 
             activeEnemy = enemy;
