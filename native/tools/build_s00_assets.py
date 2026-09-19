@@ -380,6 +380,7 @@ def build_scenario_diagnostics(scenes):
         0x42, 0x43,
         0x49,
         0x53, 0x54,
+        0x5D,
         0x0D, 0x0E,
     }
     relevant = [
@@ -402,6 +403,7 @@ def build_scenario_diagnostics(scenes):
         (2, 1),
         (2, 20),
         (2, 21),
+        (2, 31),
         (2, 33),
         (2, 34),
     }
