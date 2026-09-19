@@ -160,6 +160,7 @@ public class MapView extends View {
     private JSONArray s01GenericDefeatActions;
     private JSONArray r01StoryScenes;
     private JSONArray r02StoryScenes;
+    private JSONArray r03StoryScenes;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
@@ -174,12 +175,15 @@ public class MapView extends View {
     private boolean s00Complete = false;
     private boolean r01StoryActive = false;
     private boolean r02StoryActive = false;
+    private boolean r03StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
+    private boolean s03Ready = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
     private int r01StorySceneIndex = 0;
     private int r02StorySceneIndex = 0;
+    private int r03StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -662,6 +666,7 @@ public class MapView extends View {
         s01DefeatOutcomeEvents = null;
         s01GenericDefeatActions = null;
         r02StoryScenes = null;
+        r03StoryScenes = null;
 
         JSONObject s01Outcomes = battle.optJSONObject("outcomeEvents");
         if (s01Outcomes != null) {
@@ -689,15 +694,23 @@ public class MapView extends View {
                 && r02Story.optBoolean("supported", false)) {
             r02StoryScenes = r02Story.optJSONArray("scenes");
         }
+        JSONObject r03Story = battle.optJSONObject("r03Story");
+        if (r03Story != null
+                && r03Story.optBoolean("supported", false)) {
+            r03StoryScenes = r03Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
         r01StoryActive = false;
         r02StoryActive = false;
+        r03StoryActive = false;
         s01Ready = false;
         s02Ready = false;
+        s03Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
+        r03StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
