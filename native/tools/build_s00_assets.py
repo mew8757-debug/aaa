@@ -2673,6 +2673,8 @@ def main(argv):
         s05 = read_member_by_basename(game1, "S_05.eex")
         r06 = read_member_by_basename(game1, "R_06.eex")
         s06 = read_member_by_basename(game1, "S_06.eex")
+        r07 = read_member_by_basename(game1, "R_07.eex")
+        s07 = read_member_by_basename(game1, "S_07.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3001,6 +3003,8 @@ def main(argv):
         excluded_sections={13, 22, 23, 24, 25, 26},
     )
     s06_outcome_events = extract_s06_outcome_events(s06_scenes)
+    r07_probe = build_next_scenario_probe("R_07.eex", r07)
+    s07_probe = build_next_scenario_probe("S_07.eex", s07)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -4454,7 +4458,7 @@ def main(argv):
         )
 
     s06_battle = {
-        "version": 41,
+        "version": 42,
         "source": "RS/S_06.eex",
         "battleMode": "kill-character",
         "mapId": 6,
@@ -4493,6 +4497,10 @@ def main(argv):
         "battleEvents": s06_native_events,
         "outcomeEvents": s06_outcome_events,
         "outcomeProbe": s06_outcome_probe,
+        "nextScenarioProbe": {
+            "R_07.eex": r07_probe,
+            "S_07.eex": s07_probe,
+        },
         "battleEventSummary": {
             "candidateCount": len(s06_native_events),
             "coreSupportedCount": sum(
@@ -4730,6 +4738,21 @@ def main(argv):
     print(
         "s06 outcome candidates=",
         s06_outcome_probe,
+    )
+    print(
+        "post-S06 probes=",
+        {
+            "R_07.eex": {
+                "found": r07_probe.get("found"),
+                "sceneCount": r07_probe.get("sceneCount"),
+                "sectionCounts": r07_probe.get("sectionCounts"),
+            },
+            "S_07.eex": {
+                "found": s07_probe.get("found"),
+                "sceneCount": s07_probe.get("sceneCount"),
+                "sectionCounts": s07_probe.get("sectionCounts"),
+            },
+        },
     )
     print(
         "s06 battle units=",
