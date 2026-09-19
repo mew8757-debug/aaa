@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.6
+name: Build Native Android Battle v4.7
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.6 APK
+      - name: Build native v4.7 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.6.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.7.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.6 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.6 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.7 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.7 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.6 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.6" \
-              --notes "Native v4.6은 R07의 마지막 미지원 0x78 [0,1,4,0]을 AllCondition[0]=R형상 속성 전송으로 처리합니다. 전투 유닛과 독립된 R 스토리 형상 상태를 보존해 R07 Scene1~10이 supported=true로 컴파일되고 S06→R07→S07 실제 연속 진행이 열리게 합니다. v4.5의 S07 전장 이벤트 53/53 지원과 battle7 승패 흐름은 유지합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.7 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.7" \
+              --notes "Native v4.7은 S07 승리 뒤 원본 R_08.eex Scene 1~22와 Scene 23 Section1 출전 흐름을 실제 연속 재생합니다. 0x78 AllCondition 속성을 R형상·얼굴·HP/MP·보조장비·전장방향·현재HP/MP까지 확장해 R08/S08에서 확인된 전송을 공용 처리합니다. BattleUnit에 MP/보조장비 상태를 보존하며, R08 종료 시 S08 전투 준비 완료 상태까지 진행합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.6 build status
+      - name: Record v4.7 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.6.0",
+              "version": "4.7.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -702,9 +702,25 @@ jobs:
                       "nextScenarioProbe",
                       {},
                   ),
+                  "r08Story": {
+                      "supported": battle7.get("r08Story", {}).get("supported"),
+                      "sceneCount": battle7.get("r08Story", {}).get("sceneCount"),
+                      "unsupportedActionIds": battle7.get("r08Story", {}).get(
+                          "unsupportedActionIds",
+                          [],
+                      ),
+                      "nextBattle": battle7.get("r08Story", {}).get("nextBattle"),
+                  },
+                  "r08StoryReady": (
+                      battle7.get("r08Story", {}).get("supported") is True
+                      and not battle7.get("r08Story", {}).get(
+                          "unsupportedActionIds",
+                          [],
+                      )
+                  ),
               }
 
-          Path("native/build-status/v4.6.json").write_text(
+          Path("native/build-status/v4.7.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -712,11 +728,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.6.json
+          git add native/build-status/v4.7.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.6 build status"
+          git commit -m "Record native v4.7 build status"
           git push
