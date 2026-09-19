@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.0
+name: Build Native Android Battle v4.1
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.0 APK
+      - name: Build native v4.1 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.0.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.1.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.0 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.0 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.1 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.1 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.0 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.0" \
-              --notes "Native v4.0은 v3.9에서 확인된 R_06/S_06 경로를 원본 데이터로 확장합니다. R_06 13개 스토리 Scene + Scene14 출전 흐름을 컴파일하고, M006/Hexzmap entry6를 패키징하며, S_06 초기 배치·강제출전·목표·이벤트 지원률·승패 후보를 build-status에 기록합니다. 플레이어 슬롯/보호 인물 ID를 실제 이름으로 확정한 뒤 다음 버전에서 S06 실제 진입을 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.1 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.1" \
+              --notes "Native v4.1은 R_06 스토리의 0x3B 무장합류와 0x67 장명 명령을 지원해 R06 14개 Scene을 완전 컴파일하고, Scene14 출전 뒤 실제 S_06 문추 격퇴전으로 진입합니다. battle6은 M006/terrain6, 조운(4)·하후박(19) 플레이어, 공손찬(148) 보호, 문추(109) 격퇴 목표, 20턴 제한, S06 전장 이벤트와 원본 승패/Scene3 정리를 포함합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.0 build status
+      - name: Record v4.1 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.0.0",
+              "version": "4.1.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -584,7 +584,46 @@ jobs:
                   "s06OutcomeProbe": battle5.get("s06OutcomeProbe", {}),
               }
 
-          Path("native/build-status/v4.0.json").write_text(
+
+          battle6_path = Path("native/android-map-probe/app/src/main/assets/battle/battle6.json")
+          if battle6_path.exists():
+              battle6 = json.loads(battle6_path.read_text(encoding="utf-8"))
+              phase1 = battle6.get("battleObjectives", {}).get("phase1", {})
+              outcomes6 = battle6.get("outcomeEvents", {})
+              status["s06Battle"] = {
+                  "source": battle6.get("source"),
+                  "battleMode": battle6.get("battleMode"),
+                  "map": battle6.get("map"),
+                  "widthTiles": battle6.get("widthTiles"),
+                  "heightTiles": battle6.get("heightTiles"),
+                  "unitCount": len(battle6.get("units", [])),
+                  "playerCharacters": [
+                      {
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                      }
+                      for u in battle6.get("units", [])
+                      if u.get("faction") == "player"
+                  ],
+                  "allyCount": sum(1 for u in battle6.get("units", []) if u.get("faction") == "ally"),
+                  "enemyCount": sum(1 for u in battle6.get("units", []) if u.get("faction") == "enemy"),
+                  "goal": phase1.get("goal", {}),
+                  "turnLimit": phase1.get("turnLimit"),
+                  "protectedCharacters": battle6.get("battleObjectives", {}).get("protectedCharacters", []),
+                  "battleEventSummary": battle6.get("battleEventSummary", {}),
+                  "outcomeSupport": {
+                      "victory": outcomes6.get("victory", {}).get("supported"),
+                      "alternateVictory": outcomes6.get("alternateVictory", {}).get("supported"),
+                      "genericDefeat": outcomes6.get("genericDefeat", {}).get("supported"),
+                      "postBattle": outcomes6.get("postBattle", {}).get("supported"),
+                      "defeatByCharacter": {
+                          key: value.get("supported")
+                          for key, value in outcomes6.get("defeatByCharacter", {}).items()
+                      },
+                  },
+              }
+
+          Path("native/build-status/v4.1.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -592,11 +631,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.0.json
+          git add native/build-status/v4.1.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.0 build status"
+          git commit -m "Record native v4.1 build status"
           git push
