@@ -181,6 +181,9 @@ public class MapView extends View {
     private boolean s03Ready = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
+    private int rescueCharacterId = -1;
+    private int rescueGoalX = -1;
+    private int rescueGoalY = -1;
     private int r01StorySceneIndex = 0;
     private int r02StorySceneIndex = 0;
     private int r03StorySceneIndex = 0;
@@ -507,6 +510,29 @@ public class MapView extends View {
                 "terrain2.bin");
     }
 
+    private void enterS03Battle() {
+        try {
+            loadS03Battle(getContext());
+            lastCombatMessage = "R_03 완료 · S_03 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            r03StoryActive = false;
+            endBattle(
+                    false,
+                    "S_03 로드 실패 · " + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS03Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle3.json",
+                3,
+                "m003.jpg",
+                "terrain3.bin");
+    }
+
     private void loadFollowupBattle(
             Context context,
             String battleFile,
@@ -613,6 +639,9 @@ public class MapView extends View {
         phase2PopupText = "";
         turnLimit = 20;
         phase2TurnLimit = 20;
+        rescueCharacterId = -1;
+        rescueGoalX = -1;
+        rescueGoalY = -1;
 
         JSONObject objectives = battle.optJSONObject(
                 "battleObjectives");
@@ -626,6 +655,20 @@ public class MapView extends View {
                         "popupText",
                         "");
                 turnLimit = phase1.optInt("turnLimit", 20);
+                JSONObject goal = phase1.optJSONObject("goal");
+                if (goal != null
+                        && "rescue-character".equals(
+                        goal.optString("type", ""))) {
+                    rescueCharacterId = goal.optInt(
+                            "characterId",
+                            -1);
+                    rescueGoalX = goal.optInt("x", -1);
+                    rescueGoalY = goal.optInt("y", -1);
+                } else {
+                    rescueCharacterId = -1;
+                    rescueGoalX = -1;
+                    rescueGoalY = -1;
+                }
             }
             JSONObject phase2 = objectives.optJSONObject("phase2");
             if (phase2 != null) {
@@ -972,7 +1015,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v3.1 | R_01 Scene "
+            header = "Native v3.2 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -982,7 +1025,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v3.1 | R_02 Scene "
+            header = "Native v3.2 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -992,7 +1035,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v3.1 | R_03 Scene "
+            header = "Native v3.2 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1002,7 +1045,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v3.1 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v3.2 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -3028,7 +3071,7 @@ public class MapView extends View {
         if (r03StorySceneIndex >= r03StoryScenes.length()) {
             r03StoryActive = false;
             s03Ready = true;
-            endBattle(true, "R_03 완료 · S_03 전투 준비 완료");
+            enterS03Battle();
             return;
         }
 
@@ -3058,7 +3101,90 @@ public class MapView extends View {
         startR03StoryScene();
     }
 
+
+    private void startS03VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "S_03 손견 구원 완료");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s03Victory";
+        battleVictory = true;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_03 승리 후일담";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS03DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s03Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_03 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS03PostBattleCleanup() {
+        outcomeStage = "s03PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS03Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_03 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS03Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_03 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+        endBattle(true, "S_03 원본 승리 흐름 완료");
+    }
+
     private String currentBattleLabel() {
+        if (currentBattleIndex == 3) {
+            return "S_03";
+        }
         if (currentBattleIndex == 2) {
             return "S_02";
         }
@@ -3126,6 +3252,16 @@ public class MapView extends View {
             }
             if ("s02PostBattle".equals(outcomeStage)) {
                 finishS02Outcome();
+                return;
+            }
+            if ("s03Victory".equals(outcomeStage)
+                    || "s03Defeat".equals(outcomeStage)) {
+                startS03PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s03PostBattle".equals(outcomeStage)) {
+                finishS03Outcome();
                 return;
             }
         }
@@ -3718,6 +3854,49 @@ public class MapView extends View {
             if ("enemy-annihilation".equals(battleMode)
                     && !hasAnyAliveEnemy()) {
                 startS02VictoryOutcome();
+            }
+            return;
+        }
+
+        if (currentBattleIndex == 3) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS03DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+
+            if (round > turnLimit) {
+                startS03DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+
+            if (!hasAnyAliveFriendly()) {
+                startS03DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if ("rescue-character".equals(battleMode)
+                    && rescueCharacterId >= 0
+                    && rescueGoalX >= 0
+                    && rescueGoalY >= 0) {
+                BattleUnit rescue = findUnitByCharacterId(
+                        rescueCharacterId);
+                if (rescue != null
+                        && rescue.visible
+                        && rescue.isAlive()
+                        && rescue.x == rescueGoalX
+                        && rescue.y == rescueGoalY) {
+                    startS03VictoryOutcome();
+                    return;
+                }
             }
             return;
         }
