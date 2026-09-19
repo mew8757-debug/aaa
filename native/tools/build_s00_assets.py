@@ -1846,6 +1846,176 @@ def build_next_scenario_probe(filename, blob):
     }
 
 
+
+def jpeg_dimensions(blob):
+    if blob is None or len(blob) < 4 or blob[:2] != b"\xff\xd8":
+        raise ValueError("invalid JPEG")
+    p = 2
+    while p + 4 <= len(blob):
+        if blob[p] != 0xFF:
+            p += 1
+            continue
+        while p < len(blob) and blob[p] == 0xFF:
+            p += 1
+        if p >= len(blob):
+            break
+        marker = blob[p]
+        p += 1
+        if marker in (0xD8, 0xD9):
+            continue
+        if p + 2 > len(blob):
+            break
+        seg_len = int.from_bytes(blob[p:p + 2], "big")
+        if seg_len < 2 or p + seg_len > len(blob):
+            break
+        if marker in (
+            0xC0, 0xC1, 0xC2, 0xC3,
+            0xC5, 0xC6, 0xC7,
+            0xC9, 0xCA, 0xCB,
+            0xCD, 0xCE, 0xCF,
+        ):
+            if seg_len < 7:
+                break
+            height = int.from_bytes(blob[p + 3:p + 5], "big")
+            width = int.from_bytes(blob[p + 5:p + 7], "big")
+            return width, height
+        p += seg_len
+    raise ValueError("JPEG dimensions not found")
+
+
+def probe_s01_initialization(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return {"found": blob is not None, "validEex": False}
+
+    scenes = parse_scenario_tree(blob)
+    if not scenes or not scenes[0]["sections"]:
+        return {
+            "found": True,
+            "validEex": True,
+            "sceneCount": len(scenes),
+            "error": "scene1/section1 missing",
+        }
+
+    section = scenes[0]["sections"][0]
+    rows = []
+    commands_by_id = {}
+    for node in section["commands"]:
+        stack = [(node, 0)]
+        while stack:
+            current, depth = stack.pop()
+            cid = current["commandId"]
+            if cid in {
+                0x19, 0x1A, 0x24, 0x27,
+                0x44, 0x45, 0x46, 0x47, 0x48,
+                0x4A, 0x4B, 0x5A, 0x5D,
+            }:
+                row = {
+                    "depth": depth,
+                    "commandId": cid,
+                    "commandHex": f"0x{cid:02X}",
+                    "params": current["params"],
+                }
+                rows.append(row)
+                commands_by_id.setdefault(f"0x{cid:02X}", []).append(
+                    current["params"]
+                )
+            for child in reversed(current["children"]):
+                stack.append((child, depth + 1))
+
+    friend_records = []
+    enemy_records = []
+    player_slots = []
+    forced_players = []
+
+    for params in commands_by_id.get("0x46", []):
+        for i in range(20):
+            row = params[i * 11:(i + 1) * 11]
+            if len(row) != 11 or not all(isinstance(v, int) for v in row):
+                continue
+            person, hidden, x, y, direction, level, job_level, ai, target, tx, ty = row
+            if 0 <= person < 1024:
+                friend_records.append({
+                    "person": person,
+                    "hidden": hidden,
+                    "x": x,
+                    "y": y,
+                    "direction": direction,
+                    "level": level,
+                    "jobLevel": job_level,
+                    "ai": ai,
+                    "target": target,
+                    "targetX": tx,
+                    "targetY": ty,
+                })
+
+    for params in commands_by_id.get("0x47", []):
+        for i in range(80):
+            row = params[i * 12:(i + 1) * 12]
+            if len(row) != 12 or not all(isinstance(v, int) for v in row):
+                continue
+            (
+                person, reinforcement, hidden, x, y, direction,
+                level, job_level, ai, target, tx, ty,
+            ) = row
+            if 0 <= person < 1024:
+                enemy_records.append({
+                    "person": person,
+                    "reinforcement": reinforcement,
+                    "hidden": hidden,
+                    "x": x,
+                    "y": y,
+                    "direction": direction,
+                    "level": level,
+                    "jobLevel": job_level,
+                    "ai": ai,
+                    "target": target,
+                    "targetX": tx,
+                    "targetY": ty,
+                })
+
+    for params in commands_by_id.get("0x4B", []):
+        if len(params) >= 5 and all(isinstance(v, int) for v in params[:5]):
+            player_slots.append({
+                "slot": int(params[0]),
+                "x": int(params[1]),
+                "y": int(params[2]),
+                "direction": int(params[3]),
+                "flag": int(params[4]),
+            })
+
+    for params in commands_by_id.get("0x4A", []):
+        forced_players.extend(
+            int(v) for v in params
+            if isinstance(v, int) and v >= 0
+        )
+
+    objective_texts = []
+    popup_texts = []
+    for params in commands_by_id.get("0x19", []):
+        if params and isinstance(params[0], str):
+            objective_texts.append(params[0])
+    for params in commands_by_id.get("0x1A", []):
+        if params and isinstance(params[0], str):
+            popup_texts.append(params[0])
+
+    return {
+        "found": True,
+        "validEex": True,
+        "sceneCount": len(scenes),
+        "sectionCounts": [len(scene["sections"]) for scene in scenes],
+        "scene1Section1InitCommands": rows,
+        "forcedPlayers": forced_players,
+        "playerSlots": player_slots,
+        "friendRecords": friend_records,
+        "enemyRecords": enemy_records,
+        "objectiveTexts": objective_texts,
+        "objectivePopups": popup_texts,
+        "music": commands_by_id.get("0x24", []),
+        "turnLimit": commands_by_id.get("0x5D", []),
+        "operationStart": commands_by_id.get("0x5A", []),
+    }
+
+
 def main(argv):
     if len(argv) != 4:
         print("usage: build_s00_assets.py game1.Zip game2.Zip output-assets-dir")
@@ -1877,6 +2047,9 @@ def main(argv):
         s00 = game1.read("RS/S_00.eex")
         r01 = read_member_by_basename(game1, "R_01.eex")
         s01 = read_member_by_basename(game1, "S_01.eex")
+        map1_bytes = read_member_by_basename(game2, "m001.jpg")
+        if map1_bytes is None:
+            map1_bytes = read_member_by_basename(game1, "m001.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -1884,12 +2057,31 @@ def main(argv):
 
     if hexz is None:
         raise SystemExit("Hexzmap.e5 not found in game1/game2")
+    if map1_bytes is None:
+        raise SystemExit("m001.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
 
     terrain_cells = extract_hexzmap_cells(hexz, 0, MAP_WIDTH, MAP_HEIGHT)
     (battle_dir / "terrain0.bin").write_bytes(terrain_cells)
+
+    map1_width, map1_height = jpeg_dimensions(map1_bytes)
+    if map1_width % 48 != 0 or map1_height % 48 != 0:
+        raise SystemExit(
+            f"m001 dimensions not divisible by 48: "
+            f"{map1_width}x{map1_height}"
+        )
+    map1_cols = map1_width // 48
+    map1_rows = map1_height // 48
+    terrain1_cells = extract_hexzmap_cells(
+        hexz,
+        1,
+        map1_cols,
+        map1_rows,
+    )
+    (map_dir / "m001.jpg").write_bytes(map1_bytes)
+    (battle_dir / "terrain1.bin").write_bytes(terrain1_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -1925,6 +2117,17 @@ def main(argv):
         "S_01.eex": build_next_scenario_probe("S_01.eex", s01),
     }
     r01_story = compile_r01_story(r01)
+    s01_init_probe = probe_s01_initialization(s01)
+    s01_init_probe["map"] = {
+        "filename": "m001.jpg",
+        "width": map1_width,
+        "height": map1_height,
+        "cols": map1_cols,
+        "rows": map1_rows,
+        "terrainCellCount": len(terrain1_cells),
+        "terrainIds": sorted(set(terrain1_cells)),
+        "hexzmapEntry": 1,
+    }
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -2132,7 +2335,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 18,
+        "version": 19,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -2155,6 +2358,7 @@ def main(argv):
         "outcomeEvents": outcome_events,
         "nextScenarioProbe": next_scenario_probe,
         "r01Story": r01_story,
+        "s01InitProbe": s01_init_probe,
         "battleEvents": native_scene2_events,
         "battleEventSummary": {
             "candidateCount": len(native_scene2_events),
@@ -2232,6 +2436,28 @@ def main(argv):
 
     print("map bytes=", len(map_bytes))
     print("terrain cells=", len(terrain_cells), "ids=", terrain_ids)
+    print(
+        "s01 map=",
+        map1_width,
+        "x",
+        map1_height,
+        "tiles=",
+        map1_cols,
+        "x",
+        map1_rows,
+        "terrain ids=",
+        sorted(set(terrain1_cells)),
+    )
+    print(
+        "s01 init forced players=",
+        s01_init_probe["forcedPlayers"],
+        "player slots=",
+        s01_init_probe["playerSlots"],
+        "friends=",
+        len(s01_init_probe["friendRecords"]),
+        "enemies=",
+        len(s01_init_probe["enemyRecords"]),
+    )
     print(
         "units=", len(units),
         "visible=", sum(1 for u in units if u["visible"]),
