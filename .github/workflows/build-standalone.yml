@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-onetouch-v5
+  group: seong-onetouch-v6
   cancel-in-progress: true
 
 jobs:
@@ -121,7 +121,7 @@ jobs:
           # IMPORTANT: keep applicationId 'com.winlator'. Native Winlator code contains
           # hard-coded /data/data/com.winlator paths for cache/X11/Vortek sockets.
           s = s.replace("versionCode 33", "versionCode 1")
-          s = s.replace('versionName "11.2"', 'versionName "1.4.0"')
+          s = s.replace('versionName "11.2"', 'versionName "1.5.0"')
           gradle.write_text(s)
           PY
 
@@ -141,7 +141,7 @@ jobs:
           BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
           WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
           ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
-          FINAL="$PWD/SeongSamgukji-Diagnostic-v5.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v6.apk"
 
           test -f "$BASE"
           cp "$BASE" "$WORK"
@@ -198,14 +198,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          FINAL="SeongSamgukji-Diagnostic-v5.apk"
+          FINAL="SeongSamgukji-OneTouch-v6.apk"
 
-          if gh release view one-touch-v5 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload one-touch-v5 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view one-touch-v6 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v6 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create one-touch-v5 "$FINAL" \
+            gh release create one-touch-v6 "$FINAL" \
               --repo "$GITHUB_REPOSITORY" \
               --draft \
-              --title "PRIVATE - 성삼국지 촉한영걸전 진단 APK v5" \
-              --notes "비공개 진단판입니다. 원래 Winlator 패키지명/XServer 코드를 유지하고, 비정상 종료 후 앱을 다시 열면 Android 종료 사유와 Java 오류 기록을 화면에 표시합니다. 공개 배포하지 마세요."
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v6" \
+              --notes "비공개 개인용 수정판입니다. MainActivity의 FLFragmentContainer를 유지하도록 런처 UI를 오버레이 방식으로 수정해 기존 Fragment 크래시를 해결했습니다. 진단 기능은 유지합니다. 공개 배포하지 마세요."
           fi
