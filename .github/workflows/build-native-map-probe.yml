@@ -79,3 +79,24 @@ jobs:
               --notes "Winlator/Wine 없이 원본 RS/S_00.eex의 첫 전투를 Android에서 직접 재생하는 통합 프로토타입입니다. 최신 S00 실제 배치와 Data.e5 한글 인물명, Ekd5.exe S형상 지정표, Unit_mov/Unit_spc/Spalet 원본 스프라이트를 유지하면서 원본 오프닝 대사·등장·이동·회전·동작·퇴각·지연·BGM/SFX 지시를 이벤트 순서대로 실행합니다. 현재 BGM/SFX는 이벤트 번호만 추적하며 실제 음원 재생과 전투 규칙/AI는 다음 단계입니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
+
+      - name: Record successful build
+        env:
+          BUILD_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p native/build-status
+          printf '{"version":"0.6.0","sourceCommit":"%s","status":"success"}\n' "${BUILD_SHA}" \
+            > native/build-status/v0.6.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add native/build-status/v0.6.json
+
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+
+          git commit -m "Record successful native v0.6 build"
+          git push
