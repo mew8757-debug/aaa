@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-onetouch-v13
+  group: seong-onetouch-v14
   cancel-in-progress: true
 
 jobs:
@@ -121,14 +121,12 @@ jobs:
           # IMPORTANT: keep applicationId 'com.winlator'. Native Winlator code contains
           # hard-coded /data/data/com.winlator paths for cache/X11/Vortek sockets.
           s = s.replace("versionCode 33", "versionCode 1")
-          s = s.replace('versionName "11.2"', 'versionName "2.2.0"')
+          s = s.replace('versionName "11.2"', 'versionName "2.3.0"')
           gradle.write_text(s)
 
-          # v13: bypass Winlator's direct winhandler.exe /dir <path> launcher.
-          # Testing with wfm.exe proved that *any* Windows program launched through
-          # that direct path disappears after ~1s while XServer stays alive.
-          # For our custom seong_exec_path, keep Explorer desktop as the persistent
-          # top-level Wine process and let Explorer launch the game directly.
+          # v14: keep the persistent Explorer path from v13, but launch a batch file
+          # that explicitly switches the Windows current directory to D:\ before Ekd5.exe.
+          # The game loads map resources via relative paths (Mmap.e5/Pmap.e5/etc.).
           xserver = Path("winlator-src/app/src/main/java/com/winlator/XServerDisplayActivity.java")
           xs = xserver.read_text()
 
@@ -145,8 +143,7 @@ jobs:
           start_new = ('    private String getWineStartCommand() {' + nl +
                        '        String seongExecPath = getIntent().getStringExtra("seong_exec_path");' + nl +
                        '        if (seongExecPath != null && !seongExecPath.isEmpty()) {' + nl +
-                       '            String dosPath = WineUtils.unixToDOSPath(seongExecPath, container);' + nl +
-                       '            return dosPath;' + nl +
+                       '            return "C:\\\\windows\\\\system32\\\\cmd.exe /c D:\\\\SeongLaunch.bat";' + nl +
                        '        }' + nl + nl +
                        '        String cmdArgs = "";')
           if start_old not in xs:
@@ -172,7 +169,7 @@ jobs:
           BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
           WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
           ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
-          FINAL="$PWD/SeongSamgukji-OneTouch-v13.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v14.apk"
 
           test -f "$BASE"
           cp "$BASE" "$WORK"
@@ -229,14 +226,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          FINAL="SeongSamgukji-OneTouch-v13.apk"
+          FINAL="SeongSamgukji-OneTouch-v14.apk"
 
-          if gh release view one-touch-v13 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload one-touch-v13 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view one-touch-v14 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v14 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create one-touch-v13 "$FINAL" \
+            gh release create one-touch-v14 "$FINAL" \
               --repo "$GITHUB_REPOSITORY" \
               --draft \
-              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v13" \
-              --notes "비공개 개인용 수정판입니다. v12에서 XServer는 유지되지만 direct exec_path로 실행한 wfm.exe조차 1초 후 사라지는 것을 확인했습니다. v13은 Winlator의 winhandler.exe /dir 직접실행 경로를 완전히 우회하고, 지속되는 Wine Explorer 데스크톱을 먼저 띄운 뒤 Explorer가 Ekd5.exe를 직접 실행하도록 구조를 변경했습니다. 공개 배포하지 마세요."
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v14" \
+              --notes "비공개 개인용 수정판입니다. v13에서 처음으로 맵 파일 관련 오류 팝업까지 진입한 것을 바탕으로, 게임 실행 전 Windows 현재 폴더를 D:\\로 명시적으로 설정하는 SeongLaunch.bat를 사용합니다. 설치 단계에서 Mmap.e5, Pmap.e5, Pmapobj.e5, Hexzmap.e5 존재 여부도 검증합니다. 공개 배포하지 마세요."
           fi
