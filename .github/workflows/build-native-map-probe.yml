@@ -76,7 +76,7 @@ jobs:
           else
             gh release create native-battle-v0.9 "${OUT}" --draft \
               --title "PRIVATE - 성삼국지 Native Battle v0.9" \
-              --notes "v0.7의 원본 Hexzmap 지형 이동과 S_00 오프닝을 유지하면서 첫 네이티브 물리 전투 루프를 추가했습니다. Data.e5의 인물 오능/초기 HP/직업 성장치와 S_00 46/47 배치 레벨을 이용해 전투 패널을 만들고, Unit_atk.e5 원본 64x64 12프레임 공격 모션을 사용합니다. 공격 범위 ID 0(십자 인접)/1(주변 1칸)은 확인된 의미대로 처리하며 그 밖의 확장 범위는 추측하지 않고 비활성화합니다. 현재 피해는 검증된 핵심 공방차 ATK-DEF만 적용하는 결정적 1차 구현이며 장비/지형 전투보정/명중/회피/치명타/연타/반격/AI는 후속 단계입니다. 공개 배포하지 마세요." \
+              --notes "v0.8의 원본 지형 이동·전투 패널·공격 모션을 유지하면서 턴 루프를 추가했습니다. 아군은 턴당 1회 이동 후 공격할 수 있고, 생존한 피격자는 자신의 확인된 공격범위 안에 공격자가 있으면 반격합니다. 턴 종료 버튼을 누르면 적군이 원본 병종별 지형 이동비용을 사용해 가장 가까운 비적군 유닛을 향해 결정적으로 이동하고, 사거리 안이면 공격한 뒤 반격까지 처리합니다. 다음 아군 턴에는 이동/행동 상태가 초기화됩니다. 피해와 반격 피해는 현재 동일한 핵심 공방차 max(ATK-DEF,0)를 사용하며 장비·지형 전투보정·상성·명중·회피·치명타·연타와 원본 AI 정책 해석은 후속 단계입니다. 공개 배포하지 마세요." \\
               --repo "${GITHUB_REPOSITORY}"
           fi
 
@@ -99,6 +99,9 @@ jobs:
               "version": "0.9.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
+              "turnLoop": True,
+              "counterattacks": True,
+              "enemyAi": "nearest-opponent-weighted-terrain-v0.9",
           }
 
           battle_path = Path("native/android-map-probe/app/src/main/assets/battle/battle0.json")
