@@ -1311,6 +1311,33 @@ def extract_s01_outcome_events(scenes):
     }
 
 
+def extract_s02_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            37,
+        ),
+        "defeatByCharacter": {
+            "26": compile_scenario_section_actions(
+                scenes,
+                2,
+                20,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            38,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
 
@@ -2032,6 +2059,16 @@ def compile_r02_story(blob):
     )
 
 
+def compile_r03_story(blob):
+    return compile_r_story(
+        blob,
+        "R_03.eex",
+        11,
+        12,
+        "S_03.eex",
+    )
+
+
 def build_next_scenario_probe(filename, blob):
     if blob is None:
         return {
@@ -2504,6 +2541,8 @@ def main(argv):
     )
     r03_probe = build_next_scenario_probe("R_03.eex", r03)
     s03_probe = build_next_scenario_probe("S_03.eex", s03)
+    r03_story = compile_r03_story(r03)
+    s02_outcome_events = extract_s02_outcome_events(s02_scenes)
     s02_init_probe = probe_s01_initialization(s02)
     s02_init_probe["map"] = {
         "filename": "m002.jpg",
@@ -2814,7 +2853,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 28,
+        "version": 29,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
@@ -3045,6 +3084,8 @@ def main(argv):
             "phase1TransitionEvents": [],
         },
         "battleEvents": s02_native_events,
+        "outcomeEvents": s02_outcome_events,
+        "r03Story": r03_story,
         "outcomeProbe": s02_outcome_probe,
         "nextScenarioProbe": {
             "R_03.eex": r03_probe,
@@ -3277,6 +3318,23 @@ def main(argv):
             (cid, name_of(cid))
             for cid in s02_protected_ids
         ],
+    )
+    print(
+        "s02 outcome supported=",
+        {
+            "victory": s02_outcome_events["victory"]["supported"],
+            "defeat26": s02_outcome_events["defeatByCharacter"]["26"]["supported"],
+            "genericDefeat": s02_outcome_events["genericDefeat"]["supported"],
+            "postBattle": s02_outcome_events["postBattle"]["supported"],
+        },
+    )
+    print(
+        "r03 story supported=",
+        r03_story["supported"],
+        "scenes=",
+        r03_story["sceneCount"],
+        "unsupported=",
+        r03_story["unsupportedActionIds"],
     )
     print(
         "s01 outcome supported=",
