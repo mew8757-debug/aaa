@@ -185,6 +185,8 @@ public class MapView extends View {
     private int rescueCharacterId = -1;
     private int rescueGoalX = -1;
     private int rescueGoalY = -1;
+    private int killTargetCharacterId = -1;
+    private String killTargetName = "";
     private int r01StorySceneIndex = 0;
     private int r02StorySceneIndex = 0;
     private int r03StorySceneIndex = 0;
@@ -534,6 +536,29 @@ public class MapView extends View {
                 "terrain3.bin");
     }
 
+    private void enterS04Battle() {
+        try {
+            loadS04Battle(getContext());
+            lastCombatMessage = "S_03 완료 · S_04 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            endBattle(
+                    false,
+                    "S_04 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS04Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle4.json",
+                4,
+                "m004.jpg",
+                "terrain4.bin");
+    }
+
     private void loadFollowupBattle(
             Context context,
             String battleFile,
@@ -643,6 +668,8 @@ public class MapView extends View {
         rescueCharacterId = -1;
         rescueGoalX = -1;
         rescueGoalY = -1;
+        killTargetCharacterId = -1;
+        killTargetName = "";
 
         JSONObject objectives = battle.optJSONObject(
                 "battleObjectives");
@@ -665,10 +692,13 @@ public class MapView extends View {
                             -1);
                     rescueGoalX = goal.optInt("x", -1);
                     rescueGoalY = goal.optInt("y", -1);
-                } else {
-                    rescueCharacterId = -1;
-                    rescueGoalX = -1;
-                    rescueGoalY = -1;
+                } else if (goal != null
+                        && "kill-character".equals(
+                        goal.optString("type", ""))) {
+                    killTargetCharacterId = goal.optInt(
+                            "characterId",
+                            -1);
+                    killTargetName = goal.optString("name", "");
                 }
             }
             JSONObject phase2 = objectives.optJSONObject("phase2");
@@ -1017,7 +1047,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v3.4 | R_01 Scene "
+            header = "Native v3.5 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1027,7 +1057,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v3.4 | R_02 Scene "
+            header = "Native v3.5 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1037,7 +1067,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v3.4 | R_03 Scene "
+            header = "Native v3.5 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1047,7 +1077,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v3.4 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v3.5 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -1821,6 +1851,12 @@ public class MapView extends View {
                         battleEventWaitUntil = now + 120L;
                         return true;
 
+                    case "retreatArea":
+                        applyRetreatAreaAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 140L;
+                        return true;
+
                     case "kill": {
                         BattleUnit unit = findUnitByCharacterId(
                                 action.optInt("characterId", -1));
@@ -2243,6 +2279,43 @@ public class MapView extends View {
                     || unit.y > bottom
                     || !matchesCamp(unit, camp)) {
                 continue;
+            }
+            unit.visible = false;
+            unit.clearMovePath();
+            unit.targetX = unit.x;
+            unit.targetY = unit.y;
+        }
+    }
+
+    private void applyRetreatAreaAction(JSONObject action) {
+        int left = Math.min(
+                action.optInt("x1", 0),
+                action.optInt("x2", mapCols - 1));
+        int right = Math.max(
+                action.optInt("x1", 0),
+                action.optInt("x2", mapCols - 1));
+        int top = Math.min(
+                action.optInt("y1", 0),
+                action.optInt("y2", mapRows - 1));
+        int bottom = Math.max(
+                action.optInt("y1", 0),
+                action.optInt("y2", mapRows - 1));
+        int camp = action.optInt("camp", 6);
+        boolean kill = action.optBoolean("kill", false);
+
+        for (BattleUnit unit : units) {
+            if (!unit.visible
+                    || !unit.isAlive()
+                    || unit.x < left
+                    || unit.x > right
+                    || unit.y < top
+                    || unit.y > bottom
+                    || !matchesCamp(unit, camp)) {
+                continue;
+            }
+
+            if (kill) {
+                unit.hp = 0;
             }
             unit.visible = false;
             unit.clearMovePath();
@@ -3188,6 +3261,13 @@ public class MapView extends View {
                             : battleResultText);
             return;
         }
+
+        if (pendingScenarioJump == 8) {
+            pendingScenarioJump = -1;
+            enterS04Battle();
+            return;
+        }
+
         endBattle(
                 true,
                 pendingScenarioJump >= 0
@@ -3196,7 +3276,88 @@ public class MapView extends View {
                         : "S_03 원본 승리 흐름 완료");
     }
 
+    private void startS04VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "S_04 화웅 처치 완료");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s04Victory";
+        battleVictory = true;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_04 승리 후일담";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS04DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s04Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_04 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS04PostBattleCleanup() {
+        outcomeStage = "s04PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS04Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_04 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS04Outcome() {
+        outcomeFlowActive = false;
+        endBattle(
+                battleVictory,
+                battleVictory
+                        ? "S_04 원본 승리 흐름 완료"
+                        : (battleResultText == null
+                        || battleResultText.isEmpty()
+                        ? "S_04 원본 패배 흐름 완료"
+                        : battleResultText));
+    }
+
     private String currentBattleLabel() {
+        if (currentBattleIndex == 4) {
+            return "S_04";
+        }
         if (currentBattleIndex == 3) {
             return "S_03";
         }
@@ -3277,6 +3438,16 @@ public class MapView extends View {
             }
             if ("s03PostBattle".equals(outcomeStage)) {
                 finishS03Outcome();
+                return;
+            }
+            if ("s04Victory".equals(outcomeStage)
+                    || "s04Defeat".equals(outcomeStage)) {
+                startS04PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s04PostBattle".equals(outcomeStage)) {
+                finishS04Outcome();
                 return;
             }
         }
@@ -3910,6 +4081,43 @@ public class MapView extends View {
                         && rescue.x == rescueGoalX
                         && rescue.y == rescueGoalY) {
                     startS03VictoryOutcome();
+                    return;
+                }
+            }
+            return;
+        }
+
+        if (currentBattleIndex == 4) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS04DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+
+            if (round > turnLimit) {
+                startS04DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+
+            if (!hasAnyAliveFriendly()) {
+                startS04DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if ("kill-character".equals(battleMode)
+                    && killTargetCharacterId >= 0) {
+                BattleUnit target = findUnitByCharacterId(
+                        killTargetCharacterId);
+                if (target == null || !target.isAlive()) {
+                    startS04VictoryOutcome();
                     return;
                 }
             }
