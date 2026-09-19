@@ -2733,6 +2733,9 @@ public class MapView extends View {
 
 
     private String currentStoryLabel() {
+        if (r03StoryActive) {
+            return "R_03";
+        }
         if (r02StoryActive) {
             return "R_02";
         }
@@ -2885,6 +2888,144 @@ public class MapView extends View {
     private void finishR02StoryScene() {
         r02StorySceneIndex++;
         startR02StoryScene();
+    }
+
+
+    private void startS02VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            startR03Story();
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s02Victory";
+        battleVictory = true;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_02 승리 후일담";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS02DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s02Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_02 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS02PostBattleCleanup() {
+        outcomeStage = "s02PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS02Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_02 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS02Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_02 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+
+        if (r03StoryScenes != null && r03StoryScenes.length() > 0) {
+            startR03Story();
+        } else {
+            endBattle(true, "S_02 원본 승리 흐름 완료");
+        }
+    }
+
+    private void startR03Story() {
+        outcomeFlowActive = false;
+        r03StoryActive = true;
+        r03StorySceneIndex = 0;
+        s03Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR03StoryScene();
+    }
+
+    private void startR03StoryScene() {
+        if (!r03StoryActive || r03StoryScenes == null) {
+            return;
+        }
+        if (r03StorySceneIndex >= r03StoryScenes.length()) {
+            r03StoryActive = false;
+            s03Ready = true;
+            endBattle(true, "R_03 완료 · S_03 전투 준비 완료");
+            return;
+        }
+
+        JSONObject scene = r03StoryScenes.optJSONObject(r03StorySceneIndex);
+        if (scene == null) {
+            r03StorySceneIndex++;
+            startR03StoryScene();
+            return;
+        }
+
+        JSONArray actions = scene.optJSONArray("actions");
+        prepareScriptActionSequence(actions);
+        int sceneNumber = scene.optInt(
+                "scene",
+                r03StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_03 Scene " + sceneNumber
+                + ("departure".equals(kind)
+                ? " · 출전"
+                : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR03StoryScene() {
+        r03StorySceneIndex++;
+        startR03StoryScene();
     }
 
     private String currentBattleLabel() {
