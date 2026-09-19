@@ -154,23 +154,21 @@ jobs:
           if "import android.os.Handler;" not in s:
               s = s.replace("import android.os.Bundle;\n", "import android.os.Bundle;\nimport android.os.Handler;\n")
 
-          marker = "        setupUI();\n"
-          auto_skip = """        setupUI();
-
-        // This title opens its startup AVI through MCI/ActiveMovie. Under Wine the
-        // video may stay black even though the process is alive. Send a few ESC
-        // pulses automatically so the user never has to open a virtual keyboard.
-        Handler introSkipHandler = new Handler();
-        int[] introSkipDelays = {1800, 3200, 5000, 7000};
-        for (int delay : introSkipDelays) {
-            introSkipHandler.postDelayed(() -> {
-                if (xServer != null) {
-                    xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));
-                    xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));
-                }
-            }, delay);
-        }
-"""
+          marker = "        setupUI();\\n"
+          auto_skip = (
+              "        setupUI();\\n\\n"
+              "        // Auto-skip the MCI/ActiveMovie intro if Wine shows a black video window.\\n"
+              "        Handler introSkipHandler = new Handler();\\n"
+              "        int[] introSkipDelays = {1800, 3200, 5000, 7000};\\n"
+              "        for (int delay : introSkipDelays) {\\n"
+              "            introSkipHandler.postDelayed(() -> {\\n"
+              "                if (xServer != null) {\\n"
+              "                    xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));\\n"
+              "                    xServer.keyboard.onKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));\\n"
+              "                }\\n"
+              "            }, delay);\\n"
+              "        }\\n"
+          )
           if marker in s and "introSkipDelays" not in s:
               s = s.replace(marker, auto_skip, 1)
 
