@@ -2226,6 +2226,28 @@ def probe_s01_initialization(blob):
     }
 
 
+
+def probe_selected_scenario_sections(scenes, selections):
+    flat = flatten_scenario_nodes(scenes)
+    result = {}
+    for scene_number, section_number in selections:
+        key = f"S{scene_number:02d}-SEC{section_number:02d}"
+        result[key] = [
+            {
+                "depth": row["depth"],
+                "kind": row["kind"],
+                "commandId": row["commandId"],
+                "commandHex": f"0x{row['commandId']:02X}",
+                "params": row["params"],
+                "childCommandIds": row["childCommandIds"],
+            }
+            for row in flat
+            if row["scene"] == scene_number
+            and row["section"] == section_number
+        ]
+    return result
+
+
 def main(argv):
     if len(argv) != 4:
         print("usage: build_s00_assets.py game1.Zip game2.Zip output-assets-dir")
@@ -2257,6 +2279,8 @@ def main(argv):
         s00 = game1.read("RS/S_00.eex")
         r01 = read_member_by_basename(game1, "R_01.eex")
         s01 = read_member_by_basename(game1, "S_01.eex")
+        r02 = read_member_by_basename(game1, "R_02.eex")
+        s02 = read_member_by_basename(game1, "S_02.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
@@ -2332,6 +2356,19 @@ def main(argv):
         s01_scenes,
         excluded_sections={37, 38, 52, 53, 54},
     )
+    s01_outcome_probe = probe_selected_scenario_sections(
+        s01_scenes,
+        [
+            (2, 37),
+            (2, 38),
+            (2, 52),
+            (2, 53),
+            (2, 54),
+            (3, 1),
+        ],
+    )
+    r02_probe = build_next_scenario_probe("R_02.eex", r02)
+    s02_probe = build_next_scenario_probe("S_02.eex", s02)
     s01_init_probe = probe_s01_initialization(s01)
     s01_init_probe["map"] = {
         "filename": "m001.jpg",
@@ -2642,7 +2679,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 22,
+        "version": 23,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
@@ -2670,6 +2707,11 @@ def main(argv):
             "phase1TransitionEvents": [],
         },
         "battleEvents": s01_native_events,
+        "outcomeProbe": s01_outcome_probe,
+        "nextScenarioProbe": {
+            "R_02.eex": r02_probe,
+            "S_02.eex": s02_probe,
+        },
         "battleEventSummary": {
             "candidateCount": len(s01_native_events),
             "coreSupportedCount": sum(

@@ -1,4 +1,4 @@
-name: Build Native Android Battle v2.2
+name: Build Native Android Battle v2.3
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v2.2 APK
+      - name: Build native v2.3 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v2.2.apk"
+          OUT="SeongSamgukji-Native-Battle-v2.3.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v2.2 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v2.2 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v2.3 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v2.3 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v2.2 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v2.2" \
-              --notes "Native v2.2는 S_01의 남은 전장 명령을 실행합니다. 0x31 범위/진영 숨김, 0x6B 좌표 법술 연출, 0x58 전장 물체·지형 갱신, 0x78 정수변수↔무장 속성 전송(본 관 사용 HP/HpCur), 그리고 0x12가 leaf이고 0x13 case가 sibling인 선택 구조까지 지원합니다. 전장 물체가 바꾸는 terrain은 이동비용 계산에 즉시 반영합니다. 목표는 S01 후보 Section 48/48 coreSupported입니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v2.3 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v2.3" \
+              --notes "Native v2.3은 v2.2의 S01 전장 이벤트 48/48 지원을 유지하면서 S01 종료 Section 37/38/52/53/54와 Scene 3 Section 1 전체 트리, 그리고 다음 R_02.eex/S_02.eex의 Scene/Section/명령 구조를 build-status에 기록합니다. 종료 분기와 R02 전환을 다음 구현에서 추측 없이 연결하기 위한 probe입니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v2.2 build status
+      - name: Record v2.3 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "2.2.0",
+              "version": "2.3.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -272,9 +272,14 @@ jobs:
                       "battleEventSummary",
                       {},
                   ),
+                  "outcomeProbe": battle1.get("outcomeProbe", {}),
+                  "nextScenarioProbe": battle1.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
               }
 
-          Path("native/build-status/v2.2.json").write_text(
+          Path("native/build-status/v2.3.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -282,11 +287,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v2.2.json
+          git add native/build-status/v2.3.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v2.2 build status"
+          git commit -m "Record native v2.3 build status"
           git push
