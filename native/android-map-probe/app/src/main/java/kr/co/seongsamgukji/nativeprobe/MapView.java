@@ -972,7 +972,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v2.8 | R_01 Scene "
+            header = "Native v2.9 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -982,7 +982,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v2.8 | R_02 Scene "
+            header = "Native v2.9 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -992,7 +992,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v2.8 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v2.9 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -3088,6 +3088,16 @@ public class MapView extends View {
                 finishS01Outcome();
                 return;
             }
+            if ("s02Victory".equals(outcomeStage)
+                    || "s02Defeat".equals(outcomeStage)) {
+                startS02PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s02PostBattle".equals(outcomeStage)) {
+                finishS02Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -3096,6 +3106,10 @@ public class MapView extends View {
         }
         if (r02StoryActive) {
             finishR02StoryScene();
+            return;
+        }
+        if (r03StoryActive) {
+            finishR03StoryScene();
             return;
         }
 
@@ -3607,6 +3621,7 @@ public class MapView extends View {
                 || battleEnded
                 || r01StoryActive
                 || r02StoryActive
+                || r03StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
             return;
@@ -3641,6 +3656,38 @@ public class MapView extends View {
             if ("enemy-annihilation".equals(battleMode)
                     && !hasAnyAliveEnemy()) {
                 startS01VictoryOutcome();
+            }
+            return;
+        }
+
+        if (currentBattleIndex == 2) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS02DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+
+            if (round > turnLimit) {
+                startS02DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+
+            if (!hasAnyAliveFriendly()) {
+                startS02DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if ("enemy-annihilation".equals(battleMode)
+                    && !hasAnyAliveEnemy()) {
+                startS02VictoryOutcome();
             }
             return;
         }
