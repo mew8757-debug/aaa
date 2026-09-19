@@ -166,6 +166,8 @@ public class MapView extends View {
     private boolean s00Complete = false;
     private boolean r01StoryActive = false;
     private boolean s01Ready = false;
+    private int currentBattleIndex = 0;
+    private String battleMode = "s00-two-phase";
     private int r01StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
@@ -284,6 +286,10 @@ public class MapView extends View {
         JSONObject battle = new JSONObject(new String(
                 loadBytes(context, "battle/battle0.json"),
                 StandardCharsets.UTF_8));
+        currentBattleIndex = 0;
+        battleMode = battle.optString(
+                "battleMode",
+                "s00-two-phase");
 
         mapCols = battle.optInt("widthTiles", map.getWidth() / (int) TILE);
         mapRows = battle.optInt("heightTiles", map.getHeight() / (int) TILE);
@@ -436,6 +442,235 @@ public class MapView extends View {
                 }
             }
         }
+    }
+
+
+    private void enterS01Battle() {
+        try {
+            loadS01Battle(getContext());
+            lastCombatMessage = "R_01 완료 · S_01 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            r01StoryActive = false;
+            endBattle(
+                    false,
+                    "S_01 로드 실패 · " + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS01Battle(Context context) throws Exception {
+        JSONObject battle = new JSONObject(new String(
+                loadBytes(context, "battle/battle1.json"),
+                StandardCharsets.UTF_8));
+
+        String mapName = battle.optString("map", "m001.jpg");
+        try (InputStream in = context.getAssets().open("map/" + mapName)) {
+            map = BitmapFactory.decodeStream(in);
+        }
+        if (map == null) {
+            throw new IOException(mapName + " decode failed");
+        }
+
+        currentBattleIndex = 1;
+        battleMode = battle.optString(
+                "battleMode",
+                "enemy-annihilation");
+        mapCols = battle.optInt(
+                "widthTiles",
+                map.getWidth() / (int) TILE);
+        mapRows = battle.optInt(
+                "heightTiles",
+                map.getHeight() / (int) TILE);
+        terrainTypeCount = battle.optInt("terrainTypeCount", 30);
+        movementCostFamilyCount = battle.optInt(
+                "movementCostFamilyCount",
+                40);
+
+        terrainCells = loadBytes(
+                context,
+                "battle/" + battle.optString(
+                        "terrainFile",
+                        "terrain1.bin"));
+        movementCosts = loadBytes(
+                context,
+                "battle/" + battle.optString(
+                        "movementCostFile",
+                        "movement_costs.bin"));
+
+        if (terrainCells.length != mapCols * mapRows) {
+            throw new IOException(
+                    "S01 terrain size=" + terrainCells.length
+                            + " expected=" + (mapCols * mapRows));
+        }
+        if (movementCosts.length
+                != movementCostFamilyCount * terrainTypeCount) {
+            throw new IOException(
+                    "S01 movement cost size=" + movementCosts.length);
+        }
+
+        units.clear();
+        reinforcementCharacterIds.clear();
+        battleEvents.clear();
+        firedBattleSections.clear();
+        protectedCharacterIds.clear();
+        phaseTransitionEvents.clear();
+        openingEvents.clear();
+        enemyTurnOrder.clear();
+
+        JSONArray unitList = battle.getJSONArray("units");
+        for (int i = 0; i < unitList.length(); i++) {
+            JSONObject u = unitList.getJSONObject(i);
+            BattleUnit unit = new BattleUnit(
+                    u.getInt("characterId"),
+                    u.getString("name"),
+                    u.getInt("spriteId"),
+                    u.optInt("jobId", 0),
+                    u.optInt("jobFamily", 0),
+                    u.optInt("movePoints", 1),
+                    u.optInt("attackRangeId", 0),
+                    u.optInt("level", 1),
+                    u.optInt("hpMax", 1),
+                    u.optInt("attack", 0),
+                    u.optInt("defense", 0),
+                    u.getString("faction"),
+                    u.optBoolean("scripted", false),
+                    u.optBoolean(
+                            "visible",
+                            !u.optBoolean("scripted", false)),
+                    u.getInt("x"),
+                    u.getInt("y"),
+                    u.optInt("direction", 2));
+            unit.aiPolicy = u.optInt(
+                    "aiPolicy",
+                    unit.aiPolicy);
+            units.add(unit);
+            if (u.optBoolean("reinforcement", false)) {
+                reinforcementCharacterIds.add(unit.characterId);
+            }
+            ensureSprite(context, unit.spriteId);
+        }
+
+        objectiveText = "";
+        objectivePopupText = "";
+        phase2ObjectiveText = "";
+        phase2PopupText = "";
+        turnLimit = 20;
+        phase2TurnLimit = 20;
+
+        JSONObject objectives = battle.optJSONObject(
+                "battleObjectives");
+        if (objectives != null) {
+            JSONObject phase1 = objectives.optJSONObject("phase1");
+            if (phase1 != null) {
+                objectiveText = phase1.optString(
+                        "objectiveText",
+                        "");
+                objectivePopupText = phase1.optString(
+                        "popupText",
+                        "");
+                turnLimit = phase1.optInt("turnLimit", 20);
+            }
+            JSONObject phase2 = objectives.optJSONObject("phase2");
+            if (phase2 != null) {
+                phase2ObjectiveText = phase2.optString(
+                        "objectiveText",
+                        "");
+                phase2PopupText = phase2.optString(
+                        "popupText",
+                        "");
+                phase2TurnLimit = phase2.optInt(
+                        "turnLimit",
+                        turnLimit);
+            }
+            JSONArray protectedIds = objectives.optJSONArray(
+                    "protectedCharacterIds");
+            if (protectedIds != null) {
+                for (int i = 0; i < protectedIds.length(); i++) {
+                    protectedCharacterIds.add(
+                            protectedIds.optInt(i));
+                }
+            }
+        }
+
+        JSONArray compiledEvents = battle.optJSONArray("battleEvents");
+        if (compiledEvents != null) {
+            for (int i = 0; i < compiledEvents.length(); i++) {
+                JSONObject event = compiledEvents.optJSONObject(i);
+                if (event != null
+                        && event.optBoolean("coreSupported", false)) {
+                    battleEvents.add(event);
+                }
+            }
+        }
+
+        victoryOutcomeActions = null;
+        defeatOutcomeActions = null;
+        postBattleOutcomeActions = null;
+        outcomeFlowActive = false;
+        outcomeStage = "";
+        r01StoryActive = false;
+        s01Ready = false;
+        r01StorySceneIndex = 0;
+        activeChoiceAction = null;
+        storyTitle = "";
+        storyLocation = "";
+
+        openingIndex = 0;
+        openingWaitUntil = 0L;
+        openingFinished = false;
+        scriptedMovingUnit = null;
+        dialogueSpeaker = null;
+        dialogueText = null;
+        musicTrack = -1;
+        lastSound = -1;
+
+        battlePhase = 1;
+        phaseTransitionActive = false;
+        phaseEventIndex = 0;
+        phaseEventWaitUntil = 0L;
+        phaseMovingUnit = null;
+        battleEnded = false;
+        battleVictory = false;
+        battleResultText = "";
+        scriptEventActive = false;
+        activeBattleEvent = null;
+        activeBattleActions = null;
+        activeBattleActionIndex = 0;
+        battleActionStack.clear();
+        battleActionIndexStack.clear();
+        battleConditionalStack.clear();
+        lastBattleConditionalTaken = false;
+        duelFirstUnit = null;
+        duelSecondUnit = null;
+        battleEventMovingUnit = null;
+        battleEventWaitUntil = 0L;
+        pendingCounterAttacker = null;
+        pendingCounterTarget = null;
+        pendingCounterAt = 0L;
+        activeEnemy = null;
+        activeEnemyTarget = null;
+        activeEnemyAttackPending = false;
+        enemyTurnIndex = 0;
+        playerTurn = true;
+        round = 1;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        clearReachable();
+
+        float fit = Math.min(
+                getWidth() > 0
+                        ? (float) getWidth() / map.getWidth()
+                        : 1f,
+                getHeight() > 0
+                        ? (float) getHeight() / map.getHeight()
+                        : 1f);
+        scale = Math.min(1f, fit);
+        offsetX = (getWidth() - map.getWidth() * scale) * 0.5f;
+        offsetY = (getHeight() - map.getHeight() * scale) * 0.5f;
+
+        finishOpening();
     }
 
     private void ensureSprite(Context context, int spriteId)
@@ -624,11 +859,11 @@ public class MapView extends View {
         }
 
         String header = r01StoryActive
-                ? "Native v1.9 | R_01 Scene "
+                ? "Native v2.0 | R_01 Scene "
                 + Math.min(r01StorySceneIndex + 1,
                 r01StoryScenes == null ? 1 : r01StoryScenes.length())
                 + (storyTitle.isEmpty() ? "" : " · " + storyTitle)
-                : "Native v1.9 | " + round + "/" + turnLimit + "턴 "
+                : "Native v2.0 | " + round + "/" + turnLimit + "턴 "
                 + (playerTurn ? "아군" : "적군")
                 + " | 단계 " + battlePhase
                 + " | 아군 " + playerCount
@@ -678,7 +913,7 @@ public class MapView extends View {
                     ? -1
                     : activeBattleEvent.optInt("section", -1);
             canvas.drawText(
-                    "원본 S_00 전장 이벤트 재생 중"
+                    "원본 " + currentBattleLabel() + " 전장 이벤트 재생 중"
                             + (section > 0 ? " · Section " + section : ""),
                     22,
                     65,
@@ -2171,7 +2406,7 @@ public class MapView extends View {
         if (r01StorySceneIndex >= r01StoryScenes.length()) {
             r01StoryActive = false;
             s01Ready = true;
-            endBattle(true, "R_01 완료 · S_01 전투 준비 완료");
+            enterS01Battle();
             return;
         }
 
@@ -2197,6 +2432,10 @@ public class MapView extends View {
         startR01StoryScene();
     }
 
+    private String currentBattleLabel() {
+        return currentBattleIndex == 1 ? "S_01" : "S_00";
+    }
+
     private void startBattleScriptEvent(JSONObject event) {
         activeBattleEvent = event;
         prepareScriptActionSequence(event.optJSONArray("actions"));
@@ -2207,7 +2446,8 @@ public class MapView extends View {
         }
 
         clearReachable();
-        lastCombatMessage = "S_00 Section " + section + " 이벤트 발동";
+        lastCombatMessage = currentBattleLabel()
+                + " Section " + section + " 이벤트 발동";
         combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
         invalidate();
     }
@@ -2772,6 +3012,16 @@ public class MapView extends View {
             return;
         }
 
+        if ("enemy-annihilation".equals(battleMode)) {
+            if (!hasAnyAliveEnemy()) {
+                endBattle(
+                        true,
+                        currentBattleLabel()
+                                + " 적군 전멸 · 원본 승리 조건");
+            }
+            return;
+        }
+
         if (battlePhase == 1) {
             for (BattleUnit unit : units) {
                 if (unit.visible
@@ -2799,6 +3049,15 @@ public class MapView extends View {
         } else if (!hasVisibleAliveEnemy()) {
             startVictoryOutcome();
         }
+    }
+
+    private boolean hasAnyAliveEnemy() {
+        for (BattleUnit unit : units) {
+            if (unit.isAlive() && unit.isEnemy()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasVisibleAliveEnemy() {
