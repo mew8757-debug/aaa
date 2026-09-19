@@ -1,4 +1,4 @@
-name: Build Native Android Battle v3.7
+name: Build Native Android Battle v3.8
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v3.7 APK
+      - name: Build native v3.8 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v3.7.apk"
+          OUT="SeongSamgukji-Native-Battle-v3.8.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v3.7 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v3.7 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v3.8 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v3.8 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v3.7 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v3.7" \
-              --notes "Native v3.7은 S04 이후 실제 존재하는 R_05.eex를 원본 스토리 액션으로 컴파일하고, M005/Hexzmap entry 5를 패키징하며 S_05.eex 초기 배치·목표·전장 이벤트 지원률·승패 후보를 build-status에 기록합니다. 다음 버전에서 R05 재생과 S05 여포 격퇴 전투를 실제 런타임에 연결하기 위한 자산 단계입니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v3.8 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v3.8" \
+              --notes "Native v3.8은 S04 승리 후 R_05 9개 Scene을 원본 액션으로 실제 재생하고, 완료 즉시 battle5.json의 S_05 여포 격퇴 전투로 진입합니다. S05는 M005/terrain5, 원본 우군·적군 배치, 여포(119) 격퇴 목표, 유비·관우·장비·원소·공손찬 보호, 20턴 제한, 지원 가능한 전장 이벤트와 특정/일반 패배 및 후일담을 실행합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v3.7 build status
+      - name: Record v3.8 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "3.7.0",
+              "version": "3.8.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -542,7 +542,39 @@ jobs:
                   "s05OutcomeProbe": battle4.get("s05OutcomeProbe", {}),
               }
 
-          Path("native/build-status/v3.7.json").write_text(
+
+          battle5_path = Path("native/android-map-probe/app/src/main/assets/battle/battle5.json")
+          if battle5_path.exists():
+              battle5 = json.loads(battle5_path.read_text(encoding="utf-8"))
+              phase1 = battle5.get("battleObjectives", {}).get("phase1", {})
+              outcomes5 = battle5.get("outcomeEvents", {})
+              status["s05Battle"] = {
+                  "source": battle5.get("source"),
+                  "battleMode": battle5.get("battleMode"),
+                  "map": battle5.get("map"),
+                  "widthTiles": battle5.get("widthTiles"),
+                  "heightTiles": battle5.get("heightTiles"),
+                  "unitCount": len(battle5.get("units", [])),
+                  "playerCount": sum(1 for u in battle5.get("units", []) if u.get("faction") == "player"),
+                  "allyCount": sum(1 for u in battle5.get("units", []) if u.get("faction") == "ally"),
+                  "enemyCount": sum(1 for u in battle5.get("units", []) if u.get("faction") == "enemy"),
+                  "goal": phase1.get("goal", {}),
+                  "turnLimit": phase1.get("turnLimit"),
+                  "protectedCharacterIds": battle5.get("battleObjectives", {}).get("protectedCharacterIds", []),
+                  "battleEventSummary": battle5.get("battleEventSummary", {}),
+                  "outcomeSupport": {
+                      "victory": outcomes5.get("victory", {}).get("supported"),
+                      "alternateVictory": outcomes5.get("alternateVictory", {}).get("supported"),
+                      "genericDefeat": outcomes5.get("genericDefeat", {}).get("supported"),
+                      "postBattle": outcomes5.get("postBattle", {}).get("supported"),
+                      "defeatByCharacter": {
+                          key: value.get("supported")
+                          for key, value in outcomes5.get("defeatByCharacter", {}).items()
+                      },
+                  },
+              }
+
+          Path("native/build-status/v3.8.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -550,11 +582,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v3.7.json
+          git add native/build-status/v3.8.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v3.7 build status"
+          git commit -m "Record native v3.8 build status"
           git push
