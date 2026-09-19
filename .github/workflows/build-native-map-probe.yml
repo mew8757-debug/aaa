@@ -1,4 +1,4 @@
-name: Build Native Android Battle v1.6
+name: Build Native Android Battle v1.7
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v1.6 APK
+      - name: Build native v1.7 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v1.6.apk"
+          OUT="SeongSamgukji-Native-Battle-v1.7.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v1.6 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v1.6 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v1.7 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v1.7 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v1.6 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v1.6" \
-              --notes "Native v1.6은 v1.5의 완성된 S00 승리 흐름을 유지하면서 원본 ZIP의 R_01.eex/S_01.eex를 직접 파싱해 다음 시나리오 연결 구조를 진단합니다. Scene/Section 수, 전체 명령 분포, R/S 전환 관련 명령과 첫 텍스트 샘플을 build-status에 기록해 다음 버전에서 추측 없이 R01을 네이티브로 연결할 기반을 만듭니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v1.7 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v1.7" \
+              --notes "Native v1.7은 R_01.eex의 선택/분기/출전 전환 경로를 원본 데이터에서 확정하기 위한 probe입니다. 0x05/06/07/08/0B/0D/11/12/13/3A/3D/4A/4B/77 등 흐름 명령을 추가 수집하고 Scene 5의 7개 Section 전체 트리를 build-status에 기록합니다. 이를 바탕으로 다음 단계에서 S00 완료 후 R01 스토리와 S01 출전 전환을 추측 없이 네이티브로 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v1.6 build status
+      - name: Record v1.7 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "1.6.0",
+              "version": "1.7.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -204,7 +204,7 @@ jobs:
                   if unit.get("faction") == "enemy" and unit.get("visible")
               ][:8]
 
-          Path("native/build-status/v1.6.json").write_text(
+          Path("native/build-status/v1.7.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -212,11 +212,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v1.6.json
+          git add native/build-status/v1.7.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v1.6 build status"
+          git commit -m "Record native v1.7 build status"
           git push
