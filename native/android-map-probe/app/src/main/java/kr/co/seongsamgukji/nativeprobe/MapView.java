@@ -156,7 +156,10 @@ public class MapView extends View {
     private JSONArray victoryOutcomeActions;
     private JSONArray defeatOutcomeActions;
     private JSONArray postBattleOutcomeActions;
+    private JSONObject s01DefeatOutcomeEvents;
+    private JSONArray s01GenericDefeatActions;
     private JSONArray r01StoryScenes;
+    private JSONArray r02StoryScenes;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
@@ -170,10 +173,13 @@ public class MapView extends View {
     private boolean paletteResetApplied = false;
     private boolean s00Complete = false;
     private boolean r01StoryActive = false;
+    private boolean r02StoryActive = false;
     private boolean s01Ready = false;
+    private boolean s02Ready = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
     private int r01StorySceneIndex = 0;
+    private int r02StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -614,11 +620,45 @@ public class MapView extends View {
         victoryOutcomeActions = null;
         defeatOutcomeActions = null;
         postBattleOutcomeActions = null;
+        s01DefeatOutcomeEvents = null;
+        s01GenericDefeatActions = null;
+        r02StoryScenes = null;
+
+        JSONObject s01Outcomes = battle.optJSONObject("outcomeEvents");
+        if (s01Outcomes != null) {
+            JSONObject victory = s01Outcomes.optJSONObject("victory");
+            JSONObject postBattle = s01Outcomes.optJSONObject("postBattle");
+            JSONObject genericDefeat = s01Outcomes.optJSONObject(
+                    "genericDefeat");
+            if (victory != null && victory.optBoolean("supported", false)) {
+                victoryOutcomeActions = victory.optJSONArray("actions");
+            }
+            if (postBattle != null
+                    && postBattle.optBoolean("supported", false)) {
+                postBattleOutcomeActions = postBattle.optJSONArray("actions");
+            }
+            if (genericDefeat != null
+                    && genericDefeat.optBoolean("supported", false)) {
+                s01GenericDefeatActions = genericDefeat.optJSONArray("actions");
+            }
+            s01DefeatOutcomeEvents = s01Outcomes.optJSONObject(
+                    "defeatByCharacter");
+        }
+
+        JSONObject r02Story = battle.optJSONObject("r02Story");
+        if (r02Story != null
+                && r02Story.optBoolean("supported", false)) {
+            r02StoryScenes = r02Story.optJSONArray("scenes");
+        }
+
         outcomeFlowActive = false;
         outcomeStage = "";
         r01StoryActive = false;
+        r02StoryActive = false;
         s01Ready = false;
+        s02Ready = false;
         r01StorySceneIndex = 0;
+        r02StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
