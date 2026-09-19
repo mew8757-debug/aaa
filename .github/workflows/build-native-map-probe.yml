@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.5
+name: Build Native Android Battle v4.6
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.5 APK
+      - name: Build native v4.6 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.5.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.6.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.5 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.5 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.6 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.6 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.5 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.5" \
-              --notes "Native v4.5는 S07 Section9/10의 0x36 HPCur 비교를 일반화하고, 0x38 현재HP 설정, 0x5C 무장 강조를 실행해 S07 전장 이벤트 53/53 완전 지원을 목표로 합니다. 동시에 R07의 마지막 미지원 0x78을 nextScenarioProbe에 명시적으로 기록해 정확한 변수형/연산/값을 확인한 뒤 즉시 R07 supported=true로 마무리할 근거를 남깁니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.6 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.6" \
+              --notes "Native v4.6은 R07의 마지막 미지원 0x78 [0,1,4,0]을 AllCondition[0]=R형상 속성 전송으로 처리합니다. 전투 유닛과 독립된 R 스토리 형상 상태를 보존해 R07 Scene1~10이 supported=true로 컴파일되고 S06→R07→S07 실제 연속 진행이 열리게 합니다. v4.5의 S07 전장 이벤트 53/53 지원과 battle7 승패 흐름은 유지합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.5 build status
+      - name: Record v4.6 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.5.0",
+              "version": "4.6.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -642,6 +642,13 @@ jobs:
                       ).get("R_07.eex", {}).get("flowCommands", [])
                       if row.get("commandId") == 0x78
                   ],
+                  "r07StoryReady": (
+                      battle6.get("r07Story", {}).get("supported") is True
+                      and not battle6.get("r07Story", {}).get(
+                          "unsupportedActionIds",
+                          [],
+                      )
+                  ),
               }
 
           battle7_path = Path("native/android-map-probe/app/src/main/assets/battle/battle7.json")
@@ -697,7 +704,7 @@ jobs:
                   ),
               }
 
-          Path("native/build-status/v4.5.json").write_text(
+          Path("native/build-status/v4.6.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -705,11 +712,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.5.json
+          git add native/build-status/v4.6.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.5 build status"
+          git commit -m "Record native v4.6 build status"
           git push
