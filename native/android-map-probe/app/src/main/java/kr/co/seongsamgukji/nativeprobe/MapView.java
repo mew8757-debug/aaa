@@ -959,7 +959,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v2.6 | R_01 Scene "
+            header = "Native v2.7 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -969,7 +969,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v2.6 | R_02 Scene "
+            header = "Native v2.7 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -979,7 +979,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v2.6 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v2.7 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -2211,6 +2211,8 @@ public class MapView extends View {
             int value;
             if (attribute == 7) {
                 value = unit.maxHp;
+            } else if (attribute == 32) {
+                value = unit.direction;
             } else if (attribute == 33) {
                 value = unit.hp;
             } else {
@@ -2220,11 +2222,17 @@ public class MapView extends View {
             return;
         }
 
-        if (direction == 1 && attribute == 33) {
-            int value = integerVariables.getOrDefault(variableId, unit.hp);
-            unit.hp = Math.max(0, Math.min(unit.maxHp, value));
-            if (unit.hp > 0) {
-                unit.visible = true;
+        if (direction == 1) {
+            int value = integerVariables.getOrDefault(variableId, 0);
+            if (attribute == 32) {
+                unit.direction = value;
+                return;
+            }
+            if (attribute == 33) {
+                unit.hp = Math.max(0, Math.min(unit.maxHp, value));
+                if (unit.hp > 0) {
+                    unit.visible = true;
+                }
             }
         }
     }
