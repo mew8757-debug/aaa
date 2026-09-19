@@ -162,6 +162,7 @@ public class MapView extends View {
     private JSONArray r01StoryScenes;
     private JSONArray r02StoryScenes;
     private JSONArray r03StoryScenes;
+    private JSONArray r05StoryScenes;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
@@ -177,9 +178,11 @@ public class MapView extends View {
     private boolean r01StoryActive = false;
     private boolean r02StoryActive = false;
     private boolean r03StoryActive = false;
+    private boolean r05StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
+    private boolean s05Ready = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
     private int rescueCharacterId = -1;
@@ -190,6 +193,7 @@ public class MapView extends View {
     private int r01StorySceneIndex = 0;
     private int r02StorySceneIndex = 0;
     private int r03StorySceneIndex = 0;
+    private int r05StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -559,6 +563,29 @@ public class MapView extends View {
                 "terrain4.bin");
     }
 
+    private void enterS05Battle() {
+        try {
+            loadS05Battle(getContext());
+            lastCombatMessage = "R_05 완료 · S_05 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            endBattle(
+                    false,
+                    "S_05 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS05Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle5.json",
+                5,
+                "m005.jpg",
+                "terrain5.bin");
+    }
+
     private void loadFollowupBattle(
             Context context,
             String battleFile,
@@ -741,6 +768,7 @@ public class MapView extends View {
         s01GenericDefeatActions = null;
         r02StoryScenes = null;
         r03StoryScenes = null;
+        r05StoryScenes = null;
 
         JSONObject s01Outcomes = battle.optJSONObject("outcomeEvents");
         if (s01Outcomes != null) {
@@ -773,18 +801,26 @@ public class MapView extends View {
                 && r03Story.optBoolean("supported", false)) {
             r03StoryScenes = r03Story.optJSONArray("scenes");
         }
+        JSONObject r05Story = battle.optJSONObject("r05Story");
+        if (r05Story != null
+                && r05Story.optBoolean("supported", false)) {
+            r05StoryScenes = r05Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
         r01StoryActive = false;
         r02StoryActive = false;
         r03StoryActive = false;
+        r05StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
+        s05Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
+        r05StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
