@@ -9,6 +9,7 @@ public final class OpeningEvent {
     public final int x;
     public final int y;
     public final int direction;
+    public final int variableId;
     public final int value;
     public final String speaker;
     public final String text;
@@ -20,6 +21,7 @@ public final class OpeningEvent {
             int x,
             int y,
             int direction,
+            int variableId,
             int value,
             String speaker,
             String text) {
@@ -29,6 +31,7 @@ public final class OpeningEvent {
         this.x = x;
         this.y = y;
         this.direction = direction;
+        this.variableId = variableId;
         this.value = value;
         this.speaker = speaker;
         this.text = text;
@@ -42,6 +45,7 @@ public final class OpeningEvent {
                 obj.has("x") ? obj.optInt("x") : Integer.MIN_VALUE,
                 obj.has("y") ? obj.optInt("y") : Integer.MIN_VALUE,
                 obj.optInt("direction", -1),
+                obj.optInt("variableId", -1),
                 obj.optInt("value", 0),
                 obj.optString("speaker", ""),
                 obj.optString("text", ""));
