@@ -32,6 +32,7 @@ public class MapView extends View {
     private static final long MOVE_STEP_MS = 150L;
     private static final long ATTACK_FRAME_MS = 105L;
     private static final long ATTACK_ANIMATION_MS = 480L;
+    private static final long ENEMY_PAUSE_MS = 260L;
     private static final int IMPASSABLE = Integer.MAX_VALUE / 4;
 
     private final Paint mapPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -50,13 +51,18 @@ public class MapView extends View {
     private final Paint dialogueBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dialogueNamePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dialogueTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint endTurnBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint endTurnTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
+    private final RectF endTurnButton = new RectF();
     private final ScaleGestureDetector scaleDetector;
     private final List<BattleUnit> units = new ArrayList<>();
     private final List<OpeningEvent> openingEvents = new ArrayList<>();
     private final Map<Integer, Bitmap[]> idleSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> moveSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> attackSprites = new HashMap<>();
+
+    private final List<BattleUnit> enemyTurnOrder = new ArrayList<>();
 
     private Bitmap map;
     private byte[] palette;
@@ -94,6 +100,18 @@ public class MapView extends View {
 
     private String lastCombatMessage;
     private long combatMessageUntil;
+
+    private boolean playerTurn = true;
+    private int round = 1;
+    private int enemyTurnIndex = 0;
+    private BattleUnit activeEnemy;
+    private BattleUnit activeEnemyTarget;
+    private boolean activeEnemyAttackPending;
+    private long enemyNextActionAt;
+
+    private BattleUnit pendingCounterAttacker;
+    private BattleUnit pendingCounterTarget;
+    private long pendingCounterAt;
 
     public MapView(Context context) {
         super(context);
@@ -159,6 +177,14 @@ public class MapView extends View {
         dialogueTextPaint.setColor(Color.WHITE);
         dialogueTextPaint.setTextSize(27f);
 
+        endTurnBackPaint.setColor(0xDD24344D);
+        endTurnBackPaint.setStyle(Paint.Style.FILL);
+
+        endTurnTextPaint.setColor(Color.WHITE);
+        endTurnTextPaint.setTextSize(27f);
+        endTurnTextPaint.setFakeBoldText(true);
+        endTurnTextPaint.setTextAlign(Paint.Align.CENTER);
+
         scaleDetector = new ScaleGestureDetector(
                 context,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -204,9 +230,13 @@ public class MapView extends View {
         mapCols = battle.optInt("widthTiles", map.getWidth() / (int) TILE);
         mapRows = battle.optInt("heightTiles", map.getHeight() / (int) TILE);
         terrainTypeCount = battle.optInt("terrainTypeCount", 30);
-        movementCostFamilyCount = battle.optInt("movementCostFamilyCount", 40);
+        movementCostFamilyCount = battle.optInt(
+                "movementCostFamilyCount",
+                40);
 
-        String terrainFile = battle.optString("terrainFile", "terrain0.bin");
+        String terrainFile = battle.optString(
+                "terrainFile",
+                "terrain0.bin");
         String movementCostFile = battle.optString(
                 "movementCostFile",
                 "movement_costs.bin");
@@ -224,7 +254,8 @@ public class MapView extends View {
             throw new IOException(
                     "movement cost size=" + movementCosts.length
                             + " expected="
-                            + (movementCostFamilyCount * terrainTypeCount));
+                            + (movementCostFamilyCount
+                            * terrainTypeCount));
         }
 
         JSONArray unitList = battle.getJSONArray("units");
@@ -258,7 +289,8 @@ public class MapView extends View {
         if (eventList != null) {
             for (int i = 0; i < eventList.length(); i++) {
                 openingEvents.add(
-                        OpeningEvent.fromJson(eventList.getJSONObject(i)));
+                        OpeningEvent.fromJson(
+                                eventList.getJSONObject(i)));
             }
         }
     }
@@ -379,9 +411,11 @@ public class MapView extends View {
             return;
         }
 
+        long now = SystemClock.uptimeMillis();
         boolean moving = updateMovement();
         boolean openingBusy = pumpOpeningEvents();
-        long now = SystemClock.uptimeMillis();
+        boolean counterBusy = updatePendingCounter(now);
+        boolean enemyBusy = updateEnemyTurn(now);
 
         canvas.save();
         canvas.translate(offsetX, offsetY);
@@ -444,7 +478,8 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v0.8 | 지형 이동 + 원본 공격모션 + 물리 공격"
+                "Native v0.9 | " + round + "턴 "
+                        + (playerTurn ? "아군" : "적군")
                         + " | 아군 " + playerCount
                         + " / 우군 " + allyCount
                         + " / 적군 " + enemyCount,
@@ -463,9 +498,15 @@ public class MapView extends View {
                 status += " · SFX " + lastSound;
             }
             canvas.drawText(status, 22, 65, overlayTextPaint);
+        } else if (playerTurn) {
+            canvas.drawText(
+                    "파란 타일 1회 이동 · 붉은 적 공격 · 생존 적은 사거리 내 반격 · 턴 종료",
+                    22,
+                    65,
+                    overlayTextPaint);
         } else {
             canvas.drawText(
-                    "아군 선택 → 파란 타일 이동 · 붉은 적 터치 공격 · 공격 후 해당 유닛 행동 종료",
+                    "적군 자동 행동 중 · 원본 지형 이동비용으로 접근/공격",
                     22,
                     65,
                     overlayTextPaint);
@@ -510,24 +551,56 @@ public class MapView extends View {
                     overlayTextPaint);
         }
 
+        if (openingFinished && playerTurn) {
+            drawEndTurnButton(canvas);
+        }
+
         if (dialogueText != null) {
             drawDialogueBox(canvas);
         }
 
         if (moving
                 || openingBusy
+                || counterBusy
+                || enemyBusy
                 || !openingFinished
+                || !playerTurn
                 || hasActiveAttackAnimation(now)
-                || (lastCombatMessage != null && now < combatMessageUntil)) {
+                || (lastCombatMessage != null
+                && now < combatMessageUntil)) {
             postInvalidateDelayed(35L);
         }
     }
 
+    private void drawEndTurnButton(Canvas canvas) {
+        float right = getWidth() - 22f;
+        float bottom = getHeight() - 22f;
+        float left = Math.max(22f, right - 178f);
+        float top = Math.max(145f, bottom - 58f);
+        endTurnButton.set(left, top, right, bottom);
+
+        canvas.drawRoundRect(
+                endTurnButton,
+                14f,
+                14f,
+                endTurnBackPaint);
+        float baseline = endTurnButton.centerY()
+                - (endTurnTextPaint.ascent()
+                + endTurnTextPaint.descent()) / 2f;
+        canvas.drawText(
+                "턴 종료",
+                endTurnButton.centerX(),
+                baseline,
+                endTurnTextPaint);
+    }
+
     private void drawReachableTiles(Canvas canvas) {
         if (!openingFinished
+                || !playerTurn
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
                 || !selectedUnit.isAlive()
+                || selectedUnit.moved
                 || selectedUnit.acted
                 || selectedUnit.isMoving()
                 || reachableBest == null) {
@@ -557,6 +630,7 @@ public class MapView extends View {
 
     private void drawAttackTargets(Canvas canvas) {
         if (!openingFinished
+                || !playerTurn
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
                 || !selectedUnit.isAlive()
@@ -605,14 +679,18 @@ public class MapView extends View {
             source = idleSprites.get(unit.spriteId);
             frameIndex = source == null || source.length == 0
                     ? 0
-                    : Math.floorMod(unit.actionFrame, source.length);
+                    : Math.floorMod(
+                            unit.actionFrame,
+                            source.length);
         } else if (unit.isMoving()) {
             source = moveSprites.get(unit.spriteId);
             frameIndex = source == null || source.length == 0
                     ? 0
                     : Math.max(
                             0,
-                            Math.min(unit.moveFrame, source.length - 1));
+                            Math.min(
+                                    unit.moveFrame,
+                                    source.length - 1));
         } else {
             source = idleSprites.get(unit.spriteId);
             frameIndex = 0;
@@ -622,14 +700,18 @@ public class MapView extends View {
             return;
         }
 
-        frameIndex = Math.max(0, Math.min(frameIndex, source.length - 1));
+        frameIndex = Math.max(
+                0,
+                Math.min(frameIndex, source.length - 1));
         canvas.drawBitmap(source[frameIndex], left, top, spritePaint);
 
         float tileLeft = unit.x * TILE;
         float tileTop = unit.y * TILE;
         Paint ring = "player".equals(unit.faction)
                 ? playerPaint
-                : ("ally".equals(unit.faction) ? allyPaint : enemyPaint);
+                : ("ally".equals(unit.faction)
+                ? allyPaint
+                : enemyPaint);
         canvas.drawRect(
                 tileLeft + 2,
                 tileTop + 2,
@@ -648,7 +730,8 @@ public class MapView extends View {
 
         float centerX = tileLeft + TILE / 2f;
         float labelY = tileTop + TILE - 3f;
-        String label = unit.name + " " + unit.hp + "/" + unit.maxHp;
+        String label = unit.name + " "
+                + unit.hp + "/" + unit.maxHp;
         float textWidth = unitTextPaint.measureText(label);
         canvas.drawRect(
                 centerX - textWidth / 2f - 2f,
@@ -656,7 +739,11 @@ public class MapView extends View {
                 centerX + textWidth / 2f + 2f,
                 labelY + 2f,
                 unitLabelBackPaint);
-        canvas.drawText(label, centerX, labelY, unitTextPaint);
+        canvas.drawText(
+                label,
+                centerX,
+                labelY,
+                unitTextPaint);
     }
 
     private int attackFrameGroup(int direction) {
@@ -730,7 +817,8 @@ public class MapView extends View {
             if (wasMoving
                     && !unit.isMoving()
                     && unit == selectedUnit
-                    && openingFinished) {
+                    && openingFinished
+                    && playerTurn) {
                 refreshReachable();
             }
         }
@@ -843,7 +931,9 @@ public class MapView extends View {
                             BattleUnit target = findUnitByCharacterId(
                                     event.targetId);
                             if (target != null) {
-                                direction = directionToward(unit, target);
+                                direction = directionToward(
+                                        unit,
+                                        target);
                             }
                         }
                         if (direction >= 0) {
@@ -892,7 +982,9 @@ public class MapView extends View {
         return false;
     }
 
-    private int directionToward(BattleUnit from, BattleUnit to) {
+    private int directionToward(
+            BattleUnit from,
+            BattleUnit to) {
         int dx = to.x - from.x;
         int dy = to.y - from.y;
         if (Math.abs(dx) >= Math.abs(dy)) {
@@ -903,21 +995,39 @@ public class MapView extends View {
 
     private void finishOpening() {
         openingFinished = true;
+        playerTurn = true;
+        round = 1;
         dialogueSpeaker = null;
         dialogueText = null;
         scriptedMovingUnit = null;
+        resetSideTurnState(false);
         selectFirstPlayer();
         refreshReachable();
         invalidate();
     }
 
     private void selectFirstPlayer() {
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+
         for (BattleUnit unit : units) {
-            if (unit.isPlayer() && unit.visible && unit.isAlive()) {
+            if (unit.isPlayer()
+                    && unit.visible
+                    && unit.isAlive()) {
                 selectedUnit = unit;
                 selectedX = unit.x;
                 selectedY = unit.y;
                 return;
+            }
+        }
+    }
+
+    private void resetSideTurnState(boolean enemySide) {
+        for (BattleUnit unit : units) {
+            if (unit.isEnemy() == enemySide) {
+                unit.moved = false;
+                unit.acted = false;
             }
         }
     }
@@ -930,24 +1040,32 @@ public class MapView extends View {
     private void refreshReachable() {
         clearReachable();
         if (!openingFinished
+                || !playerTurn
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
                 || !selectedUnit.visible
                 || !selectedUnit.isAlive()
+                || selectedUnit.moved
                 || selectedUnit.acted
                 || selectedUnit.isMoving()
                 || selectedUnit.movePoints <= 0) {
             return;
         }
 
-        int total = mapCols * mapRows;
-        reachableBest = new int[total];
-        reachablePrev = new int[total];
-        Arrays.fill(reachableBest, IMPASSABLE);
-        Arrays.fill(reachablePrev, -1);
+        PathSearch path = computeReachability(selectedUnit);
+        reachableBest = path.best;
+        reachablePrev = path.prev;
+    }
 
-        int start = tileIndex(selectedUnit.x, selectedUnit.y);
-        reachableBest[start] = 0;
+    private PathSearch computeReachability(BattleUnit unit) {
+        int total = mapCols * mapRows;
+        int[] best = new int[total];
+        int[] prev = new int[total];
+        Arrays.fill(best, IMPASSABLE);
+        Arrays.fill(prev, -1);
+
+        int start = tileIndex(unit.x, unit.y);
+        best[start] = 0;
 
         PriorityQueue<PathNode> queue = new PriorityQueue<>();
         queue.add(new PathNode(start, 0));
@@ -957,7 +1075,7 @@ public class MapView extends View {
 
         while (!queue.isEmpty()) {
             PathNode current = queue.poll();
-            if (current.cost != reachableBest[current.index]) {
+            if (current.cost != best[current.index]) {
                 continue;
             }
 
@@ -971,36 +1089,40 @@ public class MapView extends View {
                     continue;
                 }
 
-                if (occupied(nx, ny, selectedUnit)) {
+                if (occupied(nx, ny, unit)) {
                     continue;
                 }
 
-                int stepCost = movementCost(selectedUnit, nx, ny);
+                int stepCost = movementCost(unit, nx, ny);
                 if (stepCost >= IMPASSABLE) {
                     continue;
                 }
 
                 int nextCost = current.cost + stepCost;
-                if (nextCost > selectedUnit.movePoints) {
+                if (nextCost > unit.movePoints) {
                     continue;
                 }
 
                 int next = tileIndex(nx, ny);
-                if (nextCost >= reachableBest[next]) {
+                if (nextCost >= best[next]) {
                     continue;
                 }
 
-                reachableBest[next] = nextCost;
-                reachablePrev[next] = current.index;
+                best[next] = nextCost;
+                prev[next] = current.index;
                 queue.add(new PathNode(next, nextCost));
             }
         }
+
+        return new PathSearch(best, prev);
     }
 
     private boolean planSelectedMove(int tx, int ty) {
         if (selectedUnit == null
+                || !playerTurn
                 || !selectedUnit.isPlayer()
                 || !selectedUnit.isAlive()
+                || selectedUnit.moved
                 || selectedUnit.acted
                 || selectedUnit.isMoving()
                 || reachableBest == null
@@ -1015,33 +1137,53 @@ public class MapView extends View {
             return false;
         }
 
-        int start = tileIndex(selectedUnit.x, selectedUnit.y);
+        int start = tileIndex(
+                selectedUnit.x,
+                selectedUnit.y);
         if (target == start) {
             return false;
         }
 
-        List<Integer> reverse = new ArrayList<>();
-        int cursor = target;
-        while (cursor != start && cursor >= 0) {
-            reverse.add(cursor);
-            cursor = reachablePrev[cursor];
-        }
-        if (cursor != start) {
+        List<Integer> path = reconstructPath(
+                start,
+                target,
+                reachablePrev);
+        if (path.isEmpty()) {
             return false;
         }
 
-        Collections.reverse(reverse);
         selectedUnit.clearMovePath();
-        selectedUnit.movePath.addAll(reverse);
+        selectedUnit.movePath.addAll(path);
         selectedUnit.targetX = tx;
         selectedUnit.targetY = ty;
         selectedUnit.lastMoveStepAt = 0L;
+        selectedUnit.moved = true;
         clearReachable();
         return true;
     }
 
+    private List<Integer> reconstructPath(
+            int start,
+            int target,
+            int[] prev) {
+        List<Integer> reverse = new ArrayList<>();
+        int cursor = target;
+
+        while (cursor != start && cursor >= 0) {
+            reverse.add(cursor);
+            cursor = prev[cursor];
+        }
+        if (cursor != start) {
+            return Collections.emptyList();
+        }
+
+        Collections.reverse(reverse);
+        return reverse;
+    }
+
     private boolean supportsAttackRange(BattleUnit unit) {
-        return unit.attackRangeId == 0 || unit.attackRangeId == 1;
+        return unit.attackRangeId == 0
+                || unit.attackRangeId == 1;
     }
 
     private boolean isInAttackRange(
@@ -1054,48 +1196,111 @@ public class MapView extends View {
             return dx + dy == 1;
         }
         if (attacker.attackRangeId == 1) {
-            return Math.max(dx, dy) == 1 && (dx + dy) > 0;
+            return Math.max(dx, dy) == 1
+                    && (dx + dy) > 0;
         }
         return false;
     }
 
-    private boolean canAttack(
+    private boolean opposingSides(
+            BattleUnit a,
+            BattleUnit b) {
+        return a.isEnemy() != b.isEnemy();
+    }
+
+    private boolean canStrike(
             BattleUnit attacker,
             BattleUnit target) {
-        return openingFinished
-                && attacker != null
+        return attacker != null
                 && target != null
-                && attacker.isPlayer()
-                && attacker.isAlive()
-                && target.isEnemy()
+                && attacker.visible
                 && target.visible
+                && attacker.isAlive()
                 && target.isAlive()
-                && !attacker.acted
+                && opposingSides(attacker, target)
                 && !attacker.isMoving()
                 && supportsAttackRange(attacker)
                 && isInAttackRange(attacker, target);
     }
 
-    private void performAttack(
+    private boolean canPlayerAttack(
             BattleUnit attacker,
             BattleUnit target) {
-        if (!canAttack(attacker, target)) {
+        return openingFinished
+                && playerTurn
+                && attacker != null
+                && attacker.isPlayer()
+                && !attacker.acted
+                && canStrike(attacker, target);
+    }
+
+    private void performPlayerAttack(
+            BattleUnit attacker,
+            BattleUnit target) {
+        if (!canPlayerAttack(attacker, target)) {
+            return;
+        }
+
+        resolveStrike(
+                attacker,
+                target,
+                false,
+                true);
+        scheduleCounterIfPossible(
+                target,
+                attacker);
+
+        selectedUnit = attacker;
+        selectedX = attacker.x;
+        selectedY = attacker.y;
+        clearReachable();
+        invalidate();
+    }
+
+    private void performEnemyAttack(
+            BattleUnit attacker,
+            BattleUnit target) {
+        if (!canStrike(attacker, target)
+                || !attacker.isEnemy()) {
+            return;
+        }
+
+        resolveStrike(
+                attacker,
+                target,
+                false,
+                true);
+        scheduleCounterIfPossible(
+                target,
+                attacker);
+    }
+
+    private void resolveStrike(
+            BattleUnit attacker,
+            BattleUnit target,
+            boolean counter,
+            boolean consumeAction) {
+        if (!canStrike(attacker, target)) {
             return;
         }
 
         long now = SystemClock.uptimeMillis();
-        attacker.direction = directionToward(attacker, target);
+        attacker.direction = directionToward(
+                attacker,
+                target);
         attacker.attackStartedAt = now;
         attacker.attackUntil = now + ATTACK_ANIMATION_MS;
-        attacker.acted = true;
+
+        if (consumeAction) {
+            attacker.acted = true;
+        }
 
         target.actionFrame = 1;
         target.actionUntil = now + ATTACK_ANIMATION_MS;
 
-        // v0.8 deliberately implements only the verified core physical
-        // difference. Penetration, terrain combat affinity, equipment,
-        // crit/combo, hit/evasion and counterattack are subsequent slices.
-        int damage = Math.max(0, attacker.attack - target.defense);
+        int damage = Math.max(
+                0,
+                attacker.attack - target.defense);
         target.hp = Math.max(0, target.hp - damage);
 
         String suffix;
@@ -1111,28 +1316,352 @@ public class MapView extends View {
             suffix = "";
         }
 
-        lastCombatMessage = attacker.name
+        lastCombatMessage = (counter ? "반격 · " : "")
+                + attacker.name
                 + " → " + target.name
                 + " : 피해 " + damage
                 + " (ATK " + attacker.attack
                 + " - DEF " + target.defense + ")"
                 + suffix;
         combatMessageUntil = now + 2200L;
+    }
 
-        selectedUnit = attacker;
-        selectedX = attacker.x;
-        selectedY = attacker.y;
-        clearReachable();
-        invalidate();
+    private void scheduleCounterIfPossible(
+            BattleUnit defender,
+            BattleUnit attacker) {
+        pendingCounterAttacker = null;
+        pendingCounterTarget = null;
+        pendingCounterAt = 0L;
+
+        if (canStrike(defender, attacker)) {
+            pendingCounterAttacker = defender;
+            pendingCounterTarget = attacker;
+            pendingCounterAt = SystemClock.uptimeMillis()
+                    + ATTACK_ANIMATION_MS;
+        }
+    }
+
+    private boolean updatePendingCounter(long now) {
+        if (pendingCounterAttacker == null
+                || pendingCounterTarget == null) {
+            return false;
+        }
+
+        if (now < pendingCounterAt) {
+            return true;
+        }
+
+        BattleUnit counterAttacker = pendingCounterAttacker;
+        BattleUnit counterTarget = pendingCounterTarget;
+        pendingCounterAttacker = null;
+        pendingCounterTarget = null;
+        pendingCounterAt = 0L;
+
+        if (canStrike(counterAttacker, counterTarget)) {
+            resolveStrike(
+                    counterAttacker,
+                    counterTarget,
+                    true,
+                    false);
+
+            if (!counterTarget.isAlive()
+                    && counterTarget == selectedUnit) {
+                selectFirstPlayer();
+                refreshReachable();
+            }
+            return true;
+        }
+
+        return false;
     }
 
     private boolean hasActiveAttackAnimation(long now) {
         for (BattleUnit unit : units) {
-            if (now < unit.attackUntil || now < unit.actionUntil) {
+            if (now < unit.attackUntil
+                    || now < unit.actionUntil) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean canEndPlayerTurn() {
+        if (!openingFinished
+                || !playerTurn
+                || pendingCounterAttacker != null) {
+            return false;
+        }
+
+        long now = SystemClock.uptimeMillis();
+        if (hasActiveAttackAnimation(now)) {
+            return false;
+        }
+
+        for (BattleUnit unit : units) {
+            if (unit.isPlayer()
+                    && unit.visible
+                    && unit.isAlive()
+                    && unit.isMoving()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void beginEnemyTurn() {
+        if (!canEndPlayerTurn()) {
+            return;
+        }
+
+        playerTurn = false;
+        clearReachable();
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+
+        resetSideTurnState(true);
+        enemyTurnOrder.clear();
+        for (BattleUnit unit : units) {
+            if (unit.isEnemy()
+                    && unit.visible
+                    && unit.isAlive()) {
+                enemyTurnOrder.add(unit);
+            }
+        }
+        Collections.sort(
+                enemyTurnOrder,
+                (a, b) -> Integer.compare(
+                        a.characterId,
+                        b.characterId));
+
+        enemyTurnIndex = 0;
+        activeEnemy = null;
+        activeEnemyTarget = null;
+        activeEnemyAttackPending = false;
+        enemyNextActionAt = SystemClock.uptimeMillis()
+                + ENEMY_PAUSE_MS;
+
+        lastCombatMessage = round + "턴 · 적군 행동 시작";
+        combatMessageUntil = SystemClock.uptimeMillis()
+                + 1200L;
+        invalidate();
+    }
+
+    private boolean updateEnemyTurn(long now) {
+        if (!openingFinished || playerTurn) {
+            return false;
+        }
+
+        if (pendingCounterAttacker != null
+                || hasActiveAttackAnimation(now)) {
+            return true;
+        }
+
+        if (activeEnemy != null) {
+            if (!activeEnemy.visible
+                    || !activeEnemy.isAlive()) {
+                finishActiveEnemy(now);
+                return true;
+            }
+
+            if (activeEnemy.isMoving()) {
+                return true;
+            }
+
+            if (activeEnemyAttackPending) {
+                activeEnemyAttackPending = false;
+
+                BattleUnit target = activeEnemyTarget;
+                if (target == null
+                        || !target.visible
+                        || !target.isAlive()) {
+                    target = findNearestOpponent(activeEnemy);
+                    activeEnemyTarget = target;
+                }
+
+                if (target != null
+                        && canStrike(activeEnemy, target)) {
+                    performEnemyAttack(activeEnemy, target);
+                    return true;
+                }
+            }
+
+            finishActiveEnemy(now);
+            return true;
+        }
+
+        if (now < enemyNextActionAt) {
+            return true;
+        }
+
+        while (enemyTurnIndex < enemyTurnOrder.size()) {
+            BattleUnit enemy = enemyTurnOrder.get(
+                    enemyTurnIndex);
+            if (!enemy.visible
+                    || !enemy.isAlive()
+                    || enemy.acted) {
+                enemyTurnIndex++;
+                continue;
+            }
+
+            BattleUnit target = findNearestOpponent(enemy);
+            if (target == null) {
+                finishEnemyTurn();
+                return false;
+            }
+
+            activeEnemy = enemy;
+            activeEnemyTarget = target;
+
+            if (canStrike(enemy, target)) {
+                performEnemyAttack(enemy, target);
+                return true;
+            }
+
+            if (!enemy.moved
+                    && planAiMove(enemy, target)) {
+                activeEnemyAttackPending = true;
+                return true;
+            }
+
+            finishActiveEnemy(now);
+            return true;
+        }
+
+        finishEnemyTurn();
+        return false;
+    }
+
+    private void finishActiveEnemy(long now) {
+        if (activeEnemy != null) {
+            activeEnemy.acted = true;
+        }
+        activeEnemy = null;
+        activeEnemyTarget = null;
+        activeEnemyAttackPending = false;
+        enemyTurnIndex++;
+        enemyNextActionAt = now + ENEMY_PAUSE_MS;
+    }
+
+    private void finishEnemyTurn() {
+        playerTurn = true;
+        round++;
+        enemyTurnOrder.clear();
+        enemyTurnIndex = 0;
+        activeEnemy = null;
+        activeEnemyTarget = null;
+        activeEnemyAttackPending = false;
+        pendingCounterAttacker = null;
+        pendingCounterTarget = null;
+        pendingCounterAt = 0L;
+
+        resetSideTurnState(false);
+        selectFirstPlayer();
+        refreshReachable();
+
+        lastCombatMessage = round + "턴 · 아군 행동 시작";
+        combatMessageUntil = SystemClock.uptimeMillis()
+                + 1200L;
+        invalidate();
+    }
+
+    private BattleUnit findNearestOpponent(BattleUnit from) {
+        BattleUnit best = null;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (BattleUnit candidate : units) {
+            if (!candidate.visible
+                    || !candidate.isAlive()
+                    || !opposingSides(from, candidate)) {
+                continue;
+            }
+
+            int distance = Math.abs(candidate.x - from.x)
+                    + Math.abs(candidate.y - from.y);
+
+            if (best == null
+                    || distance < bestDistance
+                    || (distance == bestDistance
+                    && candidate.characterId
+                    < best.characterId)) {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean planAiMove(
+            BattleUnit unit,
+            BattleUnit target) {
+        if (unit == null
+                || target == null
+                || !unit.visible
+                || !unit.isAlive()
+                || unit.moved
+                || unit.acted
+                || unit.isMoving()
+                || unit.movePoints <= 0) {
+            return false;
+        }
+
+        PathSearch search = computeReachability(unit);
+        int start = tileIndex(unit.x, unit.y);
+        int bestIndex = start;
+        int bestDistance = Math.abs(target.x - unit.x)
+                + Math.abs(target.y - unit.y);
+        int bestCost = 0;
+
+        for (int index = 0;
+             index < search.best.length;
+             index++) {
+            int cost = search.best[index];
+            if (cost >= IMPASSABLE
+                    || cost > unit.movePoints) {
+                continue;
+            }
+
+            int x = index % mapCols;
+            int y = index / mapCols;
+            if (index != start
+                    && occupied(x, y, unit)) {
+                continue;
+            }
+
+            int distance = Math.abs(target.x - x)
+                    + Math.abs(target.y - y);
+
+            if (distance < bestDistance
+                    || (distance == bestDistance
+                    && cost < bestCost)) {
+                bestDistance = distance;
+                bestCost = cost;
+                bestIndex = index;
+            }
+        }
+
+        if (bestIndex == start) {
+            unit.moved = true;
+            return false;
+        }
+
+        List<Integer> path = reconstructPath(
+                start,
+                bestIndex,
+                search.prev);
+        if (path.isEmpty()) {
+            unit.moved = true;
+            return false;
+        }
+
+        unit.clearMovePath();
+        unit.movePath.addAll(path);
+        unit.targetX = bestIndex % mapCols;
+        unit.targetY = bestIndex / mapCols;
+        unit.lastMoveStepAt = 0L;
+        unit.moved = true;
+        return true;
     }
 
     private int terrainAt(int x, int y) {
@@ -1142,16 +1671,22 @@ public class MapView extends View {
         return terrainCells[tileIndex(x, y)] & 0xff;
     }
 
-    private int movementCost(BattleUnit unit, int x, int y) {
+    private int movementCost(
+            BattleUnit unit,
+            int x,
+            int y) {
         int terrainId = terrainAt(x, y);
         if (terrainId < 0
                 || terrainId >= terrainTypeCount
                 || unit.jobFamily < 0
-                || unit.jobFamily >= movementCostFamilyCount) {
+                || unit.jobFamily
+                >= movementCostFamilyCount) {
             return IMPASSABLE;
         }
 
-        int index = unit.jobFamily * terrainTypeCount + terrainId;
+        int index = unit.jobFamily
+                * terrainTypeCount
+                + terrainId;
         int raw = movementCosts[index] & 0xff;
 
         if (raw <= 0 || raw >= 255) {
@@ -1161,7 +1696,10 @@ public class MapView extends View {
     }
 
     private boolean inBounds(int x, int y) {
-        return x >= 0 && y >= 0 && x < mapCols && y < mapRows;
+        return x >= 0
+                && y >= 0
+                && x < mapCols
+                && y < mapRows;
     }
 
     private int tileIndex(int x, int y) {
@@ -1190,7 +1728,10 @@ public class MapView extends View {
         return null;
     }
 
-    private boolean occupied(int tx, int ty, BattleUnit except) {
+    private boolean occupied(
+            int tx,
+            int ty,
+            BattleUnit except) {
         for (BattleUnit unit : units) {
             if (unit != except
                     && unit.visible
@@ -1210,7 +1751,8 @@ public class MapView extends View {
         dialogueSpeaker = null;
         dialogueText = null;
         openingIndex++;
-        openingWaitUntil = SystemClock.uptimeMillis() + 80L;
+        openingWaitUntil = SystemClock.uptimeMillis()
+                + 80L;
         invalidate();
     }
 
@@ -1232,7 +1774,11 @@ public class MapView extends View {
                 || dialogueSpeaker.isEmpty()
                 ? "대사"
                 : dialogueSpeaker;
-        canvas.drawText(speaker, x, y, dialogueNamePaint);
+        canvas.drawText(
+                speaker,
+                x,
+                y,
+                dialogueNamePaint);
 
         y += 42f;
         drawWrappedText(
@@ -1265,7 +1811,8 @@ public class MapView extends View {
 
         int maxLines = 3;
         int lines = 0;
-        String[] paragraphs = text.replace("\r", "").split("\n", -1);
+        String[] paragraphs = text.replace("\r", "")
+                .split("\n", -1);
 
         for (String paragraph : paragraphs) {
             if (lines >= maxLines) {
@@ -1282,7 +1829,8 @@ public class MapView extends View {
             for (int i = 0; i < paragraph.length(); i++) {
                 char ch = paragraph.charAt(i);
                 String candidate = line.toString() + ch;
-                if (dialogueTextPaint.measureText(candidate) > maxWidth
+                if (dialogueTextPaint.measureText(candidate)
+                        > maxWidth
                         && line.length() > 0) {
                     canvas.drawText(
                             line.toString(),
@@ -1299,7 +1847,8 @@ public class MapView extends View {
                 line.append(ch);
             }
 
-            if (line.length() > 0 && lines < maxLines) {
+            if (line.length() > 0
+                    && lines < maxLines) {
                 canvas.drawText(
                         line.toString(),
                         x,
@@ -1315,7 +1864,8 @@ public class MapView extends View {
     public boolean onTouchEvent(MotionEvent event) {
         scaleDetector.onTouchEvent(event);
 
-        if (event.getPointerCount() == 1 && !scaleDetector.isInProgress()) {
+        if (event.getPointerCount() == 1
+                && !scaleDetector.isInProgress()) {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     downX = lastX = event.getX();
@@ -1333,49 +1883,77 @@ public class MapView extends View {
                     return true;
 
                 case MotionEvent.ACTION_UP:
-                    float moved = Math.abs(event.getX() - downX)
-                            + Math.abs(event.getY() - downY);
+                    float moved = Math.abs(
+                            event.getX() - downX)
+                            + Math.abs(
+                            event.getY() - downY);
 
                     if (!openingFinished) {
-                        if (moved < 24f && dialogueText != null) {
+                        if (moved < 24f
+                                && dialogueText != null) {
                             advanceDialogue();
                         }
                         return true;
                     }
 
-                    if (moved < 24f) {
-                        float mx = (event.getX() - offsetX) / scale;
-                        float my = (event.getY() - offsetY) / scale;
-                        int tx = (int) (mx / TILE);
-                        int ty = (int) (my / TILE);
+                    if (moved >= 24f) {
+                        return true;
+                    }
 
-                        if (inBounds(tx, ty)) {
-                            selectedX = tx;
-                            selectedY = ty;
-                            BattleUnit hit = findUnitAt(tx, ty);
+                    if (!playerTurn) {
+                        return true;
+                    }
 
-                            if (hit != null) {
-                                if (selectedUnit != null
-                                        && selectedUnit.isPlayer()
-                                        && hit.isEnemy()
-                                        && canAttack(selectedUnit, hit)) {
-                                    performAttack(selectedUnit, hit);
+                    long now = SystemClock.uptimeMillis();
+                    if (pendingCounterAttacker != null
+                            || hasActiveAttackAnimation(now)) {
+                        return true;
+                    }
+
+                    if (endTurnButton.contains(
+                            event.getX(),
+                            event.getY())) {
+                        beginEnemyTurn();
+                        return true;
+                    }
+
+                    float mx = (event.getX() - offsetX)
+                            / scale;
+                    float my = (event.getY() - offsetY)
+                            / scale;
+                    int tx = (int) (mx / TILE);
+                    int ty = (int) (my / TILE);
+
+                    if (inBounds(tx, ty)) {
+                        selectedX = tx;
+                        selectedY = ty;
+                        BattleUnit hit = findUnitAt(tx, ty);
+
+                        if (hit != null) {
+                            if (selectedUnit != null
+                                    && selectedUnit.isPlayer()
+                                    && hit.isEnemy()
+                                    && canPlayerAttack(
+                                    selectedUnit,
+                                    hit)) {
+                                performPlayerAttack(
+                                        selectedUnit,
+                                        hit);
+                            } else {
+                                selectedUnit = hit;
+                                selectedX = hit.x;
+                                selectedY = hit.y;
+                                if (hit.isPlayer()) {
+                                    refreshReachable();
                                 } else {
-                                    selectedUnit = hit;
-                                    selectedX = hit.x;
-                                    selectedY = hit.y;
-                                    if (hit.isPlayer()) {
-                                        refreshReachable();
-                                    } else {
-                                        clearReachable();
-                                    }
+                                    clearReachable();
                                 }
-                            } else if (selectedUnit != null
-                                    && selectedUnit.isPlayer()) {
-                                planSelectedMove(tx, ty);
                             }
-                            invalidate();
+                        } else if (selectedUnit != null
+                                && selectedUnit.isPlayer()) {
+                            planSelectedMove(tx, ty);
                         }
+                        invalidate();
                     }
                     return true;
 
@@ -1385,6 +1963,16 @@ public class MapView extends View {
         }
 
         return true;
+    }
+
+    private static final class PathSearch {
+        final int[] best;
+        final int[] prev;
+
+        PathSearch(int[] best, int[] prev) {
+            this.best = best;
+            this.prev = prev;
+        }
     }
 
     private static final class PathNode
