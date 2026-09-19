@@ -118,6 +118,8 @@ public class MapView extends View {
     private int scriptedEffectY = -1;
     private int scriptedEffectId = -1;
     private long scriptedEffectUntil = 0L;
+    private int highlightedCharacterId = -1;
+    private long highlightUntil = 0L;
 
     private String lastCombatMessage;
     private long combatMessageUntil;
@@ -865,6 +867,8 @@ public class MapView extends View {
         scriptedEffectY = -1;
         scriptedEffectId = -1;
         scriptedEffectUntil = 0L;
+        highlightedCharacterId = -1;
+        highlightUntil = 0L;
 
         battlePhase = 1;
         phaseTransitionActive = false;
@@ -1110,7 +1114,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v4.4 | R_01 Scene "
+            header = "Native v4.5 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1120,7 +1124,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.4 | R_02 Scene "
+            header = "Native v4.5 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1130,7 +1134,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.4 | R_03 Scene "
+            header = "Native v4.5 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1140,7 +1144,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.4 | R_07 Scene "
+            header = "Native v4.5 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1150,7 +1154,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.4 | R_06 Scene "
+            header = "Native v4.5 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1160,7 +1164,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.4 | R_05 Scene "
+            header = "Native v4.5 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1170,7 +1174,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.4 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.5 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -1332,6 +1336,7 @@ public class MapView extends View {
                 || !playerTurn
                 || hasActiveAttackAnimation(now)
                 || now < scriptedEffectUntil
+                || now < highlightUntil
                 || (lastCombatMessage != null
                 && now < combatMessageUntil)) {
             postInvalidateDelayed(35L);
@@ -1491,7 +1496,9 @@ public class MapView extends View {
                 tileTop + TILE - 2,
                 ring);
 
-        if (unit == selectedUnit) {
+        if (unit == selectedUnit
+                || (unit.characterId == highlightedCharacterId
+                && now < highlightUntil)) {
             canvas.drawRect(
                     tileLeft + 5,
                     tileTop + 5,
@@ -2154,6 +2161,18 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
 
+                    case "unitHpChange":
+                        applyUnitHpChangeAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 120L;
+                        return true;
+
+                    case "highlightUnit":
+                        applyHighlightUnitAction(action, now);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 520L;
+                        return true;
+
                     case "statusChange":
                         applyStatusChangeAction(action);
                         activeBattleActionIndex++;
@@ -2660,6 +2679,47 @@ public class MapView extends View {
                 return;
         }
         integerVariables.put(id, next);
+    }
+
+
+    private void applyUnitHpChangeAction(JSONObject action) {
+        BattleUnit unit = findUnitByCharacterId(
+                action.optInt("characterId", -1));
+        if (unit == null) {
+            return;
+        }
+
+        int value = action.optInt("value", unit.hp);
+        int operation = action.optInt("operation", 0);
+        int next = unit.hp;
+        if (operation == 0) {
+            next = value;
+        } else if (operation == 1) {
+            next = unit.hp + value;
+        } else if (operation == 2) {
+            next = unit.hp - value;
+        }
+
+        unit.hp = Math.max(0, Math.min(unit.maxHp, next));
+        lastCombatMessage = unit.name
+                + " HP " + unit.hp + "/" + unit.maxHp;
+        combatMessageUntil = SystemClock.uptimeMillis() + 1000L;
+    }
+
+    private void applyHighlightUnitAction(
+            JSONObject action,
+            long now) {
+        int characterId = action.optInt("characterId", -1);
+        BattleUnit unit = findUnitByCharacterId(characterId);
+        if (unit == null) {
+            return;
+        }
+        highlightedCharacterId = characterId;
+        highlightUntil = now + 900L;
+        selectedX = unit.x;
+        selectedY = unit.y;
+        lastCombatMessage = unit.name + " 강조";
+        combatMessageUntil = now + 900L;
     }
 
     private void applyStatusChangeAction(JSONObject action) {
@@ -4192,6 +4252,18 @@ public class MapView extends View {
                 BattleUnit unit = findUnitByCharacterId(
                         trigger.optInt("characterId", -1));
                 return unit != null && unit.hp <= 0;
+            }
+
+            case "unitHpCompare": {
+                BattleUnit unit = findUnitByCharacterId(
+                        trigger.optInt("characterId", -1));
+                if (unit == null) {
+                    return false;
+                }
+                return compareScenarioInt(
+                        unit.hp,
+                        trigger.optInt("value", 0),
+                        trigger.optInt("compare", 2));
             }
 
             case "roundCompare":
