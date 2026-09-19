@@ -398,6 +398,31 @@ def build_scenario_diagnostics(scenes):
         if row["commandId"] in relevant_ids
     ]
 
+    selected_section_keys = {
+        (2, 1),
+        (2, 20),
+        (2, 21),
+        (2, 33),
+        (2, 34),
+    }
+    selected_sections = {}
+    for scene_index, section_index in sorted(selected_section_keys):
+        key = f"S{scene_index:02d}-SEC{section_index:02d}"
+        selected_sections[key] = [
+            {
+                "depth": row["depth"],
+                "kind": row["kind"],
+                "offset": row["offset"],
+                "commandId": row["commandId"],
+                "commandHex": f"0x{row['commandId']:02X}",
+                "params": row["params"],
+                "childCommandIds": row["childCommandIds"],
+            }
+            for row in flat
+            if row["scene"] == scene_index
+            and row["section"] == section_index
+        ]
+
     return {
         "sceneCount": len(scenes),
         "sectionCounts": [
@@ -407,6 +432,7 @@ def build_scenario_diagnostics(scenes):
         "commandCount": len(flat),
         "commandCounts": command_counts,
         "relevantCommands": relevant,
+        "selectedSections": selected_sections,
     }
 
 
