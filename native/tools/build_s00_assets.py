@@ -1274,6 +1274,43 @@ def extract_s00_outcome_events(scenes):
     }
 
 
+def extract_s01_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            53,
+        ),
+        "defeatByCharacter": {
+            "118": compile_scenario_section_actions(
+                scenes,
+                2,
+                37,
+            ),
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                38,
+            ),
+            "36": compile_scenario_section_actions(
+                scenes,
+                2,
+                52,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            54,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
 
@@ -1732,6 +1769,14 @@ def compile_r_story_leaf(node):
             "params": params,
         }
 
+    if cid == 0x2C:
+        strings = [p for p in params if isinstance(p, str)]
+        return {
+            "type": "storyMapText",
+            "text": strings[-1] if strings else "",
+            "params": params,
+        }
+
     if cid in (
         0x0A, 0x1C, 0x1E, 0x28, 0x2F,
         0x30, 0x31, 0x32, 0x33, 0x34,
@@ -1868,19 +1913,30 @@ def compile_r_story_node(node):
     return leaf, []
 
 
-def compile_r01_story(blob):
+def compile_r_story(
+    blob,
+    source_name,
+    story_scene_count,
+    departure_scene_number,
+    next_battle,
+):
     if blob is None or not blob.startswith(b"EEX"):
         return {
+            "source": source_name,
             "supported": False,
             "scenes": [],
             "unsupportedActionIds": [],
+            "nextBattle": next_battle,
         }
 
     scenes = parse_scenario_tree(blob)
     compiled_scenes = []
     unsupported_ids = []
 
-    for scene_number in range(1, min(4, len(scenes)) + 1):
+    for scene_number in range(
+        1,
+        min(story_scene_count, len(scenes)) + 1,
+    ):
         scene = scenes[scene_number - 1]
         if not scene["sections"]:
             continue
@@ -1912,9 +1968,11 @@ def compile_r01_story(blob):
             "unsupportedActionIds": sorted(set(scene_unsupported)),
         })
 
-    # Scene 5 Section 1 is the original deployment-confirmed departure path.
-    if len(scenes) >= 5:
-        scene = scenes[4]
+    if (
+        departure_scene_number >= 1
+        and departure_scene_number <= len(scenes)
+    ):
+        scene = scenes[departure_scene_number - 1]
         section = next(
             (s for s in scene["sections"] if s["section"] == 1),
             None,
@@ -1927,13 +1985,16 @@ def compile_r01_story(blob):
                     actions.append({"type": "deploymentTest"})
                 if node["commandId"] == 0 and node["children"]:
                     for child in node["children"]:
-                        action, child_unsupported = compile_r_story_node(child)
+                        action, child_unsupported = compile_r_story_node(
+                            child
+                        )
                         scene_unsupported.extend(child_unsupported)
                         if action is not None:
                             actions.append(action)
+
             unsupported_ids.extend(scene_unsupported)
             compiled_scenes.append({
-                "scene": 5,
+                "scene": departure_scene_number,
                 "section": 1,
                 "kind": "departure",
                 "actions": actions,
@@ -1942,13 +2003,33 @@ def compile_r01_story(blob):
 
     unsupported_ids = sorted(set(unsupported_ids))
     return {
-        "source": "R_01.eex",
+        "source": source_name,
         "supported": not unsupported_ids and bool(compiled_scenes),
         "unsupportedActionIds": unsupported_ids,
         "sceneCount": len(compiled_scenes),
         "scenes": compiled_scenes,
-        "nextBattle": "S_01.eex",
+        "nextBattle": next_battle,
     }
+
+
+def compile_r01_story(blob):
+    return compile_r_story(
+        blob,
+        "R_01.eex",
+        4,
+        5,
+        "S_01.eex",
+    )
+
+
+def compile_r02_story(blob):
+    return compile_r_story(
+        blob,
+        "R_02.eex",
+        10,
+        11,
+        "S_02.eex",
+    )
 
 
 def build_next_scenario_probe(filename, blob):
@@ -2369,6 +2450,8 @@ def main(argv):
     )
     r02_probe = build_next_scenario_probe("R_02.eex", r02)
     s02_probe = build_next_scenario_probe("S_02.eex", s02)
+    r02_story = compile_r02_story(r02)
+    s01_outcome_events = extract_s01_outcome_events(s01_scenes)
     s01_init_probe = probe_s01_initialization(s01)
     s01_init_probe["map"] = {
         "filename": "m001.jpg",
@@ -2679,7 +2762,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 23,
+        "version": 24,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
@@ -2707,6 +2790,8 @@ def main(argv):
             "phase1TransitionEvents": [],
         },
         "battleEvents": s01_native_events,
+        "outcomeEvents": s01_outcome_events,
+        "r02Story": r02_story,
         "outcomeProbe": s01_outcome_probe,
         "nextScenarioProbe": {
             "R_02.eex": r02_probe,
@@ -2761,7 +2846,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 20,
+        "version": 24,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -2898,6 +2983,25 @@ def main(argv):
         sum(1 for e in s01_native_events if e["coreSupported"]),
         "turnLimit=",
         s01_turn_limit,
+    )
+    print(
+        "s01 outcome supported=",
+        {
+            "victory": s01_outcome_events["victory"]["supported"],
+            "defeat118": s01_outcome_events["defeatByCharacter"]["118"]["supported"],
+            "defeat0": s01_outcome_events["defeatByCharacter"]["0"]["supported"],
+            "defeat36": s01_outcome_events["defeatByCharacter"]["36"]["supported"],
+            "genericDefeat": s01_outcome_events["genericDefeat"]["supported"],
+            "postBattle": s01_outcome_events["postBattle"]["supported"],
+        },
+    )
+    print(
+        "r02 story supported=",
+        r02_story["supported"],
+        "scenes=",
+        r02_story["sceneCount"],
+        "unsupported=",
+        r02_story["unsupportedActionIds"],
     )
     print(
         "units=", len(units),
