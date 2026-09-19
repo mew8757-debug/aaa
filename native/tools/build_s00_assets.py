@@ -629,6 +629,13 @@ def native_action_from_node(node):
             "value": int(params[1]),
         }
 
+    if cid == 0x11 and params:
+        return {
+            "type": "scenarioJump",
+            "target": int(params[0]),
+        }
+
+
     if cid == 0x5D and len(params) >= 2:
         return {"type": "turnLimit", "value": int(params[1])}
 
@@ -2477,6 +2484,8 @@ def main(argv):
         s02 = read_member_by_basename(game1, "S_02.eex")
         r03 = read_member_by_basename(game1, "R_03.eex")
         s03 = read_member_by_basename(game1, "S_03.eex")
+        r04 = read_member_by_basename(game1, "R_04.eex")
+        s04 = read_member_by_basename(game1, "S_04.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -2672,6 +2681,8 @@ def main(argv):
     )
     s03_outcome_events = extract_s03_outcome_events(s03_scenes)
     s03_outcome_probe = probe_battle_outcome_candidates(s03_scenes)
+    r04_probe = build_next_scenario_probe("R_04.eex", r04)
+    s04_probe = build_next_scenario_probe("S_04.eex", s04)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -3417,7 +3428,7 @@ def main(argv):
     }
 
     s03_battle = {
-        "version": 32,
+        "version": 33,
         "source": "RS/S_03.eex",
         "battleMode": "rescue-character",
         "mapId": 3,
@@ -3458,6 +3469,10 @@ def main(argv):
         "battleEvents": s03_native_events,
         "outcomeEvents": s03_outcome_events,
         "outcomeProbe": s03_outcome_probe,
+        "nextScenarioProbe": {
+            "R_04.eex": r04_probe,
+            "S_04.eex": s04_probe,
+        },
         "battleEventSummary": {
             "candidateCount": len(s03_native_events),
             "coreSupportedCount": sum(
