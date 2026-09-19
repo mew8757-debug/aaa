@@ -1,0 +1,163 @@
+name: Analyze S00 for native port
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/analyze-s00-native.yml"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download private game data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/573646841" \
+            -o /tmp/game1.zip
+
+      - name: Decode S_00 initialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import io, json, re, struct, urllib.request, zipfile
+
+          z=zipfile.ZipFile('/tmp/game1.zip')
+          names=z.namelist()
+          s_candidates=[n for n in names if n.lower().replace('\\','/').endswith('/s_00.eex') or n.lower()=='s_00.eex']
+          if not s_candidates:
+              s_candidates=[n for n in names if n.lower().endswith('s_00.eex')]
+          print('S00 candidates:',s_candidates)
+          if not s_candidates:
+              raise SystemExit('S_00.eex not found')
+          sname=s_candidates[0]
+          data=z.read(sname)
+          print('S00 path=',sname,'size=',len(data))
+          print('header=',data[:32].hex())
+
+          url='https://raw.githubusercontent.com/Puluomiyuhun/ccz-SceneEditor/main/cczEditor2/cczEditor2View.h'
+          src=urllib.request.urlopen(url).read().decode('utf-8','replace')
+
+          m=re.search(r'int code_instruct\[124\]\[13\] = \{(.*?)\n\s*\};',src,re.S)
+          if not m: raise SystemExit('code_instruct not found')
+          toks=re.findall(r'-1|0x[0-9A-Fa-f]+|\d+',m.group(1))
+          vals=[int(x,0) for x in toks]
+          table=[vals[i*13:(i+1)*13] for i in range(124)]
+
+          mt=re.search(r'byte code_test\[124\] = \{([^}]*)\}',src,re.S)
+          if not mt: raise SystemExit('code_test not found')
+          test=[int(x,0) for x in re.findall(r'0x[0-9A-Fa-f]+|\d+',mt.group(1))]
+          test += [0]*(124-len(test))
+
+          def u16(b,o): return int.from_bytes(b[o:o+2],'little',signed=False)
+          def s16(b,o):
+              v=u16(b,o)
+              return v-65536 if v>=32768 else v
+          def i32(b,o):
+              return int.from_bytes(b[o:o+4],'little',signed=True)
+
+          def parse_cmd(sec,k):
+              cid=sec[k]
+              p=k+2
+              params=[]
+              types=[]
+              count=13
+              if cid==0x46: count=11*20
+              if cid==0x47: count=12*80
+              long_count=0
+              var=False
+              for i in range(count):
+                  typ=table[cid][i%13]
+                  if cid==0x46: typ=table[cid][i%11]
+                  if cid==0x47: typ=table[cid][i%12]
+                  if typ==-1: break
+                  if p+2>len(sec): raise ValueError((cid,k,'tag overflow'))
+                  tag=u16(sec,p); p+=2
+                  types.append((typ,tag))
+                  if typ==0x5:
+                      e=sec.find(b'\0',p)
+                      if e<0: raise ValueError((cid,k,'string overflow'))
+                      raw=sec[p:e]; p=e+1
+                      try: val=raw.decode('gbk')
+                      except: val=raw.hex()
+                      params.append(val); long_count+=1
+                  elif typ==0x35:
+                      n=u16(sec,p); p+=2
+                      arr=[s16(sec,p+2*j) for j in range(n)]; p+=2*n
+                      params.append(arr); var=True
+                  elif typ==0x4:
+                      params.append(i32(sec,p)); p+=4
+                  else:
+                      params.append(s16(sec,p)); p+=2
+              return cid,p-k,params,types
+
+          n=int.from_bytes(data[10:14],'little')
+          scene_pos=[]
+          for off in range(10,n,4):
+              scene_pos.append(int.from_bytes(data[off:off+4],'little'))
+          print('scene table end=',n,'scene_pos=',scene_pos)
+
+          wanted={0x44,0x45,0x46,0x47,0x48,0x4a,0x4b,0x27,0x1c,0x24,0x19,0x1a,0x5a,0x08}
+          for si,sp in enumerate(scene_pos[:5]):
+              section_count=u16(data,sp)
+              pos=sp+2
+              print(f'=== SCENE {si} sections={section_count} @ {sp} ===')
+              for sj in range(section_count):
+                  slen=u16(data,pos); pos+=2
+                  sec=data[pos:pos+slen]; pos+=slen
+                  print(f'-- section {sj} len={slen} --')
+                  k=0; head=True; zflag=False; zsum=0; ordinal=0
+                  safety=0
+                  while k<slen:
+                      safety+=1
+                      if safety>10000: raise SystemExit('loop')
+                      cid,used,params,types=parse_cmd(sec,k)
+                      if cid in wanted or sj==0:
+                          print(f'cmd#{ordinal:03d} off={k:05d} id=0x{cid:02X} used={used} params={params[:80]}')
+                      k+=used
+                      if cid==0 and head:
+                          head=False
+                          k+=2
+                      if cid==1:
+                          zflag=True
+                      elif zflag:
+                          if cid<len(test) and test[cid]!=0:
+                              zsum+=1
+                              k+=2
+                          zflag=False
+                      if cid==0 and zsum>0:
+                          zsum-=1
+                      ordinal+=1
+                  if k!=slen:
+                      print('WARN section parse end',k,'!=',slen)
+
+          # Character names from Data.e5
+          d_candidates=[n for n in names if n.lower().endswith('data.e5')]
+          e_candidates=[n for n in names if n.lower().endswith('ekd5.exe') and '.bak' not in n.lower()]
+          print('Data candidates=',d_candidates[:10])
+          print('Ekd candidates=',e_candidates[:10])
+          if d_candidates:
+              d=z.read(d_candidates[0])
+              print('First 80 names:')
+              for i in range(80):
+                  raw=d[0x18c+i*0x20:0x18c+i*0x20+12].split(b'\0',1)[0]
+                  try: name=raw.decode('gbk')
+                  except: name=raw.hex()
+                  print(i,repr(name))
+          if e_candidates:
+              exe=z.read(e_candidates[0])
+              print('S image map D2800 first 80:')
+              vals=[int.from_bytes(exe[0xD2800+i*2:0xD2802+i*2],'little') for i in range(80)]
+              print(vals)
+          PY
