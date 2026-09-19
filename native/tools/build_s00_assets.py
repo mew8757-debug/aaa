@@ -2489,12 +2489,15 @@ def main(argv):
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
+        map4_bytes = read_member_by_basename(game2, "m004.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
             map2_bytes = read_member_by_basename(game1, "m002.jpg")
         if map3_bytes is None:
             map3_bytes = read_member_by_basename(game1, "m003.jpg")
+        if map4_bytes is None:
+            map4_bytes = read_member_by_basename(game1, "m004.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -2508,6 +2511,8 @@ def main(argv):
         raise SystemExit("m002.jpg not found in game1/game2")
     if map3_bytes is None:
         raise SystemExit("m003.jpg not found in game1/game2")
+    if map4_bytes is None:
+        raise SystemExit("m004.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
@@ -2565,6 +2570,23 @@ def main(argv):
     )
     (map_dir / "m003.jpg").write_bytes(map3_bytes)
     (battle_dir / "terrain3.bin").write_bytes(terrain3_cells)
+
+    map4_width, map4_height = jpeg_dimensions(map4_bytes)
+    if map4_width % 48 != 0 or map4_height % 48 != 0:
+        raise SystemExit(
+            f"m004 dimensions not divisible by 48: "
+            f"{map4_width}x{map4_height}"
+        )
+    map4_cols = map4_width // 48
+    map4_rows = map4_height // 48
+    terrain4_cells = extract_hexzmap_cells(
+        hexz,
+        4,
+        map4_cols,
+        map4_rows,
+    )
+    (map_dir / "m004.jpg").write_bytes(map4_bytes)
+    (battle_dir / "terrain4.bin").write_bytes(terrain4_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -2683,6 +2705,21 @@ def main(argv):
     s03_outcome_probe = probe_battle_outcome_candidates(s03_scenes)
     r04_probe = build_next_scenario_probe("R_04.eex", r04)
     s04_probe = build_next_scenario_probe("S_04.eex", s04)
+
+    s04_scenes = parse_scenario_tree(s04)
+    s04_init_probe = probe_s01_initialization(s04)
+    s04_init_probe["map"] = {
+        "filename": "m004.jpg",
+        "width": map4_width,
+        "height": map4_height,
+        "cols": map4_cols,
+        "rows": map4_rows,
+        "terrainCellCount": len(terrain4_cells),
+        "terrainIds": sorted(set(terrain4_cells)),
+        "hexzmapEntry": 4,
+    }
+    s04_event_probe = extract_scene2_native_events(s04_scenes)
+    s04_outcome_probe = probe_battle_outcome_candidates(s04_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -3473,6 +3510,28 @@ def main(argv):
             "R_04.eex": r04_probe,
             "S_04.eex": s04_probe,
         },
+
+        "s04InitProbe": s04_init_probe,
+        "s04EventProbe": {
+            "candidateCount": len(s04_event_probe),
+            "coreSupportedCount": sum(
+                1 for event in s04_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s04_event_probe
+            ],
+        },
+        "s04OutcomeProbe": s04_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s03_native_events),
             "coreSupportedCount": sum(
@@ -3649,6 +3708,39 @@ def main(argv):
         map3_rows,
         "terrain ids=",
         sorted(set(terrain3_cells)),
+    )
+
+    print(
+        "s04 map=",
+        map4_width,
+        "x",
+        map4_height,
+        "tiles=",
+        map4_cols,
+        "x",
+        map4_rows,
+        "terrain ids=",
+        sorted(set(terrain4_cells)),
+    )
+    print(
+        "s04 init forced players=",
+        s04_init_probe["forcedPlayers"],
+        "player slots=",
+        s04_init_probe["playerSlots"],
+        "friends=",
+        len(s04_init_probe["friendRecords"]),
+        "enemies=",
+        len(s04_init_probe["enemyRecords"]),
+        "objectives=",
+        s04_init_probe["objectiveTexts"],
+        "events=",
+        len(s04_event_probe),
+        "core-supported=",
+        sum(1 for e in s04_event_probe if e["coreSupported"]),
+    )
+    print(
+        "s04 outcome candidates=",
+        s04_outcome_probe,
     )
     print(
         "s03 init forced players=",
