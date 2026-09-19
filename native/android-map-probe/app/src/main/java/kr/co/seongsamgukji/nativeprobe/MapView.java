@@ -20,13 +20,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 
 public class MapView extends View {
     private static final float TILE = 48f;
     private static final long MOVE_STEP_MS = 150L;
+    private static final int IMPASSABLE = Integer.MAX_VALUE / 4;
 
     private final Paint mapPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint spritePaint = new Paint();
@@ -34,6 +38,7 @@ public class MapView extends View {
     private final Paint overlayTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint unitTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint unitLabelBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint reachablePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint selectedTilePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint selectedUnitPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint playerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -51,6 +56,16 @@ public class MapView extends View {
 
     private Bitmap map;
     private byte[] palette;
+    private byte[] terrainCells;
+    private byte[] movementCosts;
+
+    private int mapCols;
+    private int mapRows;
+    private int terrainTypeCount;
+    private int movementCostFamilyCount;
+
+    private int[] reachableBest;
+    private int[] reachablePrev;
 
     private float scale = 1f;
     private float offsetX = 0f;
@@ -90,7 +105,10 @@ public class MapView extends View {
         gridPaint.setStrokeWidth(1f);
         gridPaint.setStyle(Paint.Style.STROKE);
 
-        selectedTilePaint.setColor(0x55FFFF00);
+        reachablePaint.setColor(0x553C9DFF);
+        reachablePaint.setStyle(Paint.Style.FILL);
+
+        selectedTilePaint.setColor(0x66FFFF00);
         selectedTilePaint.setStyle(Paint.Style.FILL);
 
         selectedUnitPaint.setColor(0xFFFFFF00);
@@ -110,7 +128,7 @@ public class MapView extends View {
         enemyPaint.setStrokeWidth(3f);
 
         overlayTextPaint.setColor(Color.WHITE);
-        overlayTextPaint.setTextSize(25f);
+        overlayTextPaint.setTextSize(24f);
         overlayTextPaint.setShadowLayer(4f, 2f, 2f, Color.BLACK);
 
         unitTextPaint.setColor(Color.WHITE);
@@ -173,6 +191,32 @@ public class MapView extends View {
                 loadBytes(context, "battle/battle0.json"),
                 StandardCharsets.UTF_8));
 
+        mapCols = battle.optInt("widthTiles", map.getWidth() / (int) TILE);
+        mapRows = battle.optInt("heightTiles", map.getHeight() / (int) TILE);
+        terrainTypeCount = battle.optInt("terrainTypeCount", 30);
+        movementCostFamilyCount = battle.optInt("movementCostFamilyCount", 40);
+
+        String terrainFile = battle.optString("terrainFile", "terrain0.bin");
+        String movementCostFile = battle.optString(
+                "movementCostFile",
+                "movement_costs.bin");
+
+        terrainCells = loadBytes(context, "battle/" + terrainFile);
+        movementCosts = loadBytes(context, "battle/" + movementCostFile);
+
+        if (terrainCells.length != mapCols * mapRows) {
+            throw new IOException(
+                    "terrain size=" + terrainCells.length
+                            + " expected=" + (mapCols * mapRows));
+        }
+        if (movementCosts.length
+                != movementCostFamilyCount * terrainTypeCount) {
+            throw new IOException(
+                    "movement cost size=" + movementCosts.length
+                            + " expected="
+                            + (movementCostFamilyCount * terrainTypeCount));
+        }
+
         JSONArray unitList = battle.getJSONArray("units");
         for (int i = 0; i < unitList.length(); i++) {
             JSONObject u = unitList.getJSONObject(i);
@@ -180,6 +224,10 @@ public class MapView extends View {
                     u.getInt("characterId"),
                     u.getString("name"),
                     u.getInt("spriteId"),
+                    u.optInt("jobId", 0),
+                    u.optInt("jobFamily", 0),
+                    u.optInt("movePoints", 1),
+                    u.optInt("attackRangeId", 0),
                     u.getString("faction"),
                     u.optBoolean("scripted", false),
                     u.optBoolean("visible", !u.optBoolean("scripted", false)),
@@ -193,7 +241,8 @@ public class MapView extends View {
         JSONArray eventList = battle.optJSONArray("openingEvents");
         if (eventList != null) {
             for (int i = 0; i < eventList.length(); i++) {
-                openingEvents.add(OpeningEvent.fromJson(eventList.getJSONObject(i)));
+                openingEvents.add(
+                        OpeningEvent.fromJson(eventList.getJSONObject(i)));
             }
         }
     }
@@ -222,7 +271,8 @@ public class MapView extends View {
                         11));
     }
 
-    private byte[] loadBytes(Context context, String assetName) throws IOException {
+    private byte[] loadBytes(Context context, String assetName)
+            throws IOException {
         try (InputStream in = context.getAssets().open(assetName);
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
@@ -243,7 +293,8 @@ public class MapView extends View {
         byte[] raw = loadBytes(context, assetName);
         int frameBytes = width * height;
         if (raw.length < frameBytes * frameCount) {
-            throw new IOException(assetName + " payload too small: " + raw.length);
+            throw new IOException(
+                    assetName + " payload too small: " + raw.length);
         }
 
         Bitmap[] frames = new Bitmap[frameCount];
@@ -264,7 +315,10 @@ public class MapView extends View {
                 }
             }
 
-            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            Bitmap bitmap = Bitmap.createBitmap(
+                    width,
+                    height,
+                    Bitmap.Config.ARGB_8888);
             bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
             frames[f] = bitmap;
         }
@@ -278,7 +332,9 @@ public class MapView extends View {
             return;
         }
 
-        float fit = Math.min((float) w / map.getWidth(), (float) h / map.getHeight());
+        float fit = Math.min(
+                (float) w / map.getWidth(),
+                (float) h / map.getHeight());
         scale = Math.min(1f, fit);
         offsetX = (w - map.getWidth() * scale) * 0.5f;
         offsetY = (h - map.getHeight() * scale) * 0.5f;
@@ -300,13 +356,23 @@ public class MapView extends View {
 
         canvas.drawBitmap(map, 0, 0, mapPaint);
 
-        int cols = map.getWidth() / (int) TILE;
-        int rows = map.getHeight() / (int) TILE;
-        for (int x = 0; x <= cols; x++) {
-            canvas.drawLine(x * TILE, 0, x * TILE, rows * TILE, gridPaint);
+        drawReachableTiles(canvas);
+
+        for (int x = 0; x <= mapCols; x++) {
+            canvas.drawLine(
+                    x * TILE,
+                    0,
+                    x * TILE,
+                    mapRows * TILE,
+                    gridPaint);
         }
-        for (int y = 0; y <= rows; y++) {
-            canvas.drawLine(0, y * TILE, cols * TILE, y * TILE, gridPaint);
+        for (int y = 0; y <= mapRows; y++) {
+            canvas.drawLine(
+                    0,
+                    y * TILE,
+                    mapCols * TILE,
+                    y * TILE,
+                    gridPaint);
         }
 
         if (openingFinished && selectedX >= 0 && selectedY >= 0) {
@@ -344,12 +410,12 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v0.6  |  S_00 원본 배치 + 스프라이트 + 오프닝 이벤트"
-                        + "  |  아군 " + playerCount
+                "Native v0.7 | 원본 배치·S형상·오프닝 + Hexzmap 지형 이동"
+                        + " | 아군 " + playerCount
                         + " / 우군 " + allyCount
                         + " / 적군 " + enemyCount,
                 22,
-                36,
+                34,
                 overlayTextPaint);
 
         if (!openingFinished) {
@@ -362,23 +428,34 @@ public class MapView extends View {
             if (lastSound >= 0) {
                 status += " · SFX " + lastSound;
             }
-            canvas.drawText(status, 22, 70, overlayTextPaint);
+            canvas.drawText(status, 22, 66, overlayTextPaint);
         } else {
             canvas.drawText(
-                    "오프닝 완료 · 아군 선택 → 빈 타일 이동 · 드래그 이동 · 두 손가락 확대",
+                    "아군 선택 → 파란 이동가능 타일 선택 · 드래그 이동 · 두 손가락 확대",
                     22,
-                    70,
+                    66,
                     overlayTextPaint);
         }
 
         if (openingFinished && selectedUnit != null) {
+            String terrainInfo = "";
+            if (inBounds(selectedX, selectedY)) {
+                int terrainId = terrainAt(selectedX, selectedY);
+                int cost = movementCost(
+                        selectedUnit,
+                        selectedX,
+                        selectedY);
+                terrainInfo = " · 지형 " + terrainId
+                        + " / 비용 " + (cost >= IMPASSABLE ? "불가" : cost);
+            }
             canvas.drawText(
                     "선택: " + selectedUnit.name
-                            + "  Data=" + selectedUnit.characterId
-                            + "  S형상=" + selectedUnit.spriteId
-                            + "  (" + selectedUnit.x + "," + selectedUnit.y + ")",
+                            + " · 직업 " + selectedUnit.jobId
+                            + " / 계열 " + selectedUnit.jobFamily
+                            + " · 이동력 " + selectedUnit.movePoints
+                            + terrainInfo,
                     22,
-                    104,
+                    98,
                     overlayTextPaint);
         }
 
@@ -391,6 +468,36 @@ public class MapView extends View {
         }
     }
 
+    private void drawReachableTiles(Canvas canvas) {
+        if (!openingFinished
+                || selectedUnit == null
+                || !selectedUnit.isPlayer()
+                || selectedUnit.isMoving()
+                || reachableBest == null) {
+            return;
+        }
+
+        int origin = tileIndex(selectedUnit.x, selectedUnit.y);
+        for (int index = 0; index < reachableBest.length; index++) {
+            if (index == origin) {
+                continue;
+            }
+            int cost = reachableBest[index];
+            if (cost < 0 || cost > selectedUnit.movePoints) {
+                continue;
+            }
+
+            int x = index % mapCols;
+            int y = index / mapCols;
+            canvas.drawRect(
+                    x * TILE + 1,
+                    y * TILE + 1,
+                    (x + 1) * TILE - 1,
+                    (y + 1) * TILE - 1,
+                    reachablePaint);
+        }
+    }
+
     private void drawUnit(Canvas canvas, BattleUnit unit) {
         long now = SystemClock.uptimeMillis();
         Bitmap[] source;
@@ -400,12 +507,14 @@ public class MapView extends View {
             source = idleSprites.get(unit.spriteId);
             frameIndex = source == null || source.length == 0
                     ? 0
-                    : Math.abs(unit.actionFrame) % source.length;
+                    : Math.floorMod(unit.actionFrame, source.length);
         } else if (unit.isMoving()) {
             source = moveSprites.get(unit.spriteId);
             frameIndex = source == null || source.length == 0
                     ? 0
-                    : Math.max(0, Math.min(unit.moveFrame, source.length - 1));
+                    : Math.max(
+                            0,
+                            Math.min(unit.moveFrame, source.length - 1));
         } else {
             source = idleSprites.get(unit.spriteId);
             frameIndex = 0;
@@ -424,7 +533,12 @@ public class MapView extends View {
         Paint ring = "player".equals(unit.faction)
                 ? playerPaint
                 : ("ally".equals(unit.faction) ? allyPaint : enemyPaint);
-        canvas.drawRect(left + 2, top + 2, left + TILE - 2, top + TILE - 2, ring);
+        canvas.drawRect(
+                left + 2,
+                top + 2,
+                left + TILE - 2,
+                top + TILE - 2,
+                ring);
 
         if (unit == selectedUnit) {
             canvas.drawRect(
@@ -452,7 +566,8 @@ public class MapView extends View {
         long now = SystemClock.uptimeMillis();
 
         for (BattleUnit unit : units) {
-            if (!unit.isMoving()) {
+            boolean wasMoving = unit.isMoving();
+            if (!wasMoving) {
                 unit.moveFrame = 0;
                 continue;
             }
@@ -466,7 +581,14 @@ public class MapView extends View {
             int oldX = unit.x;
             int oldY = unit.y;
 
-            if (unit.x < unit.targetX) {
+            if (unit.hasPlannedPath()) {
+                int next = unit.movePath.get(unit.movePathIndex++);
+                unit.x = next % mapCols;
+                unit.y = next / mapCols;
+                if (!unit.hasPlannedPath()) {
+                    unit.clearMovePath();
+                }
+            } else if (unit.x < unit.targetX) {
                 unit.x++;
             } else if (unit.x > unit.targetX) {
                 unit.x--;
@@ -487,12 +609,21 @@ public class MapView extends View {
             }
 
             Bitmap[] frames = moveSprites.get(unit.spriteId);
-            int count = frames == null || frames.length == 0 ? 1 : frames.length;
+            int count = frames == null || frames.length == 0
+                    ? 1
+                    : frames.length;
             unit.moveFrame = (unit.moveFrame + 1) % count;
 
             if (unit == selectedUnit && openingFinished) {
                 selectedX = unit.x;
                 selectedY = unit.y;
+            }
+
+            if (wasMoving
+                    && !unit.isMoving()
+                    && unit == selectedUnit
+                    && openingFinished) {
+                refreshReachable();
             }
         }
 
@@ -534,17 +665,20 @@ public class MapView extends View {
 
                 case "delay":
                     openingIndex++;
-                    openingWaitUntil = now + Math.max(100L, event.value * 80L);
+                    openingWaitUntil = now
+                            + Math.max(100L, event.value * 80L);
                     return true;
 
                 case "move": {
-                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
                     if (unit == null) {
                         openingIndex++;
                         break;
                     }
 
                     unit.visible = true;
+                    unit.clearMovePath();
                     if (event.x != Integer.MIN_VALUE) {
                         unit.targetX = event.x;
                     }
@@ -567,7 +701,8 @@ public class MapView extends View {
                 }
 
                 case "reveal": {
-                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
                     if (unit != null) {
                         unit.visible = true;
                     }
@@ -578,9 +713,11 @@ public class MapView extends View {
 
                 case "hide":
                 case "retreat": {
-                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
                     if (unit != null) {
                         unit.visible = false;
+                        unit.clearMovePath();
                         unit.targetX = unit.x;
                         unit.targetY = unit.y;
                     }
@@ -590,11 +727,13 @@ public class MapView extends View {
                 }
 
                 case "turn": {
-                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
                     if (unit != null) {
                         int direction = event.direction;
                         if (direction < 0 && event.targetId >= 0) {
-                            BattleUnit target = findUnitByCharacterId(event.targetId);
+                            BattleUnit target = findUnitByCharacterId(
+                                    event.targetId);
                             if (target != null) {
                                 direction = directionToward(unit, target);
                             }
@@ -609,7 +748,8 @@ public class MapView extends View {
                 }
 
                 case "action": {
-                    BattleUnit unit = findUnitByCharacterId(event.characterId);
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
                     if (unit != null) {
                         unit.actionFrame = event.value;
                         unit.actionUntil = now + 420L;
@@ -659,6 +799,7 @@ public class MapView extends View {
         dialogueText = null;
         scriptedMovingUnit = null;
         selectFirstPlayer();
+        refreshReachable();
         invalidate();
     }
 
@@ -671,6 +812,153 @@ public class MapView extends View {
                 return;
             }
         }
+    }
+
+    private void clearReachable() {
+        reachableBest = null;
+        reachablePrev = null;
+    }
+
+    private void refreshReachable() {
+        clearReachable();
+        if (!openingFinished
+                || selectedUnit == null
+                || !selectedUnit.isPlayer()
+                || !selectedUnit.visible
+                || selectedUnit.isMoving()
+                || selectedUnit.movePoints <= 0) {
+            return;
+        }
+
+        int total = mapCols * mapRows;
+        reachableBest = new int[total];
+        reachablePrev = new int[total];
+        Arrays.fill(reachableBest, IMPASSABLE);
+        Arrays.fill(reachablePrev, -1);
+
+        int start = tileIndex(selectedUnit.x, selectedUnit.y);
+        reachableBest[start] = 0;
+
+        PriorityQueue<PathNode> queue = new PriorityQueue<>();
+        queue.add(new PathNode(start, 0));
+
+        int[] dx = {0, 1, 0, -1};
+        int[] dy = {-1, 0, 1, 0};
+
+        while (!queue.isEmpty()) {
+            PathNode current = queue.poll();
+            if (current.cost != reachableBest[current.index]) {
+                continue;
+            }
+
+            int cx = current.index % mapCols;
+            int cy = current.index / mapCols;
+
+            for (int d = 0; d < 4; d++) {
+                int nx = cx + dx[d];
+                int ny = cy + dy[d];
+                if (!inBounds(nx, ny)) {
+                    continue;
+                }
+
+                if (occupied(nx, ny, selectedUnit)) {
+                    continue;
+                }
+
+                int stepCost = movementCost(selectedUnit, nx, ny);
+                if (stepCost >= IMPASSABLE) {
+                    continue;
+                }
+
+                int nextCost = current.cost + stepCost;
+                if (nextCost > selectedUnit.movePoints) {
+                    continue;
+                }
+
+                int next = tileIndex(nx, ny);
+                if (nextCost >= reachableBest[next]) {
+                    continue;
+                }
+
+                reachableBest[next] = nextCost;
+                reachablePrev[next] = current.index;
+                queue.add(new PathNode(next, nextCost));
+            }
+        }
+    }
+
+    private boolean planSelectedMove(int tx, int ty) {
+        if (selectedUnit == null
+                || !selectedUnit.isPlayer()
+                || selectedUnit.isMoving()
+                || reachableBest == null
+                || !inBounds(tx, ty)) {
+            return false;
+        }
+
+        int target = tileIndex(tx, ty);
+        if (reachableBest[target] >= IMPASSABLE
+                || reachableBest[target] > selectedUnit.movePoints
+                || occupied(tx, ty, selectedUnit)) {
+            return false;
+        }
+
+        int start = tileIndex(selectedUnit.x, selectedUnit.y);
+        if (target == start) {
+            return false;
+        }
+
+        List<Integer> reverse = new ArrayList<>();
+        int cursor = target;
+        while (cursor != start && cursor >= 0) {
+            reverse.add(cursor);
+            cursor = reachablePrev[cursor];
+        }
+        if (cursor != start) {
+            return false;
+        }
+
+        Collections.reverse(reverse);
+        selectedUnit.clearMovePath();
+        selectedUnit.movePath.addAll(reverse);
+        selectedUnit.targetX = tx;
+        selectedUnit.targetY = ty;
+        selectedUnit.lastMoveStepAt = 0L;
+        clearReachable();
+        return true;
+    }
+
+    private int terrainAt(int x, int y) {
+        if (!inBounds(x, y)) {
+            return -1;
+        }
+        return terrainCells[tileIndex(x, y)] & 0xff;
+    }
+
+    private int movementCost(BattleUnit unit, int x, int y) {
+        int terrainId = terrainAt(x, y);
+        if (terrainId < 0
+                || terrainId >= terrainTypeCount
+                || unit.jobFamily < 0
+                || unit.jobFamily >= movementCostFamilyCount) {
+            return IMPASSABLE;
+        }
+
+        int index = unit.jobFamily * terrainTypeCount + terrainId;
+        int raw = movementCosts[index] & 0xff;
+
+        if (raw <= 0 || raw >= 255) {
+            return IMPASSABLE;
+        }
+        return raw;
+    }
+
+    private boolean inBounds(int x, int y) {
+        return x >= 0 && y >= 0 && x < mapCols && y < mapRows;
+    }
+
+    private int tileIndex(int x, int y) {
+        return y * mapCols + x;
     }
 
     private BattleUnit findUnitAt(int tx, int ty) {
@@ -694,7 +982,10 @@ public class MapView extends View {
 
     private boolean occupied(int tx, int ty, BattleUnit except) {
         for (BattleUnit unit : units) {
-            if (unit != except && unit.visible && unit.x == tx && unit.y == ty) {
+            if (unit != except
+                    && unit.visible
+                    && unit.x == tx
+                    && unit.y == ty) {
                 return true;
             }
         }
@@ -726,7 +1017,8 @@ public class MapView extends View {
 
         float x = left + 22f;
         float y = top + 39f;
-        String speaker = dialogueSpeaker == null || dialogueSpeaker.isEmpty()
+        String speaker = dialogueSpeaker == null
+                || dialogueSpeaker.isEmpty()
                 ? "대사"
                 : dialogueSpeaker;
         canvas.drawText(speaker, x, y, dialogueNamePaint);
@@ -741,7 +1033,11 @@ public class MapView extends View {
                 35f);
 
         dialogueTextPaint.setTextAlign(Paint.Align.RIGHT);
-        canvas.drawText("▼ 터치", right - 18f, bottom - 13f, dialogueTextPaint);
+        canvas.drawText(
+                "▼ 터치",
+                right - 18f,
+                bottom - 13f,
+                dialogueTextPaint);
         dialogueTextPaint.setTextAlign(Paint.Align.LEFT);
     }
 
@@ -775,8 +1071,13 @@ public class MapView extends View {
             for (int i = 0; i < paragraph.length(); i++) {
                 char ch = paragraph.charAt(i);
                 String candidate = line.toString() + ch;
-                if (dialogueTextPaint.measureText(candidate) > maxWidth && line.length() > 0) {
-                    canvas.drawText(line.toString(), x, y, dialogueTextPaint);
+                if (dialogueTextPaint.measureText(candidate) > maxWidth
+                        && line.length() > 0) {
+                    canvas.drawText(
+                            line.toString(),
+                            x,
+                            y,
+                            dialogueTextPaint);
                     y += lineHeight;
                     lines++;
                     if (lines >= maxLines) {
@@ -788,7 +1089,11 @@ public class MapView extends View {
             }
 
             if (line.length() > 0 && lines < maxLines) {
-                canvas.drawText(line.toString(), x, y, dialogueTextPaint);
+                canvas.drawText(
+                        line.toString(),
+                        x,
+                        y,
+                        dialogueTextPaint);
                 y += lineHeight;
                 lines++;
             }
@@ -833,9 +1138,7 @@ public class MapView extends View {
                         int tx = (int) (mx / TILE);
                         int ty = (int) (my / TILE);
 
-                        int cols = map.getWidth() / (int) TILE;
-                        int rows = map.getHeight() / (int) TILE;
-                        if (tx >= 0 && ty >= 0 && tx < cols && ty < rows) {
+                        if (inBounds(tx, ty)) {
                             selectedX = tx;
                             selectedY = ty;
                             BattleUnit hit = findUnitAt(tx, ty);
@@ -844,12 +1147,14 @@ public class MapView extends View {
                                 selectedUnit = hit;
                                 selectedX = hit.x;
                                 selectedY = hit.y;
+                                if (hit.isPlayer()) {
+                                    refreshReachable();
+                                } else {
+                                    clearReachable();
+                                }
                             } else if (selectedUnit != null
-                                    && selectedUnit.isPlayer()
-                                    && !occupied(tx, ty, selectedUnit)) {
-                                selectedUnit.targetX = tx;
-                                selectedUnit.targetY = ty;
-                                selectedUnit.lastMoveStepAt = 0L;
+                                    && selectedUnit.isPlayer()) {
+                                planSelectedMove(tx, ty);
                             }
                             invalidate();
                         }
@@ -862,5 +1167,21 @@ public class MapView extends View {
         }
 
         return true;
+    }
+
+    private static final class PathNode
+            implements Comparable<PathNode> {
+        final int index;
+        final int cost;
+
+        PathNode(int index, int cost) {
+            this.index = index;
+            this.cost = cost;
+        }
+
+        @Override
+        public int compareTo(PathNode other) {
+            return Integer.compare(cost, other.cost);
+        }
     }
 }
