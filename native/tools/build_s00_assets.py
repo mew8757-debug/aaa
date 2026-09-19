@@ -569,6 +569,18 @@ def native_action_from_node(node):
             "characterId": int(params[1]),
         }
 
+    if cid == 0x53 and len(params) >= 8 and int(params[0]) == 1:
+        return {
+            "type": "retreatArea",
+            "x1": int(params[2]),
+            "y1": int(params[3]),
+            "x2": int(params[4]),
+            "y2": int(params[5]),
+            "camp": int(params[6]),
+            "kill": int(params[7]) != 0,
+        }
+
+
     if cid == 0x55 and len(params) >= 6 and int(params[0]) == 0:
         return {
             "type": "revive",
@@ -1375,6 +1387,43 @@ def extract_s03_outcome_events(scenes):
             scenes,
             2,
             31,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
+def extract_s04_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            39,
+        ),
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                11,
+            ),
+            "1": compile_scenario_section_actions(
+                scenes,
+                2,
+                18,
+            ),
+            "2": compile_scenario_section_actions(
+                scenes,
+                2,
+                19,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            40,
         ),
         "postBattle": compile_scenario_section_actions(
             scenes,
@@ -2720,6 +2769,11 @@ def main(argv):
     }
     s04_event_probe = extract_scene2_native_events(s04_scenes)
     s04_outcome_probe = probe_battle_outcome_candidates(s04_scenes)
+    s04_native_events = extract_scene2_native_events(
+        s04_scenes,
+        excluded_sections={11, 18, 19, 39, 40},
+    )
+    s04_outcome_events = extract_s04_outcome_events(s04_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -3563,6 +3617,209 @@ def main(argv):
         encoding="utf-8",
     )
 
+
+    # S_04 fifth battle: direct jump from S_03, kill Hua Xiong.
+    s04_units = []
+
+    def make_s04_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S04 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s04_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    for slot in sorted(
+        s04_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    ):
+        slot_index = int(slot["slot"])
+        if slot_index < 0 or slot_index >= len(continuing_party):
+            continue
+        cid = continuing_party[slot_index]
+        make_s04_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_04:0x4B:{slot_index}",
+        )
+
+    for index, row in enumerate(s04_init_probe["friendRecords"]):
+        make_s04_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_04:0x46:{index}",
+        )
+
+    for index, row in enumerate(s04_init_probe["enemyRecords"]):
+        make_s04_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_04:0x47:{index}",
+        )
+
+    s04_objective_text = (
+        s04_init_probe["objectiveTexts"][0]
+        if s04_init_probe["objectiveTexts"]
+        else ""
+    )
+    s04_popup_text = (
+        s04_init_probe["objectivePopups"][0]
+        if s04_init_probe["objectivePopups"]
+        else ""
+    )
+    s04_turn_match = re.search(r"(\d+)턴", s04_objective_text)
+    s04_turn_limit = int(s04_turn_match.group(1)) if s04_turn_match else 5
+
+    huaxiong_rows = [
+        row for row in s04_init_probe["enemyRecords"]
+        if name_of(row["person"]) == "화웅"
+    ]
+    if len(huaxiong_rows) != 1:
+        raise SystemExit(
+            "S04 Hua Xiong mapping ambiguous: "
+            + repr([
+                (row["person"], name_of(row["person"]))
+                for row in s04_init_probe["enemyRecords"]
+                if "화웅" in name_of(row["person"])
+            ])
+        )
+    huaxiong_id = int(huaxiong_rows[0]["person"])
+
+    s04_protected_ids = [0, 1, 2]
+    for cid in s04_protected_ids:
+        if name_of(cid) not in {"유비", "관우", "장비"}:
+            raise SystemExit(
+                f"S04 protected mapping unexpected: {cid}={name_of(cid)}"
+            )
+
+    s04_battle = {
+        "version": 35,
+        "source": "RS/S_04.eex",
+        "battleMode": "kill-character",
+        "mapId": 4,
+        "map": "m004.jpg",
+        "widthTiles": map4_cols,
+        "heightTiles": map4_rows,
+        "terrainFile": "terrain4.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s04_objective_text,
+                "popupText": s04_popup_text,
+                "turnLimit": s04_turn_limit,
+                "goal": {
+                    "type": "kill-character",
+                    "characterId": huaxiong_id,
+                    "name": name_of(huaxiong_id),
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s04_turn_limit,
+            },
+            "protectedCharacterIds": s04_protected_ids,
+            "protectedCharacters": [
+                {
+                    "characterId": cid,
+                    "name": name_of(cid),
+                }
+                for cid in s04_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s04_native_events,
+        "outcomeEvents": s04_outcome_events,
+        "outcomeProbe": s04_outcome_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s04_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s04_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s04_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain4_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s04_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle4.json").write_text(
+        json.dumps(s04_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
@@ -3653,7 +3910,7 @@ def main(argv):
 
     sprite_ids = sorted({
         u["spriteId"]
-        for u in units + s01_units + s02_units + s03_units
+        for u in units + s01_units + s02_units + s03_units + s04_units
     })
     for sid in sprite_ids:
         specs = (
@@ -3741,6 +3998,22 @@ def main(argv):
     print(
         "s04 outcome candidates=",
         s04_outcome_probe,
+    )
+    print(
+        "s04 units=",
+        len(s04_units),
+        "visible=",
+        sum(1 for u in s04_units if u["visible"]),
+        "events=",
+        len(s04_native_events),
+        "core-supported=",
+        sum(1 for e in s04_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s04_turn_limit,
+        "protected=",
+        [(cid, name_of(cid)) for cid in s04_protected_ids],
+        "target=",
+        (huaxiong_id, name_of(huaxiong_id)),
     )
     print(
         "s03 init forced players=",
