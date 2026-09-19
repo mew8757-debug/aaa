@@ -498,6 +498,21 @@ def native_action_from_node(node):
             "targetY": int(params[10]),
         }
 
+    if (
+        cid == 0x6D
+        and len(params) >= 8
+        and int(params[0]) == 0
+    ):
+        return {
+            "type": "relativeMove",
+            "characterId": int(params[1]),
+            "anchorCharacterId": int(params[3]),
+            "offsetX": int(params[4]),
+            "offsetY": int(params[5]),
+            "direction": int(params[6]),
+            "revive": int(params[7]) != 0,
+        }
+
     if cid == 0x4F and len(params) >= 6:
         return {
             "type": "turn",
@@ -1361,7 +1376,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 10,
+        "version": 13,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
