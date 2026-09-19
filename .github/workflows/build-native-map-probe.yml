@@ -1,4 +1,4 @@
-name: Build Native Android Battle v2.8
+name: Build Native Android Battle v2.9
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v2.8 APK
+      - name: Build native v2.9 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v2.8.apk"
+          OUT="SeongSamgukji-Native-Battle-v2.9.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v2.8 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v2.8 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v2.9 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v2.9 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v2.8 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v2.8" \
-              --notes "Native v2.8은 v2.7의 S02 전장 이벤트 30/30 지원을 유지하면서 S02 종료 후보 Section 20/21/31/33/34/37/38, Scene3 Section1 전체 트리와 다음 R_03.eex/S_03.eex 구조를 build-status에 기록합니다. 승패·후일담·R03 전환을 다음 구현에서 원본 데이터 그대로 연결하기 위한 probe입니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v2.9 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v2.9" \
+              --notes "Native v2.9은 S_02 종료 probe를 실제 승패 상태기로 연결합니다. 간옹(26) 사망은 Section 20 전용 패배, 그 외 보호인물/턴초과/아군전멸은 Section 38 일반 패배를 실행하고, 적 전멸은 Section 37 원본 후일담·보상·변수 설정을 재생합니다. 이어 Scene 3 정리 후 R_03.eex Scene 1~11 스토리와 Scene 12 출전 흐름을 기존 선택/대화 실행기로 재생해 S_03 준비 완료 상태까지 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v2.8 build status
+      - name: Record v2.9 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "2.8.0",
+              "version": "2.9.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -356,8 +356,55 @@ jobs:
                       {},
                   ),
               }
+              battle2_path = Path("native/android-map-probe/app/src/main/assets/battle/battle2.json")
+              if battle2_path.exists():
+                  battle2 = json.loads(
+                      battle2_path.read_text(encoding="utf-8")
+                  )
+                  outcomes = battle2.get("outcomeEvents", {})
+                  r03 = battle2.get("r03Story", {})
+                  status["s02OutcomeFlow"] = {
+                      "victory": {
+                          "supported": outcomes.get("victory", {}).get("supported"),
+                          "section": outcomes.get("victory", {}).get("section"),
+                          "actionCount": len(outcomes.get("victory", {}).get("actions", [])),
+                      },
+                      "defeatByCharacter": {
+                          key: {
+                              "supported": value.get("supported"),
+                              "section": value.get("section"),
+                              "actionCount": len(value.get("actions", [])),
+                          }
+                          for key, value in outcomes.get("defeatByCharacter", {}).items()
+                      },
+                      "genericDefeat": {
+                          "supported": outcomes.get("genericDefeat", {}).get("supported"),
+                          "section": outcomes.get("genericDefeat", {}).get("section"),
+                          "actionCount": len(outcomes.get("genericDefeat", {}).get("actions", [])),
+                      },
+                      "postBattle": {
+                          "supported": outcomes.get("postBattle", {}).get("supported"),
+                          "section": outcomes.get("postBattle", {}).get("section"),
+                          "actionCount": len(outcomes.get("postBattle", {}).get("actions", [])),
+                      },
+                  }
+                  status["r03Story"] = {
+                      "supported": r03.get("supported"),
+                      "sceneCount": r03.get("sceneCount"),
+                      "unsupportedActionIds": r03.get("unsupportedActionIds", []),
+                      "nextBattle": r03.get("nextBattle"),
+                      "scenes": [
+                          {
+                              "scene": scene.get("scene"),
+                              "kind": scene.get("kind"),
+                              "actionCount": len(scene.get("actions", [])),
+                              "unsupportedActionIds": scene.get("unsupportedActionIds", []),
+                          }
+                          for scene in r03.get("scenes", [])
+                      ],
+                  }
 
-          Path("native/build-status/v2.8.json").write_text(
+          Path("native/build-status/v2.9.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -365,11 +412,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v2.8.json
+          git add native/build-status/v2.9.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v2.8 build status"
+          git commit -m "Record native v2.9 build status"
           git push
