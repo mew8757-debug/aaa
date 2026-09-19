@@ -401,6 +401,8 @@ def build_scenario_diagnostics(scenes):
 
     selected_section_keys = {
         (2, 1),
+        (2, 9),
+        (2, 10),
         (2, 20),
         (2, 21),
         (2, 31),
