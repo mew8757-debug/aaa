@@ -140,14 +140,15 @@ jobs:
               raise SystemExit("Expected termination callback not found")
           xs = xs.replace(callback_old, callback_new, 1)
 
-          start_old = '    private String getWineStartCommand() {\\n        String cmdArgs = "";'
-          start_new = '    private String getWineStartCommand() {\\n' \
-                      '        String seongExecPath = getIntent().getStringExtra("seong_exec_path");\\n' \
-                      '        if (seongExecPath != null && !seongExecPath.isEmpty()) {\\n' \
-                      '            String dosPath = WineUtils.unixToDOSPath(seongExecPath, container);\\n' \
-                      '            return "\\\\"" + dosPath + "\\\"";\\n' \
-                      '        }\\n\\n' \
-                      '        String cmdArgs = "";'
+          nl = chr(10)
+          start_old = '    private String getWineStartCommand() {' + nl + '        String cmdArgs = "";'
+          start_new = ('    private String getWineStartCommand() {' + nl +
+                       '        String seongExecPath = getIntent().getStringExtra("seong_exec_path");' + nl +
+                       '        if (seongExecPath != null && !seongExecPath.isEmpty()) {' + nl +
+                       '            String dosPath = WineUtils.unixToDOSPath(seongExecPath, container);' + nl +
+                       '            return "\\\\"" + dosPath + "\\\"";' + nl +
+                       '        }' + nl + nl +
+                       '        String cmdArgs = "";')
           if start_old not in xs:
               raise SystemExit("Expected getWineStartCommand header not found")
           xs = xs.replace(start_old, start_new, 1)
