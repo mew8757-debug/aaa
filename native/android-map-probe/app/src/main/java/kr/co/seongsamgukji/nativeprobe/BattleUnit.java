@@ -11,10 +11,15 @@ public class BattleUnit {
     public final int jobFamily;
     public final int movePoints;
     public final int attackRangeId;
+    public final int level;
+    public final int maxHp;
+    public final int attack;
+    public final int defense;
     public final String faction;
     public final boolean scripted;
 
     public boolean visible;
+    public int hp;
     public int x;
     public int y;
     public int direction;
@@ -24,6 +29,9 @@ public class BattleUnit {
     public int actionFrame;
     public long actionUntil;
     public long lastMoveStepAt;
+    public long attackStartedAt;
+    public long attackUntil;
+    public boolean acted;
 
     public final List<Integer> movePath = new ArrayList<>();
     public int movePathIndex;
@@ -36,6 +44,10 @@ public class BattleUnit {
             int jobFamily,
             int movePoints,
             int attackRangeId,
+            int level,
+            int maxHp,
+            int attack,
+            int defense,
             String faction,
             boolean scripted,
             boolean visible,
@@ -49,6 +61,11 @@ public class BattleUnit {
         this.jobFamily = jobFamily;
         this.movePoints = movePoints;
         this.attackRangeId = attackRangeId;
+        this.level = level;
+        this.maxHp = Math.max(1, maxHp);
+        this.hp = this.maxHp;
+        this.attack = Math.max(0, attack);
+        this.defense = Math.max(0, defense);
         this.faction = faction;
         this.scripted = scripted;
         this.visible = visible;
@@ -61,6 +78,9 @@ public class BattleUnit {
         this.actionFrame = 0;
         this.actionUntil = 0L;
         this.lastMoveStepAt = 0L;
+        this.attackStartedAt = 0L;
+        this.attackUntil = 0L;
+        this.acted = false;
         this.movePathIndex = 0;
     }
 
@@ -77,7 +97,15 @@ public class BattleUnit {
         return hasPlannedPath() || x != targetX || y != targetY;
     }
 
+    public boolean isAlive() {
+        return hp > 0;
+    }
+
     public boolean isPlayer() {
         return "player".equals(faction);
+    }
+
+    public boolean isEnemy() {
+        return "enemy".equals(faction);
     }
 }
