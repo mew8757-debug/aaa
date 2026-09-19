@@ -604,7 +604,7 @@ def native_action_from_node(node):
     if (
         cid == 0x78
         and len(params) >= 4
-        and int(params[3]) in (7, 33)
+        and int(params[3]) in (7, 32, 33)
     ):
         return {
             "type": "unitAttributeTransfer",
@@ -2797,7 +2797,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 26,
+        "version": 27,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
