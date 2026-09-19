@@ -1,4 +1,4 @@
-name: Build Native Android Battle v3.0
+name: Build Native Android Battle v3.1
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v3.0 APK
+      - name: Build native v3.1 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v3.0.apk"
+          OUT="SeongSamgukji-Native-Battle-v3.1.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v3.0 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v3.0 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v3.1 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v3.1 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v3.0 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v3.0" \
-              --notes "Native v3.0은 v2.9의 S02 종료→R03 흐름을 유지하면서 M003 원본 지도와 Hexzmap entry 3 지형을 APK 자산으로 패키징하고, S_03 Scene1 Section1의 강제출전/플레이어 슬롯/우군/적군/목표/턴/작전개시와 Scene2 전장 이벤트 지원률을 build-status에 기록합니다. 다음 버전에서 battle3.json과 실제 S03 런타임 진입을 추측 없이 구성하기 위한 단계입니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v3.1 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v3.1" \
+              --notes "Native v3.1은 S_03의 마지막 미지원 명령 0x6F를 원본 아이템 제거 동작으로 실행해 Scene2 전장 이벤트 26/26 지원을 목표로 합니다. 동시에 승리테스트(0x42), 패배테스트(0x43), 사망+전투종료 조합과 Scene3 정리 Section을 자동 탐지해 s03OutcomeProbe로 기록합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v3.0 build status
+      - name: Record v3.1 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "3.0.0",
+              "version": "3.1.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -412,7 +412,14 @@ jobs:
               status["s03InitProbe"] = battle2.get("s03InitProbe", {})
               status["s03EventProbe"] = battle2.get("s03EventProbe", {})
 
-          Path("native/build-status/v3.0.json").write_text(
+          battle2_path = Path("native/android-map-probe/app/src/main/assets/battle/battle2.json")
+          if battle2_path.exists():
+              battle2 = json.loads(battle2_path.read_text(encoding="utf-8"))
+              status["s03InitProbe"] = battle2.get("s03InitProbe", {})
+              status["s03EventProbe"] = battle2.get("s03EventProbe", {})
+              status["s03OutcomeProbe"] = battle2.get("s03OutcomeProbe", {})
+
+          Path("native/build-status/v3.1.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -420,11 +427,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v3.0.json
+          git add native/build-status/v3.1.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v3.0 build status"
+          git commit -m "Record native v3.1 build status"
           git push

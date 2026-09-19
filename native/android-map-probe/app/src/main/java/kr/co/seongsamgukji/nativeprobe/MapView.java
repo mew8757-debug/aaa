@@ -972,7 +972,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v3.0 | R_01 Scene "
+            header = "Native v3.1 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -982,7 +982,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v3.0 | R_02 Scene "
+            header = "Native v3.1 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -992,7 +992,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v3.0 | R_03 Scene "
+            header = "Native v3.1 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1002,7 +1002,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v3.0 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v3.1 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -1904,6 +1904,24 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         battleEventWaitUntil = now + 120L;
                         return true;
+
+                    case "discardItem": {
+                        int itemId = action.optInt("itemId", -1);
+                        int count = Math.max(1, action.optInt("count", 1));
+                        int current = itemInventory.getOrDefault(itemId, 0);
+                        int remaining = Math.max(0, current - count);
+                        if (remaining > 0) {
+                            itemInventory.put(itemId, remaining);
+                        } else {
+                            itemInventory.remove(itemId);
+                        }
+                        lastCombatMessage = "원본 아이템 제거 · "
+                                + itemId
+                                + " ×" + count;
+                        combatMessageUntil = now + 1100L;
+                        activeBattleActionIndex++;
+                        break;
+                    }
 
                     case "battlefieldObject":
                         applyBattlefieldObjectAction(action);
