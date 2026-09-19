@@ -29,7 +29,7 @@ JOB_FAMILY_COUNT = 40
 # v0.8 panel bridge. The source values are also emitted into battle0.json so
 # this deterministic prototype formula can be replaced without re-reversing data.
 COMBAT_MODEL = "ccz65-panel-bridge-v0.8"
-DAMAGE_MODEL = "physical-atk-minus-def-v0.8"
+DAMAGE_MODEL = "physical-atk-minus-def-counter-v0.9"
 
 
 def s16(buf, off):
@@ -622,7 +622,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 8,
+        "version": 9,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
