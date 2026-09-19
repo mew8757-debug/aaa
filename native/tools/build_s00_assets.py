@@ -2599,6 +2599,8 @@ def main(argv):
         s04 = read_member_by_basename(game1, "S_04.eex")
         r05 = read_member_by_basename(game1, "R_05.eex")
         s05 = read_member_by_basename(game1, "S_05.eex")
+        r06 = read_member_by_basename(game1, "R_06.eex")
+        s06 = read_member_by_basename(game1, "S_06.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -2882,6 +2884,8 @@ def main(argv):
         excluded_sections={17, 18, 19, 22, 23, 37, 43, 44},
     )
     s05_outcome_events = extract_s05_outcome_events(s05_scenes)
+    r06_probe = build_next_scenario_probe("R_06.eex", r06)
+    s06_probe = build_next_scenario_probe("S_06.eex", s06)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -4132,6 +4136,10 @@ def main(argv):
         "battleEvents": s05_native_events,
         "outcomeEvents": s05_outcome_events,
         "outcomeProbe": s05_outcome_probe,
+        "nextScenarioProbe": {
+            "R_06.eex": r06_probe,
+            "S_06.eex": s06_probe,
+        },
         "battleEventSummary": {
             "candidateCount": len(s05_native_events),
             "coreSupportedCount": sum(
