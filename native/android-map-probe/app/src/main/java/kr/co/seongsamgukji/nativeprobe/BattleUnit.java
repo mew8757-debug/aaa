@@ -43,6 +43,11 @@ public class BattleUnit {
     public int spiritCondition;
     public int burstCondition;
     public int moraleCondition;
+    public int spiritAdjustment;
+    public int aiMinX;
+    public int aiMinY;
+    public int aiMaxX;
+    public int aiMaxY;
 
     public final List<Integer> movePath = new ArrayList<>();
     public int movePathIndex;
@@ -103,6 +108,11 @@ public class BattleUnit {
         this.spiritCondition = 1;
         this.burstCondition = 1;
         this.moraleCondition = 1;
+        this.spiritAdjustment = 0;
+        this.aiMinX = -1;
+        this.aiMinY = -1;
+        this.aiMaxX = -1;
+        this.aiMaxY = -1;
         this.movePathIndex = 0;
     }
 
