@@ -51,7 +51,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v12";
+    private static final String PREFS = "seong_samgukji_oneclick_v13";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -385,7 +385,11 @@ public class SeongSamgukjiActivity extends MainActivity {
 
         Intent intent = new Intent(this, XServerDisplayActivity.class);
         intent.putExtra("container_id", containerId);
-        intent.putExtra("exec_path", exePath);
+        // Do not use Winlator's direct exec_path mode. That mode runs winhandler.exe
+        // as the top-level guest process and the launched Windows program disappears
+        // as soon as the helper finishes. Start the normal persistent shell instead,
+        // then ask WinHandler to launch the game inside that live Wine session.
+        intent.putExtra("seong_exec_path", exePath);
         startActivity(intent);
     }
 
