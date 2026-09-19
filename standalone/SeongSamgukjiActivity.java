@@ -1,7 +1,12 @@
 package com.winlator;
 
+import android.app.ActivityManager;
+import android.app.ApplicationExitInfo;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.StatFs;
@@ -23,12 +28,19 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -37,7 +49,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v3";
+    private static final String PREFS = "seong_samgukji_oneclick_v5";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -47,6 +59,8 @@ public class SeongSamgukjiActivity extends MainActivity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private TextView status;
+    private TextView diagnosticView;
+    private String startupDiagnostic = "";
     private ProgressBar progress;
     private Button launchButton;
     private File gameDir;
@@ -55,6 +69,8 @@ public class SeongSamgukjiActivity extends MainActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        installCrashRecorder();
+        startupDiagnostic = collectPreviousExitInfo();
         restartedFromGame = getIntent().hasExtra("container_id") && getIntent().hasExtra("start_path");
         super.onCreate(savedInstanceState);
 
@@ -110,6 +126,24 @@ public class SeongSamgukjiActivity extends MainActivity {
         help.setPadding(0, dp(18), 0, 0);
         root.addView(help);
 
+        diagnosticView = new TextView(this);
+        diagnosticView.setTextSize(12);
+        diagnosticView.setTextIsSelectable(true);
+        diagnosticView.setPadding(0, dp(18), 0, dp(12));
+        diagnosticView.setVisibility(startupDiagnostic.isEmpty() ? View.GONE : View.VISIBLE);
+        diagnosticView.setText(startupDiagnostic);
+        root.addView(diagnosticView);
+
+        Button copyDiagnostic = new Button(this);
+        copyDiagnostic.setText("진단 기록 복사");
+        copyDiagnostic.setVisibility(startupDiagnostic.isEmpty() ? View.GONE : View.VISIBLE);
+        copyDiagnostic.setOnClickListener(v -> {
+            ClipboardManager cm = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("성삼국지 진단 기록", startupDiagnostic));
+            status.setText("진단 기록을 복사했습니다.");
+        });
+        root.addView(copyDiagnostic, fullButtonParams());
+
         setContentView(root);
     }
 
@@ -134,9 +168,13 @@ public class SeongSamgukjiActivity extends MainActivity {
             if (prefs.getBoolean(KEY_INSTALLED, false) && !exePath.isEmpty() && new File(exePath).isFile()) {
                 progress.setVisibility(View.GONE);
                 launchButton.setVisibility(View.VISIBLE);
-                status.setText(restartedFromGame ? "게임이 종료되었습니다." : "설치 완료. 게임을 실행합니다.");
-
-                if (!restartedFromGame) handler.postDelayed(this::launchGame, 600);
+                if (!startupDiagnostic.isEmpty()) {
+                    status.setText("이전 실행이 비정상 종료되었습니다. 아래 진단 기록을 캡처하거나 복사해 보내주세요.");
+                }
+                else {
+                    status.setText(restartedFromGame ? "게임이 종료되었습니다." : "설치 완료. 게임을 실행합니다.");
+                    if (!restartedFromGame) handler.postDelayed(this::launchGame, 600);
+                }
             }
             else if (!installStarted) {
                 installStarted = true;
@@ -271,6 +309,7 @@ public class SeongSamgukjiActivity extends MainActivity {
     }
 
     private void launchGame() {
+        new File(getFilesDir(), "last_java_crash.txt").delete();
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         int containerId = prefs.getInt(KEY_CONTAINER_ID, 0);
         String exePath = prefs.getString(KEY_EXE_PATH, "");
@@ -460,6 +499,98 @@ public class SeongSamgukjiActivity extends MainActivity {
         }
 
         file.delete();
+    }
+
+    private void installCrashRecorder() {
+        final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            try {
+                File out = new File(getFilesDir(), "last_java_crash.txt");
+                try (PrintWriter pw = new PrintWriter(new FileOutputStream(out, false))) {
+                    pw.println("JAVA_CRASH");
+                    pw.println("thread=" + thread.getName());
+                    pw.println("time=" + System.currentTimeMillis());
+                    throwable.printStackTrace(pw);
+                }
+            }
+            catch (Exception ignored) {}
+
+            if (previous != null) previous.uncaughtException(thread, throwable);
+            else Runtime.getRuntime().exit(2);
+        });
+    }
+
+    private String collectPreviousExitInfo() {
+        StringBuilder out = new StringBuilder();
+
+        File javaCrash = new File(getFilesDir(), "last_java_crash.txt");
+        if (javaCrash.isFile()) {
+            out.append("=== JAVA CRASH ===\n");
+            try (BufferedReader br = new BufferedReader(new FileReader(javaCrash))) {
+                String line;
+                int count = 0;
+                while ((line = br.readLine()) != null && count++ < 200) out.append(line).append('\n');
+            }
+            catch (Exception e) {
+                out.append("Java crash log read failed: ").append(e).append('\n');
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                ActivityManager am = (ActivityManager)getSystemService(ACTIVITY_SERVICE);
+                List<ApplicationExitInfo> infos = am.getHistoricalProcessExitReasons(getPackageName(), 0, 5);
+                if (infos != null && !infos.isEmpty()) {
+                    ApplicationExitInfo info = infos.get(0);
+                    int reason = info.getReason();
+                    if (reason == ApplicationExitInfo.REASON_CRASH ||
+                            reason == ApplicationExitInfo.REASON_CRASH_NATIVE ||
+                            reason == ApplicationExitInfo.REASON_ANR ||
+                            reason == ApplicationExitInfo.REASON_SIGNALED ||
+                            reason == ApplicationExitInfo.REASON_LOW_MEMORY) {
+
+                        out.append("\n=== ANDROID EXIT INFO ===\n");
+                        out.append("reason=").append(exitReasonName(reason)).append(" (").append(reason).append(")\n");
+                        out.append("status=").append(info.getStatus()).append('\n');
+                        out.append("importance=").append(info.getImportance()).append('\n');
+                        out.append("timestamp=").append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(info.getTimestamp()))).append('\n');
+                        if (info.getDescription() != null) out.append("description=").append(info.getDescription()).append('\n');
+
+                        try (InputStream trace = info.getTraceInputStream()) {
+                            if (trace != null) {
+                                out.append("\n--- trace ---\n");
+                                BufferedReader br = new BufferedReader(new InputStreamReader(trace));
+                                String line;
+                                int chars = 0;
+                                while ((line = br.readLine()) != null && chars < 12000) {
+                                    out.append(line).append('\n');
+                                    chars += line.length() + 1;
+                                }
+                            }
+                        }
+                        catch (Exception ignored) {}
+                    }
+                }
+            }
+            catch (Exception e) {
+                out.append("\nExit-info read failed: ").append(e).append('\n');
+            }
+        }
+
+        return out.toString().trim();
+    }
+
+    private String exitReasonName(int reason) {
+        switch (reason) {
+            case ApplicationExitInfo.REASON_CRASH: return "JAVA_CRASH";
+            case ApplicationExitInfo.REASON_CRASH_NATIVE: return "NATIVE_CRASH";
+            case ApplicationExitInfo.REASON_ANR: return "ANR";
+            case ApplicationExitInfo.REASON_SIGNALED: return "SIGNALED";
+            case ApplicationExitInfo.REASON_LOW_MEMORY: return "LOW_MEMORY";
+            case ApplicationExitInfo.REASON_EXIT_SELF: return "EXIT_SELF";
+            case ApplicationExitInfo.REASON_USER_REQUESTED: return "USER_REQUESTED";
+            default: return "REASON_" + reason;
+        }
     }
 
     @Override
