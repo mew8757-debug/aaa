@@ -146,7 +146,7 @@ jobs:
                        '        String seongExecPath = getIntent().getStringExtra("seong_exec_path");' + nl +
                        '        if (seongExecPath != null && !seongExecPath.isEmpty()) {' + nl +
                        '            String dosPath = WineUtils.unixToDOSPath(seongExecPath, container);' + nl +
-                       '            return "\\\\"" + dosPath + "\\\"";' + nl +
+                       '            return dosPath;' + nl +
                        '        }' + nl + nl +
                        '        String cmdArgs = "";')
           if start_old not in xs:
