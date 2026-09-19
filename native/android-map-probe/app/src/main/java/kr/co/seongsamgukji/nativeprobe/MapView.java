@@ -991,6 +991,16 @@ public class MapView extends View {
                     + (storyTitle.isEmpty()
                     ? ""
                     : " · " + storyTitle);
+        } else if (r03StoryActive) {
+            header = "Native v2.9 | R_03 Scene "
+                    + Math.min(
+                    r03StorySceneIndex + 1,
+                    r03StoryScenes == null
+                            ? 1
+                            : r03StoryScenes.length())
+                    + (storyTitle.isEmpty()
+                    ? ""
+                    : " · " + storyTitle);
         } else {
             header = "Native v2.9 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
@@ -1016,7 +1026,7 @@ public class MapView extends View {
                 status += " · SFX " + lastSound;
             }
             canvas.drawText(status, 22, 65, overlayTextPaint);
-        } else if (r01StoryActive || r02StoryActive) {
+        } else if (r01StoryActive || r02StoryActive || r03StoryActive) {
             String status = "원본 " + currentStoryLabel()
                     + " 스토리 재생 중";
             if (!storyLocation.isEmpty()) {
@@ -1074,6 +1084,7 @@ public class MapView extends View {
         if (openingFinished
                 && !r01StoryActive
                 && !r02StoryActive
+                && !r03StoryActive
                 && selectedUnit != null) {
             String terrainInfo = "";
             if (inBounds(selectedX, selectedY)) {
@@ -1137,6 +1148,7 @@ public class MapView extends View {
                 || !openingFinished
                 || r01StoryActive
                 || r02StoryActive
+                || r03StoryActive
                 || activeChoiceAction != null
                 || !playerTurn
                 || hasActiveAttackAnimation(now)
