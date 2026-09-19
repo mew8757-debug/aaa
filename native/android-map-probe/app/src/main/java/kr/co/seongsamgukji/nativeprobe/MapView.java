@@ -69,6 +69,7 @@ public class MapView extends View {
     private final Set<Integer> joinedCharacterIds = new HashSet<>();
     private final Map<Integer, Integer> integerVariables = new HashMap<>();
     private final Map<Integer, Integer> rImageOverrides = new HashMap<>();
+    private final Map<Integer, Integer> faceOverrides = new HashMap<>();
     private final Map<Integer, Integer> globalValues = new HashMap<>();
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
     private int pendingScenarioJump = -1;
@@ -169,6 +170,7 @@ public class MapView extends View {
     private JSONArray r05StoryScenes;
     private JSONArray r06StoryScenes;
     private JSONArray r07StoryScenes;
+    private JSONArray r08StoryScenes;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
@@ -187,12 +189,14 @@ public class MapView extends View {
     private boolean r05StoryActive = false;
     private boolean r06StoryActive = false;
     private boolean r07StoryActive = false;
+    private boolean r08StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
     private boolean s05Ready = false;
     private boolean s06Ready = false;
     private boolean s07Ready = false;
+    private boolean s08Ready = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
     private int rescueCharacterId = -1;
@@ -206,6 +210,7 @@ public class MapView extends View {
     private int r05StorySceneIndex = 0;
     private int r06StorySceneIndex = 0;
     private int r07StorySceneIndex = 0;
+    private int r08StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -373,6 +378,8 @@ public class MapView extends View {
                     u.optInt("attackRangeId", 0),
                     u.optInt("level", 1),
                     u.optInt("hpMax", 1),
+                    u.optInt("mpMax", u.optInt("initialMp", 0)),
+                    u.optInt("auxiliaryItem", -1),
                     u.optInt("attack", 0),
                     u.optInt("defense", 0),
                     u.getString("faction"),
@@ -678,6 +685,8 @@ public class MapView extends View {
                     u.optInt("attackRangeId", 0),
                     u.optInt("level", 1),
                     u.optInt("hpMax", 1),
+                    u.optInt("mpMax", u.optInt("initialMp", 0)),
+                    u.optInt("auxiliaryItem", -1),
                     u.optInt("attack", 0),
                     u.optInt("defense", 0),
                     u.getString("faction"),
@@ -2525,17 +2534,22 @@ public class MapView extends View {
             return;
         }
 
-        // AllCondition[0] = R image. R-story actors do not have to be
-        // present as battlefield units, so preserve this state separately.
-        if (attribute == 0) {
+        // AllCondition[0]=R image, [1]=face. Story actors do not
+        // have to exist as battlefield units, so keep these independently.
+        if (attribute == 0 || attribute == 1) {
+            Map<Integer, Integer> values = attribute == 0
+                    ? rImageOverrides
+                    : faceOverrides;
             if (direction == 0) {
                 integerVariables.put(
                         variableId,
-                        rImageOverrides.getOrDefault(characterId, 0));
+                        values.getOrDefault(characterId, 0));
             } else if (direction == 1) {
                 int value = integerVariables.getOrDefault(variableId, 0);
-                rImageOverrides.put(characterId, value);
-                lastCombatMessage = "R형상 변경 · 인물 "
+                values.put(characterId, value);
+                lastCombatMessage = (attribute == 0
+                        ? "R형상 변경 · 인물 "
+                        : "얼굴 변경 · 인물 ")
                         + characterId + " → " + value;
                 combatMessageUntil = SystemClock.uptimeMillis() + 900L;
             }
@@ -2551,10 +2565,16 @@ public class MapView extends View {
             int value;
             if (attribute == 7) {
                 value = unit.maxHp;
+            } else if (attribute == 8) {
+                value = unit.maxMp;
+            } else if (attribute == 26) {
+                value = unit.auxiliaryItem;
             } else if (attribute == 32) {
                 value = unit.direction;
             } else if (attribute == 33) {
                 value = unit.hp;
+            } else if (attribute == 34) {
+                value = unit.mp;
             } else {
                 return;
             }
@@ -2564,6 +2584,10 @@ public class MapView extends View {
 
         if (direction == 1) {
             int value = integerVariables.getOrDefault(variableId, 0);
+            if (attribute == 26) {
+                unit.auxiliaryItem = value;
+                return;
+            }
             if (attribute == 32) {
                 unit.direction = value;
                 return;
@@ -2573,6 +2597,10 @@ public class MapView extends View {
                 if (unit.hp > 0) {
                     unit.visible = true;
                 }
+                return;
+            }
+            if (attribute == 34) {
+                unit.mp = Math.max(0, Math.min(unit.maxMp, value));
             }
         }
     }
