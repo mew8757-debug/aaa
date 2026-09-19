@@ -1433,6 +1433,58 @@ def extract_s04_outcome_events(scenes):
     }
 
 
+def extract_s05_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            37,
+        ),
+        "alternateVictory": compile_scenario_section_actions(
+            scenes,
+            2,
+            43,
+        ),
+        "defeatByCharacter": {
+            "2": compile_scenario_section_actions(
+                scenes,
+                2,
+                17,
+            ),
+            "1": compile_scenario_section_actions(
+                scenes,
+                2,
+                18,
+            ),
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                19,
+            ),
+            "101": compile_scenario_section_actions(
+                scenes,
+                2,
+                22,
+            ),
+            "148": compile_scenario_section_actions(
+                scenes,
+                2,
+                23,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            44,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
 
@@ -2825,6 +2877,11 @@ def main(argv):
     }
     s05_event_probe = extract_scene2_native_events(s05_scenes)
     s05_outcome_probe = probe_battle_outcome_candidates(s05_scenes)
+    s05_native_events = extract_scene2_native_events(
+        s05_scenes,
+        excluded_sections={17, 18, 19, 22, 23, 37, 43, 44},
+    )
+    s05_outcome_events = extract_s05_outcome_events(s05_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -3897,6 +3954,214 @@ def main(argv):
         encoding="utf-8",
     )
 
+
+    # S_05 sixth battle: defeat Lü Bu after the original R_05 story.
+    s05_units = []
+
+    def make_s05_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S05 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s05_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    for slot in sorted(
+        s05_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    ):
+        slot_index = int(slot["slot"])
+        if slot_index < 0 or slot_index >= len(continuing_party):
+            continue
+        cid = continuing_party[slot_index]
+        make_s05_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_05:0x4B:{slot_index}",
+        )
+
+    for index, row in enumerate(s05_init_probe["friendRecords"]):
+        make_s05_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_05:0x46:{index}",
+        )
+
+    for index, row in enumerate(s05_init_probe["enemyRecords"]):
+        make_s05_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_05:0x47:{index}",
+        )
+
+    s05_objective_text = (
+        s05_init_probe["objectiveTexts"][0]
+        if s05_init_probe["objectiveTexts"]
+        else ""
+    )
+    s05_popup_text = (
+        s05_init_probe["objectivePopups"][0]
+        if s05_init_probe["objectivePopups"]
+        else ""
+    )
+    s05_turn_match = re.search(r"(\d+)턴", s05_objective_text)
+    s05_turn_limit = int(s05_turn_match.group(1)) if s05_turn_match else 20
+
+    lubu_rows = [
+        row for row in s05_init_probe["enemyRecords"]
+        if name_of(row["person"]) == "여포"
+    ]
+    if len(lubu_rows) != 1:
+        raise SystemExit(
+            "S05 Lu Bu mapping ambiguous: "
+            + repr([
+                (row["person"], name_of(row["person"]))
+                for row in s05_init_probe["enemyRecords"]
+                if "여포" in name_of(row["person"])
+            ])
+        )
+    lubu_id = int(lubu_rows[0]["person"])
+
+    s05_candidates = set(continuing_party)
+    s05_candidates.update(
+        row["person"] for row in s05_init_probe["friendRecords"]
+    )
+    s05_protected_names = {"유비", "관우", "장비", "공손찬", "원소"}
+    s05_protected_ids = sorted(
+        cid for cid in s05_candidates
+        if name_of(cid) in s05_protected_names
+    )
+    if {name_of(cid) for cid in s05_protected_ids} != s05_protected_names:
+        raise SystemExit(
+            "S05 protected-name mapping incomplete: "
+            + repr([(cid, name_of(cid)) for cid in sorted(s05_candidates)
+                    if name_of(cid) in s05_protected_names])
+        )
+
+    s05_battle = {
+        "version": 38,
+        "source": "RS/S_05.eex",
+        "battleMode": "kill-character",
+        "mapId": 5,
+        "map": "m005.jpg",
+        "widthTiles": map5_cols,
+        "heightTiles": map5_rows,
+        "terrainFile": "terrain5.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s05_objective_text,
+                "popupText": s05_popup_text,
+                "turnLimit": s05_turn_limit,
+                "goal": {
+                    "type": "kill-character",
+                    "characterId": lubu_id,
+                    "name": name_of(lubu_id),
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s05_turn_limit,
+            },
+            "protectedCharacterIds": s05_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s05_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "r05Story": r05_story,
+        "battleEvents": s05_native_events,
+        "outcomeEvents": s05_outcome_events,
+        "outcomeProbe": s05_outcome_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s05_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s05_native_events if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s05_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain5_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s05_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle5.json").write_text(
+        json.dumps(s05_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
@@ -3987,7 +4252,7 @@ def main(argv):
 
     sprite_ids = sorted({
         u["spriteId"]
-        for u in units + s01_units + s02_units + s03_units + s04_units
+        for u in units + s01_units + s02_units + s03_units + s04_units + s05_units
     })
     for sid in sprite_ids:
         specs = (
@@ -4089,6 +4354,22 @@ def main(argv):
         len(s05_event_probe),
         "core-supported=",
         sum(1 for e in s05_event_probe if e["coreSupported"]),
+    )
+    print(
+        "s05 units=",
+        len(s05_units),
+        "visible=",
+        sum(1 for u in s05_units if u["visible"]),
+        "native-events=",
+        len(s05_native_events),
+        "core-supported=",
+        sum(1 for e in s05_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s05_turn_limit,
+        "protected=",
+        [(cid, name_of(cid)) for cid in s05_protected_ids],
+        "target=",
+        (lubu_id, name_of(lubu_id)),
     )
     print(
         "s04 init forced players=",
