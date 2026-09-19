@@ -1,4 +1,4 @@
-name: Build Native Android Battle v0.9
+name: Build Native Android Battle v1.0
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v0.9 APK
+      - name: Build native v1.0 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v0.9.apk"
+          OUT="SeongSamgukji-Native-Battle-v1.0.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v0.9 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v0.9 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v1.0 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v1.0 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v0.9 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v0.9" \
-              --notes "v0.8의 원본 지형 이동·전투 패널·공격 모션을 유지하면서 턴 루프를 추가했습니다. 아군은 턴당 1회 이동 후 공격할 수 있고, 생존한 피격자는 자신의 확인된 공격범위 안에 공격자가 있으면 반격합니다. 턴 종료 버튼을 누르면 적군이 원본 병종별 지형 이동비용을 사용해 가장 가까운 비적군 유닛을 향해 결정적으로 이동하고, 사거리 안이면 공격한 뒤 반격까지 처리합니다. 다음 아군 턴에는 이동/행동 상태가 초기화됩니다. 피해와 반격 피해는 현재 동일한 핵심 공방차 max(ATK-DEF,0)를 사용하며 장비·지형 전투보정·상성·명중·회피·치명타·연타와 원본 AI 정책 해석은 후속 단계입니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v1.0 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v1.0" \
+              --notes "v0.9 턴 루프를 유지하면서 원본 전투 의미론을 검증하기 위한 v1.0 프로브입니다. S_00.eex 전체 Scene/Section/중첩 이벤트를 재귀 파싱해 승패 관련 명령 트리를 기록하고, Data.e5의 40x30 지형발휘 원본값과 Ekd5.exe의 40x40 병종상성 행렬을 APK 자산으로 추출합니다. 두 행렬은 중립값 100 후보라는 근거는 있으나 정확한 계산 적용 순서가 아직 검증되지 않아 이번 단계에서는 피해 계산에 적용하지 않습니다. 빌드 진단 결과를 이용해 S00 실제 승패 조건과 보정 순서를 확정한 뒤 같은 v1.0에 반영합니다. 공개 배포하지 마세요." \\
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v0.9 build status
+      - name: Record v1.0 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,12 +96,12 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "0.9.0",
+              "version": "1.0.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
               "counterattacks": True,
-              "enemyAi": "nearest-opponent-weighted-terrain-v0.9",
+              "enemyAi": "nearest-opponent-weighted-terrain-v1.0",
           }
 
           battle_path = Path("native/android-map-probe/app/src/main/assets/battle/battle0.json")
@@ -111,6 +111,15 @@ jobs:
               status["damageModel"] = battle.get("damageModel")
               status["supportedAttackRangeIds"] = battle.get("supportedAttackRangeIds", [])
               status["terrainIds"] = battle.get("terrainIds", [])
+              status["rawCombatSemantics"] = battle.get("rawCombatSemantics", {})
+              diag = battle.get("scenarioDiagnostics", {})
+              status["scenarioDiagnostics"] = {
+                  "sceneCount": diag.get("sceneCount"),
+                  "sectionCounts": diag.get("sectionCounts", []),
+                  "commandCount": diag.get("commandCount"),
+                  "commandCounts": diag.get("commandCounts", {}),
+                  "relevantCommands": diag.get("relevantCommands", []),
+              }
               status["playerProfiles"] = [
                   {
                       "characterId": unit.get("characterId"),
@@ -144,7 +153,7 @@ jobs:
                   if unit.get("faction") == "enemy" and unit.get("visible")
               ][:8]
 
-          Path("native/build-status/v0.9.json").write_text(
+          Path("native/build-status/v1.0.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -152,11 +161,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v0.9.json
+          git add native/build-status/v1.0.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v0.9 build status"
+          git commit -m "Record native v1.0 build status"
           git push
