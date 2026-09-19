@@ -413,6 +413,7 @@ def build_scenario_diagnostics(scenes):
         (2, 31),
         (2, 33),
         (2, 34),
+        (3, 1),
     }
     selected_sections = {}
     for scene_index, section_index in sorted(selected_section_keys):
