@@ -1966,10 +1966,6 @@ public class MapView extends View {
         activeEnemyTarget = null;
         activeEnemyAttackPending = false;
         enemyTurnOrder.clear();
-        if (!victory) {
-            outcomeFlowActive = false;
-            outcomeStage = "defeat";
-        }
         clearReachable();
 
         prepareScriptActionSequence(victoryOutcomeActions);
