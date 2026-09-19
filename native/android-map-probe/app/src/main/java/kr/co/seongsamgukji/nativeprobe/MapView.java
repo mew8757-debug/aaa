@@ -68,6 +68,7 @@ public class MapView extends View {
     private final Map<Integer, Integer> scenarioVariables = new HashMap<>();
     private final Set<Integer> joinedCharacterIds = new HashSet<>();
     private final Map<Integer, Integer> integerVariables = new HashMap<>();
+    private final Map<Integer, Integer> rImageOverrides = new HashMap<>();
     private final Map<Integer, Integer> globalValues = new HashMap<>();
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
     private int pendingScenarioJump = -1;
@@ -1114,7 +1115,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v4.5 | R_01 Scene "
+            header = "Native v4.6 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1124,7 +1125,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.5 | R_02 Scene "
+            header = "Native v4.6 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1134,7 +1135,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.5 | R_03 Scene "
+            header = "Native v4.6 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1144,7 +1145,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.5 | R_07 Scene "
+            header = "Native v4.6 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1154,7 +1155,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.5 | R_06 Scene "
+            header = "Native v4.6 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1164,7 +1165,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.5 | R_05 Scene "
+            header = "Native v4.6 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1174,7 +1175,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.5 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.6 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -2520,7 +2521,24 @@ public class MapView extends View {
         int direction = action.optInt("direction", 0);
         int characterId = action.optInt("characterId", -1);
         int attribute = action.optInt("attribute", -1);
-        if (variableId < 0) {
+        if (variableId < 0 || characterId < 0) {
+            return;
+        }
+
+        // AllCondition[0] = R image. R-story actors do not have to be
+        // present as battlefield units, so preserve this state separately.
+        if (attribute == 0) {
+            if (direction == 0) {
+                integerVariables.put(
+                        variableId,
+                        rImageOverrides.getOrDefault(characterId, 0));
+            } else if (direction == 1) {
+                int value = integerVariables.getOrDefault(variableId, 0);
+                rImageOverrides.put(characterId, value);
+                lastCombatMessage = "R형상 변경 · 인물 "
+                        + characterId + " → " + value;
+                combatMessageUntil = SystemClock.uptimeMillis() + 900L;
+            }
             return;
         }
 
