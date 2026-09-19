@@ -1,0 +1,89 @@
+name: Analyze Runtime Dependencies
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/analyze-runtime-deps.yml"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download game1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p game-data out
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/573646841" \
+            -o game-data/game1.Zip
+
+          python3 - <<'PY'
+          import zipfile, pathlib
+          root=pathlib.Path("out/game")
+          root.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile("game-data/game1.Zip") as z:
+              z.extractall(root)
+          PY
+
+      - name: Inspect PE imports and installer log
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pefile
+          python3 - <<'PY'
+          import pefile, pathlib, json, re
+          root=pathlib.Path("out/game")
+          files=[
+              root/"Ekd5.exe",
+              root/"Ekd5.exe.font-original.bak",
+              root/"AutoDLL.dll",
+              root/"Koeicda.dll",
+              root/"SeongFont.dll",
+              root/"SeongHistory.dll",
+              root/"SeongTraits.dll",
+          ]
+          for p in files:
+              if not p.exists(): continue
+              print("\n====",p.name,"====")
+              pe=pefile.PE(str(p), fast_load=False)
+              if hasattr(pe,"DIRECTORY_ENTRY_IMPORT"):
+                  for ent in pe.DIRECTORY_ENTRY_IMPORT:
+                      print("DLL",ent.dll.decode(errors="replace"))
+                      names=[]
+                      for imp in ent.imports:
+                          names.append(imp.name.decode(errors="replace") if imp.name else f"ord:{imp.ordinal}")
+                      print("  ",", ".join(names[:100]))
+              if hasattr(pe,"DIRECTORY_ENTRY_DELAY_IMPORT"):
+                  for ent in pe.DIRECTORY_ENTRY_DELAY_IMPORT:
+                      print("DELAY",ent.dll.decode(errors="replace"))
+
+          for name in ["INSTALL.LOG","System.ini","SeongFont.install.json","SeongFont.runtime.log","AutoDLL.ini"]:
+              p=root/name
+              print("\n====",name,"====")
+              if not p.exists():
+                  print("MISSING")
+                  continue
+              b=p.read_bytes()
+              text=None
+              for enc in ["utf-8-sig","utf-16","cp949","euc-kr","latin1"]:
+                  try:
+                      t=b.decode(enc)
+                      # prefer readable decode
+                      if text is None or sum(ch.isprintable() for ch in t) > sum(ch.isprintable() for ch in text):
+                          text=t
+                  except: pass
+              print((text or repr(b))[:30000])
+          PY
