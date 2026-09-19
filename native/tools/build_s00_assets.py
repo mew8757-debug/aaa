@@ -1485,6 +1485,48 @@ def extract_s05_outcome_events(scenes):
     }
 
 
+def extract_s06_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            13,
+        ),
+        "alternateVictory": compile_scenario_section_actions(
+            scenes,
+            2,
+            25,
+        ),
+        "defeatByCharacter": {
+            "4": compile_scenario_section_actions(
+                scenes,
+                2,
+                22,
+            ),
+            "19": compile_scenario_section_actions(
+                scenes,
+                2,
+                23,
+            ),
+            "148": compile_scenario_section_actions(
+                scenes,
+                2,
+                24,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            26,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
 
@@ -1907,6 +1949,26 @@ def compile_r_story_leaf(node):
             "type": "reward",
             "value": int(params[0]),
             "targetId": int(params[3]),
+        }
+
+    if cid == 0x3B and len(params) >= 3:
+        return {
+            "type": "joinCharacter",
+            "characterId": int(params[0]),
+            "joinMode": int(params[1]),
+            "levelAdjust": int(params[2]),
+        }
+
+    if cid == 0x67:
+        strings = [p for p in params if isinstance(p, str)]
+        return {
+            "type": "storyChapter",
+            "value": (
+                int(params[0])
+                if params and isinstance(params[0], int)
+                else 0
+            ),
+            "text": strings[-1] if strings else "",
         }
 
     if cid == 0x77 and len(params) >= 5:
@@ -2934,6 +2996,11 @@ def main(argv):
     }
     s06_event_probe = extract_scene2_native_events(s06_scenes)
     s06_outcome_probe = probe_battle_outcome_candidates(s06_scenes)
+    s06_native_events = extract_scene2_native_events(
+        s06_scenes,
+        excluded_sections={13, 22, 23, 24, 25, 26},
+    )
+    s06_outcome_events = extract_s06_outcome_events(s06_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -4235,8 +4302,225 @@ def main(argv):
         "units": s05_units,
         "openingEvents": [],
     }
+
     (battle_dir / "battle5.json").write_text(
         json.dumps(s05_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # S_06: Zhao Yun and Xiahou Bo are the two forced player characters.
+    # Gongsun Zan is an allied protected character; Wen Chou is the kill target.
+    s06_units = []
+
+    def make_s06_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S06 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s06_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s06_player_ids = [4, 19]
+    if [name_of(cid) for cid in s06_player_ids] != ["조운", "하후박"]:
+        raise SystemExit(
+            "S06 player mapping mismatch: "
+            + repr([(cid, name_of(cid)) for cid in s06_player_ids])
+        )
+
+    s06_slots = sorted(
+        s06_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    )
+    if len(s06_slots) < len(s06_player_ids):
+        raise SystemExit(
+            "S06 player slot count too small: "
+            + repr(s06_slots)
+        )
+    for slot, cid in zip(s06_slots, s06_player_ids):
+        make_s06_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_06:0x4B:{slot['slot']}",
+        )
+
+    for index, row in enumerate(s06_init_probe["friendRecords"]):
+        make_s06_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_06:0x46:{index}",
+        )
+
+    for index, row in enumerate(s06_init_probe["enemyRecords"]):
+        make_s06_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_06:0x47:{index}",
+        )
+
+    s06_objective_text = (
+        s06_init_probe["objectiveTexts"][0]
+        if s06_init_probe["objectiveTexts"]
+        else ""
+    )
+    s06_popup_text = (
+        s06_init_probe["objectivePopups"][0]
+        if s06_init_probe["objectivePopups"]
+        else ""
+    )
+    s06_turn_match = re.search(r"(\d+)턴", s06_objective_text)
+    s06_turn_limit = int(s06_turn_match.group(1)) if s06_turn_match else 20
+
+    wenchou_rows = [
+        row for row in s06_init_probe["enemyRecords"]
+        if name_of(row["person"]) == "문추"
+    ]
+    if len(wenchou_rows) != 1:
+        raise SystemExit(
+            "S06 Wen Chou mapping ambiguous: "
+            + repr([
+                (row["person"], name_of(row["person"]))
+                for row in s06_init_probe["enemyRecords"]
+                if row["person"] >= 0
+            ])
+        )
+    wenchou_id = int(wenchou_rows[0]["person"])
+    if wenchou_id != 109:
+        raise SystemExit(
+            f"S06 Wen Chou id mismatch: {wenchou_id}"
+        )
+
+    s06_protected_ids = [4, 19, 148]
+    expected_s06_protected = {"조운", "하후박", "공손찬"}
+    if {name_of(cid) for cid in s06_protected_ids} != expected_s06_protected:
+        raise SystemExit(
+            "S06 protected mapping mismatch: "
+            + repr([
+                (cid, name_of(cid))
+                for cid in s06_protected_ids
+            ])
+        )
+
+    s06_battle = {
+        "version": 41,
+        "source": "RS/S_06.eex",
+        "battleMode": "kill-character",
+        "mapId": 6,
+        "map": "m006.jpg",
+        "widthTiles": map6_cols,
+        "heightTiles": map6_rows,
+        "terrainFile": "terrain6.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s06_objective_text,
+                "popupText": s06_popup_text,
+                "turnLimit": s06_turn_limit,
+                "goal": {
+                    "type": "kill-character",
+                    "characterId": wenchou_id,
+                    "name": name_of(wenchou_id),
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s06_turn_limit,
+            },
+            "protectedCharacterIds": s06_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s06_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s06_native_events,
+        "outcomeEvents": s06_outcome_events,
+        "outcomeProbe": s06_outcome_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s06_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s06_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s06_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain6_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s06_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle6.json").write_text(
+        json.dumps(s06_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -4330,7 +4614,15 @@ def main(argv):
 
     sprite_ids = sorted({
         u["spriteId"]
-        for u in units + s01_units + s02_units + s03_units + s04_units + s05_units
+        for u in (
+            units
+            + s01_units
+            + s02_units
+            + s03_units
+            + s04_units
+            + s05_units
+            + s06_units
+        )
     })
     for sid in sprite_ids:
         specs = (
@@ -4438,6 +4730,20 @@ def main(argv):
     print(
         "s06 outcome candidates=",
         s06_outcome_probe,
+    )
+    print(
+        "s06 battle units=",
+        len(s06_units),
+        "players=",
+        [(u["characterId"], u["name"]) for u in s06_units if u["faction"] == PLAYER],
+        "protected=",
+        [(cid, name_of(cid)) for cid in s06_protected_ids],
+        "target=",
+        (wenchou_id, name_of(wenchou_id)),
+        "native-events=",
+        len(s06_native_events),
+        "core-supported=",
+        sum(1 for e in s06_native_events if e["coreSupported"]),
     )
     print(
         "s05 map=",
