@@ -51,7 +51,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v7";
+    private static final String PREFS = "seong_samgukji_oneclick_v8";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -234,8 +234,20 @@ public class SeongSamgukjiActivity extends MainActivity {
                 if (exe == null || !exe.isFile()) exe = findBestExe(gameDir);
                 if (exe == null) throw new Exception("게임 실행 EXE를 찾지 못했습니다.");
 
-                handler.post(() -> status.setText("게임 실행환경을 자동 구성하고 있습니다…"));
-                createOrUpdateContainer(exe);
+                final File selectedExe = exe;
+                handler.post(() -> {
+                    status.setText("게임 실행환경을 자동 구성하고 있습니다…");
+                    try {
+                        createOrUpdateContainer(selectedExe);
+                    }
+                    catch (Throwable e) {
+                        progress.setVisibility(View.GONE);
+                        String msg = e.getMessage();
+                        if (msg == null || msg.isEmpty()) msg = e.getClass().getSimpleName();
+                        status.setText("실행환경 구성 실패: " + msg);
+                    }
+                });
+
                 deleteRecursive(work);
             }
             catch (Throwable e) {
