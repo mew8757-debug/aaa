@@ -179,7 +179,7 @@ jobs:
               vals=[int.from_bytes(exe[0xD2800+i*2:0xD2802+i*2],'little') for i in range(80)]
               print(vals)
 
-              ids=[0,1,2,181,226,309,310,594,595,596,597,598,650,651,654,655]
+              ids=[0,1,2,181,225,226,309,310,594,595,596,597,598,599,600,601,602,603,650,651,654,655,662,663,664]
               d=z.read(d_candidates[0]) if d_candidates else b''
               print('=== RELEVANT CHARACTER / S-IMAGE MAP ===')
               for cid in ids:
