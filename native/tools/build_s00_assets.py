@@ -1447,9 +1447,12 @@ def build_next_scenario_probe(filename, blob):
     flat = flatten_scenario_nodes(scenes)
 
     flow_ids = {
-        0x07, 0x08, 0x0D, 0x11,
+        0x05, 0x06, 0x07, 0x08,
+        0x0B, 0x0D, 0x11, 0x12, 0x13,
         0x19, 0x1A,
+        0x3A, 0x3D,
         0x44, 0x4A, 0x4B, 0x5A,
+        0x77,
     }
     text_ids = {
         0x14, 0x15, 0x16, 0x17, 0x18,
@@ -1490,6 +1493,29 @@ def build_next_scenario_probe(filename, blob):
         key = f"0x{row['commandId']:02X}"
         counts[key] = counts.get(key, 0) + 1
 
+
+    route_sections = {}
+    if filename.lower() == "r_01.eex":
+        for section_number in range(1, 8):
+            rows = [
+                row for row in flat
+                if row["scene"] == 5
+                and row["section"] == section_number
+            ]
+            if not rows:
+                continue
+            route_sections[f"S05-SEC{section_number:02d}"] = [
+                {
+                    "depth": row["depth"],
+                    "kind": row["kind"],
+                    "commandId": row["commandId"],
+                    "commandHex": f"0x{row['commandId']:02X}",
+                    "params": row["params"],
+                    "childCommandIds": row["childCommandIds"],
+                }
+                for row in rows
+            ]
+
     return {
         "filename": filename,
         "found": True,
@@ -1504,6 +1530,7 @@ def build_next_scenario_probe(filename, blob):
         "commandCounts": counts,
         "flowCommands": flow_commands,
         "textSamples": text_samples,
+        "routeSections": route_sections,
     }
 
 
@@ -1792,7 +1819,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 16,
+        "version": 17,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",

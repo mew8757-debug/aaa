@@ -610,7 +610,7 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v1.6 | " + round + "/" + turnLimit + "턴 "
+                "Native v1.7 | " + round + "/" + turnLimit + "턴 "
                         + (playerTurn ? "아군" : "적군")
                         + " | 단계 " + battlePhase
                         + " | 아군 " + playerCount
