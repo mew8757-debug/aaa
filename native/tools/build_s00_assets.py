@@ -2164,6 +2164,16 @@ def compile_r03_story(blob):
     )
 
 
+def compile_r05_story(blob):
+    return compile_r_story(
+        blob,
+        "R_05.eex",
+        8,
+        9,
+        "S_05.eex",
+    )
+
+
 def build_next_scenario_probe(filename, blob):
     if blob is None:
         return {
@@ -2541,6 +2551,7 @@ def main(argv):
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
         map4_bytes = read_member_by_basename(game2, "m004.jpg")
+        map5_bytes = read_member_by_basename(game2, "m005.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -2549,6 +2560,8 @@ def main(argv):
             map3_bytes = read_member_by_basename(game1, "m003.jpg")
         if map4_bytes is None:
             map4_bytes = read_member_by_basename(game1, "m004.jpg")
+        if map5_bytes is None:
+            map5_bytes = read_member_by_basename(game1, "m005.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -2564,6 +2577,8 @@ def main(argv):
         raise SystemExit("m003.jpg not found in game1/game2")
     if map4_bytes is None:
         raise SystemExit("m004.jpg not found in game1/game2")
+    if map5_bytes is None:
+        raise SystemExit("m005.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
@@ -2638,6 +2653,23 @@ def main(argv):
     )
     (map_dir / "m004.jpg").write_bytes(map4_bytes)
     (battle_dir / "terrain4.bin").write_bytes(terrain4_cells)
+
+    map5_width, map5_height = jpeg_dimensions(map5_bytes)
+    if map5_width % 48 != 0 or map5_height % 48 != 0:
+        raise SystemExit(
+            f"m005 dimensions not divisible by 48: "
+            f"{map5_width}x{map5_height}"
+        )
+    map5_cols = map5_width // 48
+    map5_rows = map5_height // 48
+    terrain5_cells = extract_hexzmap_cells(
+        hexz,
+        5,
+        map5_cols,
+        map5_rows,
+    )
+    (map_dir / "m005.jpg").write_bytes(map5_bytes)
+    (battle_dir / "terrain5.bin").write_bytes(terrain5_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -2778,6 +2810,21 @@ def main(argv):
     s04_outcome_events = extract_s04_outcome_events(s04_scenes)
     r05_probe = build_next_scenario_probe("R_05.eex", r05)
     s05_probe = build_next_scenario_probe("S_05.eex", s05)
+    r05_story = compile_r05_story(r05)
+    s05_scenes = parse_scenario_tree(s05)
+    s05_init_probe = probe_s01_initialization(s05)
+    s05_init_probe["map"] = {
+        "filename": "m005.jpg",
+        "width": map5_width,
+        "height": map5_height,
+        "cols": map5_cols,
+        "rows": map5_rows,
+        "terrainCellCount": len(terrain5_cells),
+        "terrainIds": sorted(set(terrain5_cells)),
+        "hexzmapEntry": 5,
+    }
+    s05_event_probe = extract_scene2_native_events(s05_scenes)
+    s05_outcome_probe = probe_battle_outcome_candidates(s05_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -3797,6 +3844,28 @@ def main(argv):
             "R_05.eex": r05_probe,
             "S_05.eex": s05_probe,
         },
+        "r05Story": r05_story,
+        "s05InitProbe": s05_init_probe,
+        "s05EventProbe": {
+            "candidateCount": len(s05_event_probe),
+            "coreSupportedCount": sum(
+                1 for event in s05_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s05_event_probe
+            ],
+        },
+        "s05OutcomeProbe": s05_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s04_native_events),
             "coreSupportedCount": sum(
@@ -3986,6 +4055,40 @@ def main(argv):
         map4_rows,
         "terrain ids=",
         sorted(set(terrain4_cells)),
+    )
+    print(
+        "s05 map=",
+        map5_width,
+        "x",
+        map5_height,
+        "tiles=",
+        map5_cols,
+        "x",
+        map5_rows,
+        "terrain ids=",
+        sorted(set(terrain5_cells)),
+    )
+    print(
+        "r05 story supported=",
+        r05_story["supported"],
+        "scenes=",
+        r05_story["sceneCount"],
+        "unsupported=",
+        r05_story["unsupportedActionIds"],
+    )
+    print(
+        "s05 init slots=",
+        s05_init_probe["playerSlots"],
+        "friends=",
+        len(s05_init_probe["friendRecords"]),
+        "enemies=",
+        len(s05_init_probe["enemyRecords"]),
+        "objectives=",
+        s05_init_probe["objectiveTexts"],
+        "events=",
+        len(s05_event_probe),
+        "core-supported=",
+        sum(1 for e in s05_event_probe if e["coreSupported"]),
     )
     print(
         "s04 init forced players=",
