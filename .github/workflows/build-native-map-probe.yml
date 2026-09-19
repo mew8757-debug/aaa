@@ -1,4 +1,4 @@
-name: Build Native Android Battle v2.7
+name: Build Native Android Battle v2.8
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v2.7 APK
+      - name: Build native v2.8 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v2.7.apk"
+          OUT="SeongSamgukji-Native-Battle-v2.8.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v2.7 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v2.7 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v2.8 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v2.8 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v2.7 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v2.7" \
-              --notes "Native v2.7은 S_02 Scene2의 마지막 미지원 명령 0x78 속성32를 원본 AllCondition 정의에 따라 전장 인물 방향(朝向) 전송으로 구현합니다. 정수변수→무장 방향 및 역방향 읽기를 지원해 Section 26을 포함한 S02 전장 이벤트 후보 30/30 coreSupported를 목표로 합니다. v2.6의 R02→S02 실제 전투 진입은 유지합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v2.8 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v2.8" \
+              --notes "Native v2.8은 v2.7의 S02 전장 이벤트 30/30 지원을 유지하면서 S02 종료 후보 Section 20/21/31/33/34/37/38, Scene3 Section1 전체 트리와 다음 R_03.eex/S_03.eex 구조를 build-status에 기록합니다. 승패·후일담·R03 전환을 다음 구현에서 원본 데이터 그대로 연결하기 위한 probe입니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v2.7 build status
+      - name: Record v2.8 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "2.7.0",
+              "version": "2.8.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -350,9 +350,14 @@ jobs:
                       "battleEventSummary",
                       {},
                   ),
+                  "outcomeProbe": battle2.get("outcomeProbe", {}),
+                  "nextScenarioProbe": battle2.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
               }
 
-          Path("native/build-status/v2.7.json").write_text(
+          Path("native/build-status/v2.8.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -360,11 +365,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v2.7.json
+          git add native/build-status/v2.8.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v2.7 build status"
+          git commit -m "Record native v2.8 build status"
           git push
