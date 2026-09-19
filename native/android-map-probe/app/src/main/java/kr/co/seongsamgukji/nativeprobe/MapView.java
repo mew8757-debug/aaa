@@ -81,6 +81,7 @@ public class MapView extends View {
     private Bitmap map;
     private byte[] palette;
     private byte[] terrainCells;
+    private byte[] baseTerrainCells;
     private byte[] movementCosts;
 
     private int mapCols;
@@ -111,6 +112,10 @@ public class MapView extends View {
     private String dialogueText;
     private int musicTrack = -1;
     private int lastSound = -1;
+    private int scriptedEffectX = -1;
+    private int scriptedEffectY = -1;
+    private int scriptedEffectId = -1;
+    private long scriptedEffectUntil = 0L;
 
     private String lastCombatMessage;
     private long combatMessageUntil;
@@ -306,6 +311,7 @@ public class MapView extends View {
                 "movement_costs.bin");
 
         terrainCells = loadBytes(context, "battle/" + terrainFile);
+        baseTerrainCells = terrainCells.clone();
         movementCosts = loadBytes(context, "battle/" + movementCostFile);
 
         if (terrainCells.length != mapCols * mapRows) {
@@ -492,6 +498,7 @@ public class MapView extends View {
                 "battle/" + battle.optString(
                         "terrainFile",
                         "terrain1.bin"));
+        baseTerrainCells = terrainCells.clone();
         movementCosts = loadBytes(
                 context,
                 "battle/" + battle.optString(
@@ -624,6 +631,10 @@ public class MapView extends View {
         dialogueText = null;
         musicTrack = -1;
         lastSound = -1;
+        scriptedEffectX = -1;
+        scriptedEffectY = -1;
+        scriptedEffectId = -1;
+        scriptedEffectUntil = 0L;
 
         battlePhase = 1;
         phaseTransitionActive = false;
@@ -806,6 +817,15 @@ public class MapView extends View {
 
         drawReachableTiles(canvas);
         drawAttackTargets(canvas);
+        if (now < scriptedEffectUntil
+                && inBounds(scriptedEffectX, scriptedEffectY)) {
+            canvas.drawRect(
+                    scriptedEffectX * TILE + 2,
+                    scriptedEffectY * TILE + 2,
+                    (scriptedEffectX + 1) * TILE - 2,
+                    (scriptedEffectY + 1) * TILE - 2,
+                    attackTargetPaint);
+        }
 
         for (int x = 0; x <= mapCols; x++) {
             canvas.drawLine(
@@ -859,11 +879,11 @@ public class MapView extends View {
         }
 
         String header = r01StoryActive
-                ? "Native v2.1 | R_01 Scene "
+                ? "Native v2.2 | R_01 Scene "
                 + Math.min(r01StorySceneIndex + 1,
                 r01StoryScenes == null ? 1 : r01StoryScenes.length())
                 + (storyTitle.isEmpty() ? "" : " · " + storyTitle)
-                : "Native v2.1 | " + round + "/" + turnLimit + "턴 "
+                : "Native v2.2 | " + round + "/" + turnLimit + "턴 "
                 + (playerTurn ? "아군" : "적군")
                 + " | 단계 " + battlePhase
                 + " | 아군 " + playerCount
@@ -1005,6 +1025,7 @@ public class MapView extends View {
                 || activeChoiceAction != null
                 || !playerTurn
                 || hasActiveAttackAnimation(now)
+                || now < scriptedEffectUntil
                 || (lastCombatMessage != null
                 && now < combatMessageUntil)) {
             postInvalidateDelayed(35L);
@@ -1610,6 +1631,12 @@ public class MapView extends View {
                         return true;
                     }
 
+                    case "hideArea":
+                        applyHideAreaAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 120L;
+                        return true;
+
                     case "kill": {
                         BattleUnit unit = findUnitByCharacterId(
                                 action.optInt("characterId", -1));
@@ -1681,6 +1708,27 @@ public class MapView extends View {
                         return true;
                     }
 
+                    case "spellEffect":
+                        scriptedEffectX = action.optInt("x", -1);
+                        scriptedEffectY = action.optInt("y", -1);
+                        scriptedEffectId = action.optInt("effectId", -1);
+                        scriptedEffectUntil = now + 520L;
+                        if (action.optBoolean("focus", false)
+                                && inBounds(
+                                scriptedEffectX,
+                                scriptedEffectY)) {
+                            selectedX = scriptedEffectX;
+                            selectedY = scriptedEffectY;
+                        }
+                        lastCombatMessage = "법술 연출 "
+                                + scriptedEffectId
+                                + " · (" + scriptedEffectX
+                                + "," + scriptedEffectY + ")";
+                        combatMessageUntil = now + 900L;
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 520L;
+                        return true;
+
                     case "sound":
                         lastSound = action.optInt("value", -1);
                         activeBattleActionIndex++;
@@ -1717,6 +1765,17 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         battleEventWaitUntil = now + 120L;
                         return true;
+
+                    case "battlefieldObject":
+                        applyBattlefieldObjectAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 160L;
+                        return true;
+
+                    case "unitAttributeTransfer":
+                        applyUnitAttributeTransferAction(action);
+                        activeBattleActionIndex++;
+                        break;
 
                     case "intVariableOp":
                         applyIntegerVariableAction(action);
@@ -1950,6 +2009,111 @@ public class MapView extends View {
         return true;
     }
 
+
+
+    private void applyHideAreaAction(JSONObject action) {
+        int left = Math.min(
+                action.optInt("x1", 0),
+                action.optInt("x2", mapCols - 1));
+        int right = Math.max(
+                action.optInt("x1", 0),
+                action.optInt("x2", mapCols - 1));
+        int top = Math.min(
+                action.optInt("y1", 0),
+                action.optInt("y2", mapRows - 1));
+        int bottom = Math.max(
+                action.optInt("y1", 0),
+                action.optInt("y2", mapRows - 1));
+        int camp = action.optInt("camp", 6);
+
+        for (BattleUnit unit : units) {
+            if (unit.x < left
+                    || unit.x > right
+                    || unit.y < top
+                    || unit.y > bottom
+                    || !matchesCamp(unit, camp)) {
+                continue;
+            }
+            unit.visible = false;
+            unit.clearMovePath();
+            unit.targetX = unit.x;
+            unit.targetY = unit.y;
+        }
+    }
+
+    private void applyBattlefieldObjectAction(JSONObject action) {
+        int x = action.optInt("x", -1);
+        int y = action.optInt("y", -1);
+        if (!inBounds(x, y)) {
+            return;
+        }
+
+        int index = tileIndex(x, y);
+        boolean visible = action.optBoolean("visible", true);
+        int terrainId = action.optInt("terrainId", terrainAt(x, y));
+
+        if (visible
+                && terrainId >= 0
+                && terrainId < terrainTypeCount) {
+            terrainCells[index] = (byte) terrainId;
+        } else if (!visible
+                && baseTerrainCells != null
+                && index < baseTerrainCells.length) {
+            terrainCells[index] = baseTerrainCells[index];
+        }
+
+        if (action.optBoolean("focus", false)) {
+            selectedX = x;
+            selectedY = y;
+        }
+
+        lastCombatMessage = "전장 물체 "
+                + action.optInt("objectId", -1)
+                + (visible ? " 표시" : " 해제")
+                + " · 지형 " + (terrainCells[index] & 0xff)
+                + " · (" + x + "," + y + ")";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1000L;
+
+        if (selectedUnit != null && selectedUnit.isPlayer()) {
+            refreshReachable();
+        }
+    }
+
+    private void applyUnitAttributeTransferAction(JSONObject action) {
+        int variableId = action.optInt("variableId", -1);
+        int direction = action.optInt("direction", 0);
+        int characterId = action.optInt("characterId", -1);
+        int attribute = action.optInt("attribute", -1);
+        if (variableId < 0) {
+            return;
+        }
+
+        BattleUnit unit = findUnitByCharacterId(characterId);
+        if (unit == null) {
+            return;
+        }
+
+        if (direction == 0) {
+            int value;
+            if (attribute == 7) {
+                value = unit.maxHp;
+            } else if (attribute == 33) {
+                value = unit.hp;
+            } else {
+                return;
+            }
+            integerVariables.put(variableId, value);
+            return;
+        }
+
+        if (direction == 1 && attribute == 33) {
+            int value = integerVariables.getOrDefault(variableId, unit.hp);
+            unit.hp = Math.max(0, Math.min(unit.maxHp, value));
+            if (unit.hp > 0) {
+                unit.visible = true;
+            }
+        }
+    }
 
     private void applyGlobalValueAction(JSONObject action) {
         int id = action.optInt("globalId", -1);

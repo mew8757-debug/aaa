@@ -473,8 +473,30 @@ def native_action_from_node(node):
     if cid == 0x24 and params:
         return {"type": "music", "value": int(params[0])}
 
+    # 0x6B is a scripted spell visual at an absolute battlefield tile.
+    if cid == 0x6B and len(params) >= 4:
+        return {
+            "type": "spellEffect",
+            "x": int(params[0]),
+            "y": int(params[1]),
+            "effectId": int(params[2]),
+            "focus": int(params[3]) != 0,
+        }
+
+
     if cid == 0x31 and len(params) >= 2 and int(params[0]) == 0:
         return {"type": "hide", "characterId": int(params[1])}
+
+    if cid == 0x31 and len(params) >= 7 and int(params[0]) == 1:
+        return {
+            "type": "hideArea",
+            "x1": int(params[2]),
+            "y1": int(params[3]),
+            "x2": int(params[4]),
+            "y2": int(params[5]),
+            "camp": int(params[6]),
+        }
+
 
     if cid == 0x32 and len(params) >= 6 and int(params[0]) != 1:
         return {
@@ -563,6 +585,35 @@ def native_action_from_node(node):
             "operation": int(params[1]),
             "value": int(params[2]),
         }
+
+    # 0x58: object/display/terrain/x/y/viewpoint/sound.
+    if cid == 0x58 and len(params) >= 7:
+        return {
+            "type": "battlefieldObject",
+            "objectId": int(params[0]),
+            "visible": int(params[1]) != 0,
+            "terrainId": int(params[2]),
+            "x": int(params[3]),
+            "y": int(params[4]),
+            "focus": int(params[5]) != 0,
+            "sound": int(params[6]) != 0,
+        }
+
+    # 0x78 in S01 transfers an integer variable to/from a unit attribute.
+    # Verified attributes used here: 7=HP(max), 33=HpCur.
+    if (
+        cid == 0x78
+        and len(params) >= 4
+        and int(params[3]) in (7, 33)
+    ):
+        return {
+            "type": "unitAttributeTransfer",
+            "variableId": int(params[0]),
+            "direction": int(params[1]),
+            "characterId": int(params[2]),
+            "attribute": int(params[3]),
+        }
+
 
     if cid == 0x0B and len(params) >= 2:
         return {
@@ -963,6 +1014,100 @@ def compile_native_action_tree(node):
     return action, [], [], 0
 
 
+
+def compile_native_action_sequence(nodes):
+    actions = []
+    unsupported_ids = []
+    unsupported_actions = []
+    nested_count = 0
+    i = 0
+
+    while i < len(nodes):
+        node = nodes[i]
+
+        # Some 6.5 files store 0x12 as a leaf followed by sibling
+        # 0x13 case nodes rather than making the cases children of 0x12.
+        if node["commandId"] == 0x12 and not node["children"]:
+            params = node["params"]
+            raw = (
+                params[0].replace("\r", "")
+                if params and isinstance(params[0], str)
+                else ""
+            )
+            options = [
+                line.strip()
+                for line in raw.split("\n")
+                if line.strip()
+            ]
+            cases = []
+            j = i + 1
+
+            while j < len(nodes):
+                sibling = nodes[j]
+                if sibling["commandId"] == 0x01:
+                    j += 1
+                    continue
+                if sibling["commandId"] != 0x13:
+                    break
+
+                case_actions = []
+                case_value = (
+                    int(sibling["params"][0])
+                    if sibling["params"]
+                    else len(cases) + 1
+                )
+                if sibling["children"]:
+                    nested_count += 1
+
+                for child in sibling["children"]:
+                    (
+                        child_action,
+                        child_unsupported_ids,
+                        child_unsupported_actions,
+                        child_nested,
+                    ) = compile_native_action_tree(child)
+                    nested_count += child_nested
+                    unsupported_ids.extend(child_unsupported_ids)
+                    unsupported_actions.extend(child_unsupported_actions)
+                    if child_action is not None:
+                        case_actions.append(child_action)
+
+                cases.append({
+                    "value": case_value,
+                    "actions": case_actions,
+                })
+                j += 1
+
+            if cases:
+                actions.append({
+                    "type": "choice",
+                    "options": options,
+                    "cases": cases,
+                })
+                i = j
+                continue
+
+        (
+            action,
+            node_unsupported_ids,
+            node_unsupported_actions,
+            node_nested_count,
+        ) = compile_native_action_tree(node)
+        nested_count += node_nested_count
+        unsupported_ids.extend(node_unsupported_ids)
+        unsupported_actions.extend(node_unsupported_actions)
+        if action is not None:
+            actions.append(action)
+        i += 1
+
+    return (
+        actions,
+        unsupported_ids,
+        unsupported_actions,
+        nested_count,
+    )
+
+
 def extract_scene2_native_events(scenes, excluded_sections=None):
     if len(scenes) < 2:
         return []
@@ -1014,23 +1159,12 @@ def extract_scene2_native_events(scenes, excluded_sections=None):
         if not triggers:
             continue
 
-        actions = []
-        unsupported_action_ids = []
-        unsupported_actions = []
-        nested_branch_count = 0
-
-        for node in body_node["children"]:
-            (
-                action,
-                node_unsupported_ids,
-                node_unsupported_actions,
-                node_nested_count,
-            ) = compile_native_action_tree(node)
-            nested_branch_count += node_nested_count
-            unsupported_action_ids.extend(node_unsupported_ids)
-            unsupported_actions.extend(node_unsupported_actions)
-            if action is not None:
-                actions.append(action)
+        (
+            actions,
+            unsupported_action_ids,
+            unsupported_actions,
+            nested_branch_count,
+        ) = compile_native_action_sequence(body_node["children"])
 
         core_supported = (
             not unsupported_trigger_ids
@@ -1102,23 +1236,12 @@ def compile_scenario_section_actions(scenes, scene_number, section_number):
             "supported": False,
         }
 
-    actions = []
-    unsupported_ids = []
-    unsupported_actions = []
-    nested_count = 0
-
-    for node in body_node["children"]:
-        (
-            action,
-            node_unsupported_ids,
-            node_unsupported_actions,
-            node_nested_count,
-        ) = compile_native_action_tree(node)
-        nested_count += node_nested_count
-        unsupported_ids.extend(node_unsupported_ids)
-        unsupported_actions.extend(node_unsupported_actions)
-        if action is not None:
-            actions.append(action)
+    (
+        actions,
+        unsupported_ids,
+        unsupported_actions,
+        nested_count,
+    ) = compile_native_action_sequence(body_node["children"])
 
     return {
         "scene": scene_number,
@@ -2519,7 +2642,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 21,
+        "version": 22,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
