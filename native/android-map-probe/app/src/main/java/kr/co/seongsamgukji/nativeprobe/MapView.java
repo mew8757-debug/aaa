@@ -577,7 +577,7 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v1.2 | " + round + "/" + turnLimit + "턴 "
+                "Native v1.3 | " + round + "/" + turnLimit + "턴 "
                         + (playerTurn ? "아군" : "적군")
                         + " | 단계 " + battlePhase
                         + " | 아군 " + playerCount
@@ -1323,6 +1323,12 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
 
+                    case "relativeMove":
+                        applyRelativeMoveAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 120L;
+                        return true;
+
                     case "setVariable":
                         scenarioVariables.put(
                                 action.optInt("variableId", -1),
@@ -1382,6 +1388,45 @@ public class MapView extends View {
         return false;
     }
 
+
+    private void applyRelativeMoveAction(JSONObject action) {
+        BattleUnit unit = findUnitByCharacterId(
+                action.optInt("characterId", -1));
+        BattleUnit anchor = findUnitByCharacterId(
+                action.optInt("anchorCharacterId", -1));
+        if (unit == null || anchor == null) {
+            return;
+        }
+
+        int x = anchor.x + action.optInt("offsetX", 0);
+        int y = anchor.y + action.optInt("offsetY", 0);
+        if (!inBounds(x, y)) {
+            return;
+        }
+
+        boolean revive = action.optBoolean("revive", false);
+        if (revive) {
+            unit.hp = unit.maxHp;
+            unit.visible = true;
+        }
+
+        unit.clearMovePath();
+        unit.x = x;
+        unit.y = y;
+        unit.targetX = x;
+        unit.targetY = y;
+        unit.lastMoveStepAt = 0L;
+
+        int direction = action.optInt("direction", -1);
+        if (direction >= 0) {
+            unit.direction = direction;
+        }
+
+        lastCombatMessage = unit.name
+                + " → " + anchor.name
+                + " 상대 위치 이동";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
 
     private void applyAiPolicyAction(JSONObject action) {
         int targetMode = action.optInt("targetMode", 0);
