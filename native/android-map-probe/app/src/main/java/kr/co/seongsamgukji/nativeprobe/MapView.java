@@ -67,6 +67,7 @@ public class MapView extends View {
     private final Set<Integer> reinforcementCharacterIds = new HashSet<>();
     private final Map<Integer, Integer> scenarioVariables = new HashMap<>();
     private final Map<Integer, Integer> integerVariables = new HashMap<>();
+    private final Map<Integer, Integer> globalValues = new HashMap<>();
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
     private final List<JSONArray> battleActionStack = new ArrayList<>();
     private final List<Integer> battleActionIndexStack = new ArrayList<>();
@@ -150,6 +151,7 @@ public class MapView extends View {
     private JSONArray victoryOutcomeActions;
     private JSONArray defeatOutcomeActions;
     private JSONArray postBattleOutcomeActions;
+    private JSONArray r01StoryScenes;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
@@ -162,6 +164,12 @@ public class MapView extends View {
     private boolean menuEnabled = true;
     private boolean paletteResetApplied = false;
     private boolean s00Complete = false;
+    private boolean r01StoryActive = false;
+    private boolean s01Ready = false;
+    private int r01StorySceneIndex = 0;
+    private String storyTitle = "";
+    private String storyLocation = "";
+    private JSONObject activeChoiceAction;
 
     public MapView(Context context) {
         super(context);
@@ -412,6 +420,12 @@ public class MapView extends View {
             }
         }
 
+        JSONObject r01Story = battle.optJSONObject("r01Story");
+        if (r01Story != null
+                && r01Story.optBoolean("supported", false)) {
+            r01StoryScenes = r01Story.optJSONArray("scenes");
+        }
+
         JSONArray compiledEvents = battle.optJSONArray("battleEvents");
         if (compiledEvents != null) {
             for (int i = 0; i < compiledEvents.length(); i++) {
@@ -609,13 +623,19 @@ public class MapView extends View {
             }
         }
 
+        String header = r01StoryActive
+                ? "Native v1.8 | R_01 Scene "
+                + Math.min(r01StorySceneIndex + 1,
+                r01StoryScenes == null ? 1 : r01StoryScenes.length())
+                + (storyTitle.isEmpty() ? "" : " · " + storyTitle)
+                : "Native v1.8 | " + round + "/" + turnLimit + "턴 "
+                + (playerTurn ? "아군" : "적군")
+                + " | 단계 " + battlePhase
+                + " | 아군 " + playerCount
+                + " / 우군 " + allyCount
+                + " / 적군 " + enemyCount;
         canvas.drawText(
-                "Native v1.7 | " + round + "/" + turnLimit + "턴 "
-                        + (playerTurn ? "아군" : "적군")
-                        + " | 단계 " + battlePhase
-                        + " | 아군 " + playerCount
-                        + " / 우군 " + allyCount
-                        + " / 적군 " + enemyCount,
+                header,
                 22,
                 34,
                 overlayTextPaint);
@@ -629,6 +649,15 @@ public class MapView extends View {
             }
             if (lastSound >= 0) {
                 status += " · SFX " + lastSound;
+            }
+            canvas.drawText(status, 22, 65, overlayTextPaint);
+        } else if (r01StoryActive) {
+            String status = "원본 R_01 스토리 재생 중";
+            if (!storyLocation.isEmpty()) {
+                status += " · " + storyLocation;
+            }
+            if (activeChoiceAction != null) {
+                status += " · 선택";
             }
             canvas.drawText(status, 22, 65, overlayTextPaint);
         } else if (battleEnded) {
@@ -676,7 +705,7 @@ public class MapView extends View {
                     overlayTextPaint);
         }
 
-        if (openingFinished && selectedUnit != null) {
+        if (openingFinished && !r01StoryActive && selectedUnit != null) {
             String terrainInfo = "";
             if (inBounds(selectedX, selectedY)) {
                 int terrainId = terrainAt(selectedX, selectedY);
@@ -726,6 +755,9 @@ public class MapView extends View {
         if (dialogueText != null) {
             drawDialogueBox(canvas);
         }
+        if (activeChoiceAction != null) {
+            drawStoryChoiceBox(canvas);
+        }
 
         if (moving
                 || openingBusy
@@ -734,6 +766,8 @@ public class MapView extends View {
                 || counterBusy
                 || enemyBusy
                 || !openingFinished
+                || r01StoryActive
+                || activeChoiceAction != null
                 || !playerTurn
                 || hasActiveAttackAnimation(now)
                 || (lastCombatMessage != null
@@ -1169,7 +1203,7 @@ public class MapView extends View {
         long now = SystemClock.uptimeMillis();
 
         if (scriptEventActive) {
-            if (dialogueText != null) {
+            if (dialogueText != null || activeChoiceAction != null) {
                 return true;
             }
 
@@ -1239,6 +1273,44 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
                     }
+
+                    case "choice":
+                        activeChoiceAction = action;
+                        return true;
+
+                    case "storyTitle":
+                        storyTitle = action.optString("text", "");
+                        lastCombatMessage = "R_01 · " + storyTitle;
+                        combatMessageUntil = now + 1500L;
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "storyLocation":
+                        storyLocation = action.optString("text", "");
+                        lastCombatMessage = "장소 · " + storyLocation;
+                        combatMessageUntil = now + 1300L;
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "storyBackground":
+                    case "storyVisual":
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "globalValueOp":
+                        applyGlobalValueAction(action);
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "deploymentLimit":
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "deploymentTest":
+                        lastCombatMessage = "원본 출전 확인 · S_01 준비";
+                        combatMessageUntil = now + 1000L;
+                        activeBattleActionIndex++;
+                        break;
 
                     case "dialogue":
                         dialogueSpeaker = action.optString("speaker", "");
@@ -1643,6 +1715,86 @@ public class MapView extends View {
         return true;
     }
 
+
+    private void applyGlobalValueAction(JSONObject action) {
+        int id = action.optInt("globalId", -1);
+        if (id < 0) {
+            return;
+        }
+        int current = globalValues.getOrDefault(id, 0);
+        int value = action.optInt("value", 0);
+        int operation = action.optInt("operation", 0);
+        int next;
+        if (operation == 1) {
+            next = current + value;
+        } else if (operation == 2) {
+            next = current - value;
+        } else {
+            next = value;
+        }
+        globalValues.put(id, next);
+    }
+
+    private void chooseStoryOption(int optionIndex) {
+        if (activeChoiceAction == null || optionIndex < 0) {
+            return;
+        }
+
+        JSONArray cases = activeChoiceAction.optJSONArray("cases");
+        JSONObject selectedCase = null;
+        int wantedValue = optionIndex + 1;
+        if (cases != null) {
+            for (int i = 0; i < cases.length(); i++) {
+                JSONObject candidate = cases.optJSONObject(i);
+                if (candidate != null
+                        && candidate.optInt("value", i + 1)
+                        == wantedValue) {
+                    selectedCase = candidate;
+                    break;
+                }
+            }
+        }
+
+        activeChoiceAction = null;
+        if (selectedCase != null
+                && enterNestedBattleActions(
+                selectedCase.optJSONArray("actions"))) {
+            battleEventWaitUntil = SystemClock.uptimeMillis() + 80L;
+        } else {
+            activeBattleActionIndex++;
+        }
+        invalidate();
+    }
+
+    private boolean handleStoryChoiceTap(float x, float y) {
+        if (activeChoiceAction == null) {
+            return false;
+        }
+        JSONArray options = activeChoiceAction.optJSONArray("options");
+        if (options == null || options.length() == 0) {
+            activeChoiceAction = null;
+            activeBattleActionIndex++;
+            invalidate();
+            return true;
+        }
+
+        float left = 48f;
+        float right = getWidth() - 48f;
+        float rowHeight = 62f;
+        float totalHeight = rowHeight * options.length();
+        float top = Math.max(92f, (getHeight() - totalHeight) * 0.5f);
+
+        if (x < left || x > right || y < top
+                || y > top + totalHeight) {
+            return true;
+        }
+
+        int index = (int) ((y - top) / rowHeight);
+        index = Math.max(0, Math.min(index, options.length() - 1));
+        chooseStoryOption(index);
+        return true;
+    }
+
     private void applyIntegerVariableAction(JSONObject action) {
         int id = action.optInt("variableId", -1);
         if (id < 0) {
@@ -1939,6 +2091,7 @@ public class MapView extends View {
         battleActionIndexStack.clear();
         battleConditionalStack.clear();
         lastBattleConditionalTaken = false;
+        activeChoiceAction = null;
         duelFirstUnit = null;
         duelSecondUnit = null;
         battleEventWaitUntil = SystemClock.uptimeMillis() + 80L;
@@ -1990,7 +2143,58 @@ public class MapView extends View {
         outcomeFlowActive = false;
         outcomeStage = "complete";
         s00Complete = true;
-        endBattle(true, "S_00 원본 승리 흐름 완료");
+
+        if (r01StoryScenes != null && r01StoryScenes.length() > 0) {
+            startR01Story();
+        } else {
+            endBattle(true, "S_00 원본 승리 흐름 완료");
+        }
+    }
+
+    private void startR01Story() {
+        r01StoryActive = true;
+        r01StorySceneIndex = 0;
+        s01Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        clearReachable();
+        startR01StoryScene();
+    }
+
+    private void startR01StoryScene() {
+        if (!r01StoryActive || r01StoryScenes == null) {
+            return;
+        }
+        if (r01StorySceneIndex >= r01StoryScenes.length()) {
+            r01StoryActive = false;
+            s01Ready = true;
+            endBattle(true, "R_01 완료 · S_01 전투 준비 완료");
+            return;
+        }
+
+        JSONObject scene = r01StoryScenes.optJSONObject(r01StorySceneIndex);
+        if (scene == null) {
+            r01StorySceneIndex++;
+            startR01StoryScene();
+            return;
+        }
+
+        JSONArray actions = scene.optJSONArray("actions");
+        prepareScriptActionSequence(actions);
+        int sceneNumber = scene.optInt("scene", r01StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_01 Scene " + sceneNumber
+                + ("departure".equals(kind) ? " · 출전" : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR01StoryScene() {
+        r01StorySceneIndex++;
+        startR01StoryScene();
     }
 
     private void startBattleScriptEvent(JSONObject event) {
@@ -2032,6 +2236,11 @@ public class MapView extends View {
                 finishS00Outcome();
                 return;
             }
+        }
+
+        if (r01StoryActive) {
+            finishR01StoryScene();
+            return;
         }
 
         checkBattleState();
@@ -2540,6 +2749,7 @@ public class MapView extends View {
     private void checkBattleState() {
         if (!openingFinished
                 || battleEnded
+                || r01StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
             return;
@@ -2611,6 +2821,7 @@ public class MapView extends View {
         battleResultText = reason;
         phaseTransitionActive = false;
         scriptEventActive = false;
+        activeChoiceAction = null;
         activeBattleEvent = null;
         activeBattleActions = null;
         battleActionStack.clear();
@@ -3557,6 +3768,52 @@ public class MapView extends View {
         invalidate();
     }
 
+
+    private void drawStoryChoiceBox(Canvas canvas) {
+        if (activeChoiceAction == null) {
+            return;
+        }
+        JSONArray options = activeChoiceAction.optJSONArray("options");
+        if (options == null || options.length() == 0) {
+            return;
+        }
+
+        float left = 48f;
+        float right = getWidth() - 48f;
+        float rowHeight = 62f;
+        float totalHeight = rowHeight * options.length();
+        float top = Math.max(92f, (getHeight() - totalHeight) * 0.5f);
+        float bottom = top + totalHeight;
+
+        canvas.drawRoundRect(
+                new RectF(left, top, right, bottom),
+                16f,
+                16f,
+                dialogueBackPaint);
+
+        dialogueTextPaint.setTextAlign(Paint.Align.LEFT);
+        for (int i = 0; i < options.length(); i++) {
+            float rowTop = top + i * rowHeight;
+            if (i > 0) {
+                canvas.drawLine(
+                        left + 12f,
+                        rowTop,
+                        right - 12f,
+                        rowTop,
+                        gridPaint);
+            }
+            String text = options.optString(i, "선택 " + (i + 1));
+            float baseline = rowTop + rowHeight * 0.5f
+                    - (dialogueTextPaint.ascent()
+                    + dialogueTextPaint.descent()) / 2f;
+            canvas.drawText(
+                    (i + 1) + ". " + text,
+                    left + 22f,
+                    baseline,
+                    dialogueTextPaint);
+        }
+    }
+
     private void drawDialogueBox(Canvas canvas) {
         float left = 24f;
         float right = getWidth() - 24f;
@@ -3702,7 +3959,11 @@ public class MapView extends View {
                     }
 
                     if (phaseTransitionActive || scriptEventActive) {
-                        if (moved < 24f && dialogueText != null) {
+                        if (moved < 24f && activeChoiceAction != null) {
+                            handleStoryChoiceTap(
+                                    event.getX(),
+                                    event.getY());
+                        } else if (moved < 24f && dialogueText != null) {
                             advanceDialogue();
                         }
                         return true;

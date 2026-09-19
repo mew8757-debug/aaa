@@ -1429,6 +1429,318 @@ def extract_deployment_hints(commands):
 
 
 
+
+def compile_r_story_leaf(node):
+    cid = node["commandId"]
+    params = node["params"]
+
+    if cid == 0x09 and params:
+        return {"type": "delay", "value": max(1, int(params[0]))}
+
+    if cid == 0x14 and params and isinstance(params[-1], str):
+        speaker, body = split_dialogue(params[-1])
+        return {
+            "type": "dialogue",
+            "speaker": speaker,
+            "text": body or speaker,
+        }
+
+    if cid in (0x15, 0x16, 0x69, 0x7A):
+        strings = [p for p in params if isinstance(p, str)]
+        if strings:
+            speaker, body = split_dialogue(strings[-1])
+            return {
+                "type": "dialogue",
+                "speaker": speaker,
+                "text": body or speaker,
+            }
+
+    if cid == 0x17 and params and isinstance(params[0], str):
+        return {"type": "storyLocation", "text": params[0]}
+
+    if cid == 0x18 and params and isinstance(params[0], str):
+        return {"type": "storyTitle", "text": params[0]}
+
+    if cid == 0x23 and params:
+        return {"type": "sound", "value": int(params[0])}
+
+    if cid == 0x24 and params:
+        return {"type": "music", "value": int(params[0])}
+
+    if cid == 0x08 and params:
+        return {"type": "menu", "enabled": int(params[0]) != 0}
+
+    if cid == 0x1D:
+        return {"type": "paletteReset"}
+
+    if cid == 0x3A and len(params) >= 3:
+        return {
+            "type": "globalValueOp",
+            "globalId": int(params[0]),
+            "operation": int(params[1]),
+            "value": int(params[2]),
+        }
+
+    if cid == 0x3D and len(params) >= 4:
+        return {
+            "type": "reward",
+            "value": int(params[0]),
+            "targetId": int(params[3]),
+        }
+
+    if cid == 0x77 and len(params) >= 5:
+        if int(params[0]) == 2 and int(params[3]) == 0:
+            return {
+                "type": "intVariableOp",
+                "variableId": int(params[1]),
+                "operation": int(params[2]),
+                "value": int(params[4]),
+            }
+
+    if cid == 0x0B and len(params) >= 2:
+        return {
+            "type": "setVariable",
+            "variableId": int(params[0]),
+            "value": int(params[1]),
+        }
+
+    if cid == 0x06:
+        return {
+            "type": "deploymentLimit",
+            "params": [int(v) for v in params if isinstance(v, int)],
+        }
+
+    if cid == 0x07:
+        return {"type": "deploymentTest"}
+
+    if cid == 0x0D:
+        return {"type": "sceneEnd"}
+
+    if cid == 0x27:
+        return {
+            "type": "storyBackground",
+            "params": params,
+        }
+
+    if cid in (
+        0x0A, 0x1C, 0x1E, 0x28, 0x2F,
+        0x30, 0x31, 0x32, 0x33, 0x34,
+    ):
+        return {
+            "type": "storyVisual",
+            "commandId": cid,
+            "params": params,
+        }
+
+    if cid in (0x00, 0x01, 0x02, 0x51):
+        return None
+
+    return {
+        "type": "storyUnsupported",
+        "commandId": cid,
+        "params": params,
+    }
+
+
+def compile_r_story_node(node):
+    cid = node["commandId"]
+    params = node["params"]
+
+    if node["children"]:
+        if cid == 0x12:
+            raw = ""
+            if params and isinstance(params[0], str):
+                raw = params[0].replace("\r", "")
+            options = [
+                line.strip()
+                for line in raw.split("\n")
+                if line.strip()
+            ]
+            cases = []
+            unsupported = []
+            for child in node["children"]:
+                if child["commandId"] == 0x01:
+                    continue
+                if child["commandId"] != 0x13:
+                    action, child_unsupported = compile_r_story_node(child)
+                    unsupported.extend(child_unsupported)
+                    if action is not None:
+                        cases.append({
+                            "value": len(cases) + 1,
+                            "actions": [action],
+                        })
+                    continue
+
+                case_actions = []
+                case_unsupported = []
+                for grandchild in child["children"]:
+                    action, child_unsupported = compile_r_story_node(grandchild)
+                    case_unsupported.extend(child_unsupported)
+                    if action is not None:
+                        case_actions.append(action)
+                unsupported.extend(case_unsupported)
+                value = int(child["params"][0]) if child["params"] else len(cases) + 1
+                cases.append({
+                    "value": value,
+                    "actions": case_actions,
+                })
+
+            return ({
+                "type": "choice",
+                "options": options,
+                "cases": cases,
+            }, unsupported)
+
+        if cid == 0x05 and len(params) >= 2:
+            actions = []
+            unsupported = []
+            for child in node["children"]:
+                action, child_unsupported = compile_r_story_node(child)
+                unsupported.extend(child_unsupported)
+                if action is not None:
+                    actions.append(action)
+            first = params[0] if isinstance(params[0], list) else []
+            second = params[1] if isinstance(params[1], list) else []
+            return ({
+                "type": "conditionalVariables",
+                "requireTrueVariables": [int(v) for v in first],
+                "requireFalseVariables": [int(v) for v in second],
+                "actions": actions,
+            }, unsupported)
+
+        if cid == 0x03:
+            actions = []
+            unsupported = []
+            for child in node["children"]:
+                action, child_unsupported = compile_r_story_node(child)
+                unsupported.extend(child_unsupported)
+                if action is not None:
+                    actions.append(action)
+            return ({
+                "type": "elseBranch",
+                "actions": actions,
+            }, unsupported)
+
+        if cid == 0x02:
+            actions = []
+            unsupported = []
+            for child in node["children"]:
+                action, child_unsupported = compile_r_story_node(child)
+                unsupported.extend(child_unsupported)
+                if action is not None:
+                    actions.append(action)
+            return ({
+                "type": "sequence",
+                "actions": actions,
+            }, unsupported)
+
+        # Structural wrappers: preserve child order rather than dropping them.
+        actions = []
+        unsupported = []
+        for child in node["children"]:
+            action, child_unsupported = compile_r_story_node(child)
+            unsupported.extend(child_unsupported)
+            if action is not None:
+                actions.append(action)
+        leaf = compile_r_story_leaf(node)
+        if leaf is not None and leaf.get("type") == "storyUnsupported":
+            unsupported.append(cid)
+        return ({
+            "type": "sequence",
+            "actions": actions,
+        } if actions else leaf, unsupported)
+
+    leaf = compile_r_story_leaf(node)
+    if leaf is None:
+        return None, []
+    if leaf.get("type") == "storyUnsupported":
+        return leaf, [cid]
+    return leaf, []
+
+
+def compile_r01_story(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return {
+            "supported": False,
+            "scenes": [],
+            "unsupportedActionIds": [],
+        }
+
+    scenes = parse_scenario_tree(blob)
+    compiled_scenes = []
+    unsupported_ids = []
+
+    for scene_number in range(1, min(4, len(scenes)) + 1):
+        scene = scenes[scene_number - 1]
+        if not scene["sections"]:
+            continue
+        section = scene["sections"][0]
+        body_node = next(
+            (
+                node for node in section["commands"]
+                if node["commandId"] == 0 and node["children"]
+            ),
+            None,
+        )
+        if body_node is None:
+            continue
+
+        actions = []
+        scene_unsupported = []
+        for node in body_node["children"]:
+            action, node_unsupported = compile_r_story_node(node)
+            scene_unsupported.extend(node_unsupported)
+            if action is not None:
+                actions.append(action)
+
+        unsupported_ids.extend(scene_unsupported)
+        compiled_scenes.append({
+            "scene": scene_number,
+            "section": 1,
+            "kind": "story",
+            "actions": actions,
+            "unsupportedActionIds": sorted(set(scene_unsupported)),
+        })
+
+    # Scene 5 Section 1 is the original deployment-confirmed departure path.
+    if len(scenes) >= 5:
+        scene = scenes[4]
+        section = next(
+            (s for s in scene["sections"] if s["section"] == 1),
+            None,
+        )
+        if section is not None:
+            actions = []
+            scene_unsupported = []
+            for node in section["commands"]:
+                if node["commandId"] == 7:
+                    actions.append({"type": "deploymentTest"})
+                if node["commandId"] == 0 and node["children"]:
+                    for child in node["children"]:
+                        action, child_unsupported = compile_r_story_node(child)
+                        scene_unsupported.extend(child_unsupported)
+                        if action is not None:
+                            actions.append(action)
+            unsupported_ids.extend(scene_unsupported)
+            compiled_scenes.append({
+                "scene": 5,
+                "section": 1,
+                "kind": "departure",
+                "actions": actions,
+                "unsupportedActionIds": sorted(set(scene_unsupported)),
+            })
+
+    unsupported_ids = sorted(set(unsupported_ids))
+    return {
+        "source": "R_01.eex",
+        "supported": not unsupported_ids and bool(compiled_scenes),
+        "unsupportedActionIds": unsupported_ids,
+        "sceneCount": len(compiled_scenes),
+        "scenes": compiled_scenes,
+        "nextBattle": "S_01.eex",
+    }
+
+
 def build_next_scenario_probe(filename, blob):
     if blob is None:
         return {
@@ -1612,6 +1924,7 @@ def main(argv):
         "R_01.eex": build_next_scenario_probe("R_01.eex", r01),
         "S_01.eex": build_next_scenario_probe("S_01.eex", s01),
     }
+    r01_story = compile_r01_story(r01)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -1819,7 +2132,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 17,
+        "version": 18,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -1841,6 +2154,7 @@ def main(argv):
         "battleObjectives": objective_model,
         "outcomeEvents": outcome_events,
         "nextScenarioProbe": next_scenario_probe,
+        "r01Story": r01_story,
         "battleEvents": native_scene2_events,
         "battleEventSummary": {
             "candidateCount": len(native_scene2_events),
