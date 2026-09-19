@@ -1345,6 +1345,38 @@ def extract_s02_outcome_events(scenes):
     }
 
 
+def extract_s03_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            30,
+        ),
+        "defeatByCharacter": {
+            "36": compile_scenario_section_actions(
+                scenes,
+                2,
+                24,
+            ),
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                25,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            31,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
 
@@ -2634,6 +2666,11 @@ def main(argv):
         "hexzmapEntry": 3,
     }
     s03_event_probe = extract_scene2_native_events(s03_scenes)
+    s03_native_events = extract_scene2_native_events(
+        s03_scenes,
+        excluded_sections={24, 25, 30, 31},
+    )
+    s03_outcome_events = extract_s03_outcome_events(s03_scenes)
     s03_outcome_probe = probe_battle_outcome_candidates(s03_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
@@ -3219,8 +3256,236 @@ def main(argv):
         "units": s02_units,
         "openingEvents": [],
     }
+
     (battle_dir / "battle2.json").write_text(
         json.dumps(s02_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # S_03 fourth battle: rescue Sun Jian while preserving the verified
+    # original slots, allies, enemies and event tree.
+    s03_units = []
+
+    def make_s03_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S03 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s03_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    for slot in sorted(
+        s03_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    ):
+        slot_index = int(slot["slot"])
+        if slot_index < 0 or slot_index >= len(continuing_party):
+            continue
+        cid = continuing_party[slot_index]
+        make_s03_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_03:0x4B:{slot_index}",
+        )
+
+    for index, row in enumerate(s03_init_probe["friendRecords"]):
+        make_s03_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_03:0x46:{index}",
+        )
+
+    for index, row in enumerate(s03_init_probe["enemyRecords"]):
+        make_s03_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_03:0x47:{index}",
+        )
+
+    s03_objective_text = (
+        s03_init_probe["objectiveTexts"][0]
+        if s03_init_probe["objectiveTexts"]
+        else ""
+    )
+    s03_popup_text = (
+        s03_init_probe["objectivePopups"][0]
+        if s03_init_probe["objectivePopups"]
+        else ""
+    )
+    s03_turn_limit = 15
+    if s03_init_probe["turnLimit"]:
+        params = s03_init_probe["turnLimit"][0]
+        if len(params) >= 2:
+            s03_turn_limit = max(1, int(params[1]))
+
+    s03_candidates = set(continuing_party)
+    s03_candidates.update(
+        row["person"] for row in s03_init_probe["friendRecords"]
+    )
+    s03_protected_names = {"유비", "조조"}
+    s03_protected_ids = sorted(
+        cid
+        for cid in s03_candidates
+        if name_of(cid) in s03_protected_names
+    )
+    if {name_of(cid) for cid in s03_protected_ids} != s03_protected_names:
+        raise SystemExit(
+            "S03 protected-name mapping incomplete: "
+            + repr([
+                (cid, name_of(cid))
+                for cid in sorted(s03_candidates)
+                if name_of(cid) in s03_protected_names
+            ])
+        )
+
+    sun_jian_rows = [
+        row for row in s03_init_probe["friendRecords"]
+        if name_of(row["person"]) == "손견"
+    ]
+    if len(sun_jian_rows) != 1:
+        raise SystemExit(
+            "S03 Sun Jian mapping ambiguous: "
+            + repr([
+                (row["person"], name_of(row["person"]))
+                for row in s03_init_probe["friendRecords"]
+            ])
+        )
+    sun_jian = sun_jian_rows[0]
+    if int(sun_jian["ai"]) != 4:
+        raise SystemExit(
+            f"S03 Sun Jian expected AI policy 4, got {sun_jian['ai']}"
+        )
+    s03_rescue = {
+        "characterId": int(sun_jian["person"]),
+        "name": name_of(sun_jian["person"]),
+        "x": int(sun_jian["targetX"]),
+        "y": int(sun_jian["targetY"]),
+    }
+
+    s03_battle = {
+        "version": 32,
+        "source": "RS/S_03.eex",
+        "battleMode": "rescue-character",
+        "mapId": 3,
+        "map": "m003.jpg",
+        "widthTiles": map3_cols,
+        "heightTiles": map3_rows,
+        "terrainFile": "terrain3.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s03_objective_text,
+                "popupText": s03_popup_text,
+                "turnLimit": s03_turn_limit,
+                "goal": {
+                    "type": "rescue-character",
+                    **s03_rescue,
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s03_turn_limit,
+            },
+            "protectedCharacterIds": s03_protected_ids,
+            "protectedCharacters": [
+                {
+                    "characterId": cid,
+                    "name": name_of(cid),
+                }
+                for cid in s03_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s03_native_events,
+        "outcomeEvents": s03_outcome_events,
+        "outcomeProbe": s03_outcome_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s03_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s03_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s03_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain3_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s03_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle3.json").write_text(
+        json.dumps(s03_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -3314,7 +3579,7 @@ def main(argv):
 
     sprite_ids = sorted({
         u["spriteId"]
-        for u in units + s01_units + s02_units
+        for u in units + s01_units + s02_units + s03_units
     })
     for sid in sprite_ids:
         specs = (
@@ -3385,6 +3650,22 @@ def main(argv):
         len(s03_event_probe),
         "core-supported=",
         sum(1 for e in s03_event_probe if e["coreSupported"]),
+    )
+    print(
+        "s03 units=",
+        len(s03_units),
+        "visible=",
+        sum(1 for u in s03_units if u["visible"]),
+        "events=",
+        len(s03_native_events),
+        "core-supported=",
+        sum(1 for e in s03_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s03_turn_limit,
+        "protected=",
+        [(cid, name_of(cid)) for cid in s03_protected_ids],
+        "rescue=",
+        s03_rescue,
     )
     print(
         "s02 map=",
