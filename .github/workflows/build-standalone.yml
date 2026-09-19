@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-onetouch-v3
+  group: seong-onetouch-v4
   cancel-in-progress: true
 
 jobs:
@@ -114,25 +114,15 @@ jobs:
           cat.set(ns+"name", "android.intent.category.LAUNCHER")
           app.insert(0, new_act)
 
-          for prov in app.findall("provider"):
-              if prov.get(ns+"name") == "androidx.core.content.FileProvider":
-                  prov.set(ns+"authorities", "kr.co.seongsamgukji.oneclick.FileProvider")
-
           tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
 
           gradle = Path("winlator-src/app/build.gradle")
           s = gradle.read_text()
-          s = s.replace("applicationId 'com.winlator'", "applicationId 'kr.co.seongsamgukji.oneclick'")
+          # IMPORTANT: keep applicationId 'com.winlator'. Native Winlator code contains
+          # hard-coded /data/data/com.winlator paths for cache/X11/Vortek sockets.
           s = s.replace("versionCode 33", "versionCode 1")
-          s = s.replace('versionName "11.2"', 'versionName "1.2.0"')
+          s = s.replace('versionName "11.2"', 'versionName "1.3.0"')
           gradle.write_text(s)
-
-          fileutils = Path("winlator-src/app/src/main/java/com/winlator/core/FileUtils.java")
-          s = fileutils.read_text().replace(
-              '"com.winlator.FileProvider"',
-              '"kr.co.seongsamgukji.oneclick.FileProvider"'
-          )
-          fileutils.write_text(s)
           PY
 
       - name: Apply phone-friendly controls
@@ -193,7 +183,7 @@ jobs:
           BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
           WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
           ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
-          FINAL="$PWD/SeongSamgukji-OneTouch-v3.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v4.apk"
 
           test -f "$BASE"
           cp "$BASE" "$WORK"
@@ -250,14 +240,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          FINAL="SeongSamgukji-OneTouch-v3.apk"
+          FINAL="SeongSamgukji-OneTouch-v4.apk"
 
-          if gh release view one-touch-v3 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload one-touch-v3 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view one-touch-v4 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v4 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create one-touch-v3 "$FINAL" \
+            gh release create one-touch-v4 "$FINAL" \
               --repo "$GITHUB_REPOSITORY" \
               --draft \
-              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v3" \
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v4" \
               --notes "비공개 개인용 초안입니다. APK에 game1/game2가 내장되어 있으며 최초 실행 시 자동 설치 후 게임을 실행합니다. 공개 배포하지 마세요."
           fi
