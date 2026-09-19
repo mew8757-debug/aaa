@@ -2363,8 +2363,11 @@ def main(argv):
         r02 = read_member_by_basename(game1, "R_02.eex")
         s02 = read_member_by_basename(game1, "S_02.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
+        map2_bytes = read_member_by_basename(game2, "m002.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
+        if map2_bytes is None:
+            map2_bytes = read_member_by_basename(game1, "m002.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -2374,6 +2377,8 @@ def main(argv):
         raise SystemExit("Hexzmap.e5 not found in game1/game2")
     if map1_bytes is None:
         raise SystemExit("m001.jpg not found in game1/game2")
+    if map2_bytes is None:
+        raise SystemExit("m002.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
@@ -2397,6 +2402,23 @@ def main(argv):
     )
     (map_dir / "m001.jpg").write_bytes(map1_bytes)
     (battle_dir / "terrain1.bin").write_bytes(terrain1_cells)
+
+    map2_width, map2_height = jpeg_dimensions(map2_bytes)
+    if map2_width % 48 != 0 or map2_height % 48 != 0:
+        raise SystemExit(
+            f"m002 dimensions not divisible by 48: "
+            f"{map2_width}x{map2_height}"
+        )
+    map2_cols = map2_width // 48
+    map2_rows = map2_height // 48
+    terrain2_cells = extract_hexzmap_cells(
+        hexz,
+        2,
+        map2_cols,
+        map2_rows,
+    )
+    (map_dir / "m002.jpg").write_bytes(map2_bytes)
+    (battle_dir / "terrain2.bin").write_bytes(terrain2_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -2462,6 +2484,17 @@ def main(argv):
         "terrainCellCount": len(terrain1_cells),
         "terrainIds": sorted(set(terrain1_cells)),
         "hexzmapEntry": 1,
+    }
+    s02_init_probe = probe_s01_initialization(s02)
+    s02_init_probe["map"] = {
+        "filename": "m002.jpg",
+        "width": map2_width,
+        "height": map2_height,
+        "cols": map2_cols,
+        "rows": map2_rows,
+        "terrainCellCount": len(terrain2_cells),
+        "terrainIds": sorted(set(terrain2_cells)),
+        "hexzmapEntry": 2,
     }
 
     scene0 = int.from_bytes(s00[10:14], "little")
@@ -2762,7 +2795,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 24,
+        "version": 25,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
@@ -2792,6 +2825,7 @@ def main(argv):
         "battleEvents": s01_native_events,
         "outcomeEvents": s01_outcome_events,
         "r02Story": r02_story,
+        "s02InitProbe": s02_init_probe,
         "outcomeProbe": s01_outcome_probe,
         "nextScenarioProbe": {
             "R_02.eex": r02_probe,
@@ -2961,6 +2995,30 @@ def main(argv):
         map1_rows,
         "terrain ids=",
         sorted(set(terrain1_cells)),
+    )
+    print(
+        "s02 map=",
+        map2_width,
+        "x",
+        map2_height,
+        "tiles=",
+        map2_cols,
+        "x",
+        map2_rows,
+        "terrain ids=",
+        sorted(set(terrain2_cells)),
+    )
+    print(
+        "s02 init forced players=",
+        s02_init_probe["forcedPlayers"],
+        "player slots=",
+        s02_init_probe["playerSlots"],
+        "friends=",
+        len(s02_init_probe["friendRecords"]),
+        "enemies=",
+        len(s02_init_probe["enemyRecords"]),
+        "objectives=",
+        s02_init_probe["objectiveTexts"],
     )
     print(
         "s01 init forced players=",
