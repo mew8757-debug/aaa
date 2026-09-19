@@ -2357,6 +2357,16 @@ def compile_r07_story(blob):
         "S_07.eex",
     )
 
+def compile_r08_story(blob):
+    return compile_r_story(
+        blob,
+        "R_08.eex",
+        22,
+        23,
+        "S_08.eex",
+    )
+
+
 
 
 def build_next_scenario_probe(filename, blob):
@@ -2435,6 +2445,27 @@ def build_next_scenario_probe(filename, blob):
             if not rows:
                 continue
             route_sections[f"S05-SEC{section_number:02d}"] = [
+                {
+                    "depth": row["depth"],
+                    "kind": row["kind"],
+                    "commandId": row["commandId"],
+                    "commandHex": f"0x{row['commandId']:02X}",
+                    "params": row["params"],
+                    "childCommandIds": row["childCommandIds"],
+                }
+                for row in rows
+            ]
+
+    if filename.lower() == "r_08.eex":
+        for section_number in range(1, 7):
+            rows = [
+                row for row in flat
+                if row["scene"] == 23
+                and row["section"] == section_number
+            ]
+            if not rows:
+                continue
+            route_sections[f"S23-SEC{section_number:02d}"] = [
                 {
                     "depth": row["depth"],
                     "kind": row["kind"],
@@ -2745,6 +2776,7 @@ def main(argv):
         map5_bytes = read_member_by_basename(game2, "m005.jpg")
         map6_bytes = read_member_by_basename(game2, "m006.jpg")
         map7_bytes = read_member_by_basename(game2, "m007.jpg")
+        map8_bytes = read_member_by_basename(game2, "m008.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -2759,6 +2791,8 @@ def main(argv):
             map6_bytes = read_member_by_basename(game1, "m006.jpg")
         if map7_bytes is None:
             map7_bytes = read_member_by_basename(game1, "m007.jpg")
+        if map8_bytes is None:
+            map8_bytes = read_member_by_basename(game1, "m008.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -2780,6 +2814,8 @@ def main(argv):
         raise SystemExit("m006.jpg not found in game1/game2")
     if map7_bytes is None:
         raise SystemExit("m007.jpg not found in game1/game2")
+    if map8_bytes is None:
+        raise SystemExit("m008.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
@@ -2905,6 +2941,23 @@ def main(argv):
     )
     (map_dir / "m007.jpg").write_bytes(map7_bytes)
     (battle_dir / "terrain7.bin").write_bytes(terrain7_cells)
+
+    map8_width, map8_height = jpeg_dimensions(map8_bytes)
+    if map8_width % 48 != 0 or map8_height % 48 != 0:
+        raise SystemExit(
+            f"m008 dimensions not divisible by 48: "
+            f"{map8_width}x{map8_height}"
+        )
+    map8_cols = map8_width // 48
+    map8_rows = map8_height // 48
+    terrain8_cells = extract_hexzmap_cells(
+        hexz,
+        8,
+        map8_cols,
+        map8_rows,
+    )
+    (map_dir / "m008.jpg").write_bytes(map8_bytes)
+    (battle_dir / "terrain8.bin").write_bytes(terrain8_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -3114,6 +3167,22 @@ def main(argv):
     s07_outcome_events = extract_s07_outcome_events(s07_scenes)
     r08_probe = build_next_scenario_probe("R_08.eex", r08)
     s08_probe = build_next_scenario_probe("S_08.eex", s08)
+
+    r08_story = compile_r08_story(r08)
+    s08_scenes = parse_scenario_tree(s08)
+    s08_init_probe = probe_s01_initialization(s08)
+    s08_init_probe["map"] = {
+        "filename": "m008.jpg",
+        "width": map8_width,
+        "height": map8_height,
+        "cols": map8_cols,
+        "rows": map8_rows,
+        "terrainCellCount": len(terrain8_cells),
+        "terrainIds": sorted(set(terrain8_cells)),
+        "hexzmapEntry": 8,
+    }
+    s08_event_probe = extract_scene2_native_events(s08_scenes)
+    s08_outcome_probe = probe_battle_outcome_candidates(s08_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -4773,7 +4842,7 @@ def main(argv):
         raise SystemExit(f"S07 Liu Bei mapping mismatch: 0={name_of(0)}")
 
     s07_battle = {
-        "version": 45,
+        "version": 47,
         "source": "RS/S_07.eex",
         "battleMode": "kill-character",
         "mapId": 7,
@@ -4815,6 +4884,11 @@ def main(argv):
             "R_08.eex": r08_probe,
             "S_08.eex": s08_probe,
         },
+
+        "r08Story": r08_story,
+        "s08InitProbe": s08_init_probe,
+        "s08EventProbe": s08_event_probe,
+        "s08OutcomeProbe": s08_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s07_native_events),
             "coreSupportedCount": sum(
