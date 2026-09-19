@@ -879,11 +879,11 @@ public class MapView extends View {
         }
 
         String header = r01StoryActive
-                ? "Native v2.2 | R_01 Scene "
+                ? "Native v2.3 | R_01 Scene "
                 + Math.min(r01StorySceneIndex + 1,
                 r01StoryScenes == null ? 1 : r01StoryScenes.length())
                 + (storyTitle.isEmpty() ? "" : " · " + storyTitle)
-                : "Native v2.2 | " + round + "/" + turnLimit + "턴 "
+                : "Native v2.3 | " + round + "/" + turnLimit + "턴 "
                 + (playerTurn ? "아군" : "적군")
                 + " | 단계 " + battlePhase
                 + " | 아군 " + playerCount
