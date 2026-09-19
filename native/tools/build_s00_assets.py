@@ -438,6 +438,197 @@ def build_scenario_diagnostics(scenes):
     }
 
 
+
+def extract_s00_objective_model(scenes):
+    flat = flatten_scenario_nodes(scenes)
+
+    def rows(scene, section, command_id=None, depth=None):
+        out = [
+            row for row in flat
+            if row["scene"] == scene
+            and row["section"] == section
+            and (command_id is None or row["commandId"] == command_id)
+            and (depth is None or row["depth"] == depth)
+        ]
+        return out
+
+    objective_text_rows = [
+        row for row in flat
+        if row["commandId"] == 0x19
+        and row["params"]
+        and isinstance(row["params"][0], str)
+    ]
+    popup_rows = [
+        row for row in flat
+        if row["commandId"] == 0x1A
+        and row["params"]
+        and isinstance(row["params"][0], str)
+    ]
+
+    phase1_text = objective_text_rows[0]["params"][0] if objective_text_rows else ""
+    phase2_text = objective_text_rows[1]["params"][0] if len(objective_text_rows) > 1 else ""
+    phase1_popup = popup_rows[0]["params"][0] if popup_rows else ""
+    phase2_popup = popup_rows[1]["params"][0] if len(popup_rows) > 1 else ""
+
+    def turn_limit_from_text(text):
+        m = re.search(r"(\d+)턴", text or "")
+        return int(m.group(1)) if m else None
+
+    phase1_goal = None
+    for row in rows(2, 1, 0x25, 0):
+        params = row["params"]
+        if len(params) >= 3 and int(params[0]) == 1025:
+            phase1_goal = {
+                "scopeCode": 1025,
+                "scope": "player-or-ally",
+                "x": int(params[1]),
+                "y": int(params[2]),
+            }
+            break
+
+    phase2_turn_limit = None
+    for row in rows(2, 1, 0x5D, 1):
+        params = row["params"]
+        if len(params) >= 2:
+            phase2_turn_limit = int(params[1])
+            break
+
+    protected_character_ids = []
+    for section in (20, 21):
+        section_rows = rows(2, section, 0x36, 0)
+        if section_rows and section_rows[0]["params"]:
+            cid = int(section_rows[0]["params"][0])
+            if cid not in protected_character_ids:
+                protected_character_ids.append(cid)
+
+    village_enemy_goal = None
+    for row in rows(2, 31, 0x25, 0):
+        params = row["params"]
+        if len(params) >= 3 and int(params[0]) == 1026:
+            village_enemy_goal = {
+                "scopeCode": 1026,
+                "scope": "enemy",
+                "x": int(params[1]),
+                "y": int(params[2]),
+            }
+            break
+
+    transition_events = []
+    section1_body = rows(2, 1, depth=1)
+    for row in section1_body:
+        cid = row["commandId"]
+        params = row["params"]
+
+        if cid == 0x09 and params:
+            transition_events.append({
+                "type": "delay",
+                "value": max(1, int(params[0])),
+            })
+        elif cid in (0x14, 0x15, 0x16, 0x69, 0x7A):
+            strings = [p for p in params if isinstance(p, str)]
+            if strings:
+                speaker, body = split_dialogue(strings[-1])
+                if body or speaker:
+                    transition_events.append({
+                        "type": "dialogue",
+                        "speaker": speaker,
+                        "text": body or speaker,
+                    })
+        elif cid == 0x23 and params:
+            transition_events.append({
+                "type": "sound",
+                "value": int(params[0]),
+            })
+        elif cid == 0x24 and params:
+            transition_events.append({
+                "type": "music",
+                "value": int(params[0]),
+            })
+        elif cid == 0x31 and len(params) >= 2 and int(params[0]) == 0:
+            transition_events.append({
+                "type": "hide",
+                "characterId": int(params[1]),
+            })
+        elif cid == 0x32 and len(params) >= 6 and int(params[0]) != 1:
+            transition_events.append({
+                "type": "move",
+                "characterId": int(params[1]),
+                "x": int(params[3]),
+                "y": int(params[4]),
+                "direction": int(params[5]),
+            })
+        elif cid == 0x4C and len(params) >= 3 and int(params[0]) == 0:
+            transition_events.append({
+                "type": "reveal",
+                "characterId": int(params[1]),
+            })
+        elif cid == 0x4F and len(params) >= 6:
+            transition_events.append({
+                "type": "turn",
+                "characterId": int(params[0]),
+                "targetId": int(params[1]),
+                "direction": int(params[2]),
+            })
+        elif cid == 0x50 and len(params) >= 2:
+            transition_events.append({
+                "type": "action",
+                "characterId": int(params[0]),
+                "value": int(params[1]),
+            })
+        elif cid == 0x53 and len(params) >= 2 and int(params[0]) != 1:
+            transition_events.append({
+                "type": "retreat",
+                "characterId": int(params[1]),
+            })
+        elif cid == 0x5D and len(params) >= 2:
+            transition_events.append({
+                "type": "turnLimit",
+                "value": int(params[1]),
+            })
+        elif cid == 0x19 and params and isinstance(params[0], str):
+            transition_events.append({
+                "type": "objective",
+                "text": params[0],
+            })
+        elif cid == 0x1A and params and isinstance(params[0], str):
+            transition_events.append({
+                "type": "objectivePopup",
+                "text": params[0],
+            })
+        elif cid == 0x3D and len(params) >= 4:
+            transition_events.append({
+                "type": "reward",
+                "value": int(params[0]),
+                "targetId": int(params[3]),
+            })
+
+    transition_events.append({"type": "phaseComplete", "value": 2})
+
+    return {
+        "source": "S_00.eex",
+        "phase1": {
+            "objectiveText": phase1_text,
+            "popupText": phase1_popup,
+            "turnLimit": turn_limit_from_text(phase1_text),
+            "goal": phase1_goal,
+            "villageFailure": village_enemy_goal,
+        },
+        "phase2": {
+            "objectiveText": phase2_text,
+            "popupText": phase2_popup,
+            "turnLimit": (
+                phase2_turn_limit
+                if phase2_turn_limit is not None
+                else turn_limit_from_text(phase2_text)
+            ),
+            "victory": "enemy-annihilation",
+        },
+        "protectedCharacterIds": protected_character_ids,
+        "phase1TransitionEvents": transition_events,
+    }
+
+
+
 def split_dialogue(raw_text):
     clean = raw_text.replace("\r", "")
     lines = clean.split("\n")
@@ -675,6 +866,7 @@ def main(argv):
 
     scenario_scenes = parse_scenario_tree(s00)
     scenario_diagnostics = build_scenario_diagnostics(scenario_scenes)
+    objective_model = extract_s00_objective_model(scenario_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -900,6 +1092,7 @@ def main(argv):
             "reason": "exact application order is not yet verified",
         },
         "scenarioDiagnostics": scenario_diagnostics,
+        "battleObjectives": objective_model,
         "terrainIds": terrain_ids,
         "combatModel": COMBAT_MODEL,
         "damageModel": DAMAGE_MODEL,
@@ -975,6 +1168,7 @@ def main(argv):
         "scenario relevant=",
         scenario_diagnostics["relevantCommands"],
     )
+    print("objective model=", objective_model)
     print(
         "terrain power sample family0=",
         list(terrain_power_blob[:TERRAIN_TYPE_COUNT]),
