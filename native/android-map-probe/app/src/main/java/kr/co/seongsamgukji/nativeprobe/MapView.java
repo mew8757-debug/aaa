@@ -792,6 +792,7 @@ public class MapView extends View {
         r05StoryScenes = null;
         r06StoryScenes = null;
         r07StoryScenes = null;
+        r08StoryScenes = null;
 
         JSONObject s01Outcomes = battle.optJSONObject("outcomeEvents");
         if (s01Outcomes != null) {
@@ -839,6 +840,11 @@ public class MapView extends View {
                 && r07Story.optBoolean("supported", false)) {
             r07StoryScenes = r07Story.optJSONArray("scenes");
         }
+        JSONObject r08Story = battle.optJSONObject("r08Story");
+        if (r08Story != null
+                && r08Story.optBoolean("supported", false)) {
+            r08StoryScenes = r08Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -848,18 +854,21 @@ public class MapView extends View {
         r05StoryActive = false;
         r06StoryActive = false;
         r07StoryActive = false;
+        r08StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
         s05Ready = false;
         s06Ready = false;
         s07Ready = false;
+        s08Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
         r05StorySceneIndex = 0;
         r06StorySceneIndex = 0;
         r07StorySceneIndex = 0;
+        r08StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
@@ -1124,7 +1133,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v4.6 | R_01 Scene "
+            header = "Native v4.7 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1134,7 +1143,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.6 | R_02 Scene "
+            header = "Native v4.7 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1144,7 +1153,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.6 | R_03 Scene "
+            header = "Native v4.7 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1153,8 +1162,18 @@ public class MapView extends View {
                     + (storyTitle.isEmpty()
                     ? ""
                     : " · " + storyTitle);
+        } else if (r08StoryActive) {
+            header = "Native v4.7 | R_08 Scene "
+                    + Math.min(
+                    r08StorySceneIndex + 1,
+                    r08StoryScenes == null
+                            ? 1
+                            : r08StoryScenes.length())
+                    + (storyTitle.isEmpty()
+                    ? ""
+                    : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.6 | R_07 Scene "
+            header = "Native v4.7 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1164,7 +1183,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.6 | R_06 Scene "
+            header = "Native v4.7 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1174,7 +1193,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.6 | R_05 Scene "
+            header = "Native v4.7 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1184,7 +1203,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.6 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.7 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -1213,7 +1232,8 @@ public class MapView extends View {
                 || r03StoryActive
                 || r05StoryActive
                 || r06StoryActive
-                || r07StoryActive) {
+                || r07StoryActive
+                || r08StoryActive) {
             String status = "원본 " + currentStoryLabel()
                     + " 스토리 재생 중";
             if (!storyLocation.isEmpty()) {
@@ -1275,6 +1295,7 @@ public class MapView extends View {
                 && !r05StoryActive
                 && !r06StoryActive
                 && !r07StoryActive
+                && !r08StoryActive
                 && selectedUnit != null) {
             String terrainInfo = "";
             if (inBounds(selectedX, selectedY)) {
@@ -1342,6 +1363,7 @@ public class MapView extends View {
                 || r05StoryActive
                 || r06StoryActive
                 || r07StoryActive
+                || r08StoryActive
                 || activeChoiceAction != null
                 || !playerTurn
                 || hasActiveAttackAnimation(now)
@@ -3129,6 +3151,9 @@ public class MapView extends View {
 
 
     private String currentStoryLabel() {
+        if (r08StoryActive) {
+            return "R_08";
+        }
         if (r07StoryActive) {
             return "R_07";
         }
@@ -4051,14 +4076,73 @@ public class MapView extends View {
 
     private void finishS07Outcome() {
         outcomeFlowActive = false;
-        endBattle(
-                battleVictory,
-                battleVictory
-                        ? "S_07 원본 승리 흐름 완료 · R_08 probe 확보"
-                        : (battleResultText == null
-                        || battleResultText.isEmpty()
-                        ? "S_07 원본 패배 흐름 완료"
-                        : battleResultText));
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_07 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+
+        if (r08StoryScenes != null && r08StoryScenes.length() > 0) {
+            startR08Story();
+        } else {
+            endBattle(true, "S_07 원본 승리 흐름 완료");
+        }
+    }
+
+    private void startR08Story() {
+        outcomeFlowActive = false;
+        r08StoryActive = true;
+        r08StorySceneIndex = 0;
+        s08Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR08StoryScene();
+    }
+
+    private void startR08StoryScene() {
+        if (!r08StoryActive || r08StoryScenes == null) {
+            return;
+        }
+        if (r08StorySceneIndex >= r08StoryScenes.length()) {
+            r08StoryActive = false;
+            s08Ready = true;
+            endBattle(true, "R_08 완료 · S_08 전투 준비 완료");
+            return;
+        }
+
+        JSONObject scene = r08StoryScenes.optJSONObject(
+                r08StorySceneIndex);
+        if (scene == null) {
+            r08StorySceneIndex++;
+            startR08StoryScene();
+            return;
+        }
+
+        prepareScriptActionSequence(scene.optJSONArray("actions"));
+        int sceneNumber = scene.optInt(
+                "scene",
+                r08StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_08 Scene " + sceneNumber
+                + ("departure".equals(kind)
+                ? " · 출전"
+                : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR08StoryScene() {
+        r08StorySceneIndex++;
+        startR08StoryScene();
     }
 
     private String currentBattleLabel() {
@@ -4220,6 +4304,10 @@ public class MapView extends View {
         }
         if (r07StoryActive) {
             finishR07StoryScene();
+            return;
+        }
+        if (r08StoryActive) {
+            finishR08StoryScene();
             return;
         }
 
@@ -4747,6 +4835,7 @@ public class MapView extends View {
                 || r05StoryActive
                 || r06StoryActive
                 || r07StoryActive
+                || r08StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
             return;
