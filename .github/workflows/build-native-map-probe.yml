@@ -1,4 +1,4 @@
-name: Build Native Android Battle v3.1
+name: Build Native Android Battle v3.2
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v3.1 APK
+      - name: Build native v3.2 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v3.1.apk"
+          OUT="SeongSamgukji-Native-Battle-v3.2.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v3.1 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v3.1 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v3.2 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v3.2 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v3.1 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v3.1" \
-              --notes "Native v3.1은 S_03의 마지막 미지원 명령 0x6F를 원본 아이템 제거 동작으로 실행해 Scene2 전장 이벤트 26/26 지원을 목표로 합니다. 동시에 승리테스트(0x42), 패배테스트(0x43), 사망+전투종료 조합과 Scene3 정리 Section을 자동 탐지해 s03OutcomeProbe로 기록합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v3.2 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v3.2" \
+              --notes "Native v3.2는 R03 완료 직후 원본 S_03 전투로 실제 진입합니다. battle3.json에는 M003/terrain3, 플레이어 3개 슬롯, 우군 9명, 적군 39명, 15턴, 유비·조조 보호, 손견(원본 0x46 AI4)의 지정 탈출좌표 구원 목표, Scene2 일반 이벤트, Section 24/25 패배·30 승리·31 일반패배·Scene3 정리를 담습니다. 손견이 원본 지정점에 도달하면 Section30 후일담을 실행합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v3.1 build status
+      - name: Record v3.2 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "3.1.0",
+              "version": "3.2.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -419,7 +419,54 @@ jobs:
               status["s03EventProbe"] = battle2.get("s03EventProbe", {})
               status["s03OutcomeProbe"] = battle2.get("s03OutcomeProbe", {})
 
-          Path("native/build-status/v3.1.json").write_text(
+          battle3_path = Path("native/android-map-probe/app/src/main/assets/battle/battle3.json")
+          if battle3_path.exists():
+              battle3 = json.loads(battle3_path.read_text(encoding="utf-8"))
+              outcomes = battle3.get("outcomeEvents", {})
+              phase1 = battle3.get("battleObjectives", {}).get("phase1", {})
+              status["s03Battle"] = {
+                  "source": battle3.get("source"),
+                  "battleMode": battle3.get("battleMode"),
+                  "map": battle3.get("map"),
+                  "widthTiles": battle3.get("widthTiles"),
+                  "heightTiles": battle3.get("heightTiles"),
+                  "terrainIds": battle3.get("terrainIds", []),
+                  "unitCount": len(battle3.get("units", [])),
+                  "playerCount": sum(1 for u in battle3.get("units", []) if u.get("faction") == "player"),
+                  "allyCount": sum(1 for u in battle3.get("units", []) if u.get("faction") == "ally"),
+                  "enemyCount": sum(1 for u in battle3.get("units", []) if u.get("faction") == "enemy"),
+                  "goal": phase1.get("goal", {}),
+                  "turnLimit": phase1.get("turnLimit"),
+                  "protectedCharacterIds": battle3.get("battleObjectives", {}).get("protectedCharacterIds", []),
+                  "battleEventSummary": battle3.get("battleEventSummary", {}),
+                  "outcomeFlow": {
+                      "victory": {
+                          "supported": outcomes.get("victory", {}).get("supported"),
+                          "section": outcomes.get("victory", {}).get("section"),
+                          "actionCount": len(outcomes.get("victory", {}).get("actions", [])),
+                      },
+                      "defeatByCharacter": {
+                          key: {
+                              "supported": value.get("supported"),
+                              "section": value.get("section"),
+                              "actionCount": len(value.get("actions", [])),
+                          }
+                          for key, value in outcomes.get("defeatByCharacter", {}).items()
+                      },
+                      "genericDefeat": {
+                          "supported": outcomes.get("genericDefeat", {}).get("supported"),
+                          "section": outcomes.get("genericDefeat", {}).get("section"),
+                          "actionCount": len(outcomes.get("genericDefeat", {}).get("actions", [])),
+                      },
+                      "postBattle": {
+                          "supported": outcomes.get("postBattle", {}).get("supported"),
+                          "section": outcomes.get("postBattle", {}).get("section"),
+                          "actionCount": len(outcomes.get("postBattle", {}).get("actions", [])),
+                      },
+                  },
+              }
+
+          Path("native/build-status/v3.2.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -427,11 +474,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v3.1.json
+          git add native/build-status/v3.2.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v3.1 build status"
+          git commit -m "Record native v3.2 build status"
           git push
