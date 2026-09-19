@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.7
+name: Build Native Android Battle v4.8
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.7 APK
+      - name: Build native v4.8 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.7.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.8.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.7 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.7 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.8 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.8 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.7 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.7" \
-              --notes "Native v4.7은 v4.6의 S06→R07→S07 연속 진행을 유지하면서 R_08.eex의 Scene1~22 스토리와 Scene23의 6개 Section 출전/분기 구조를 전체 진단합니다. M008/Hexzmap entry8을 패키징하고 S_08 Scene1 초기 배치·목표·턴, Scene2 이벤트 후보, 승패 후보를 build-status에 기록해 다음 버전에서 R08→S08을 추측 없이 실제 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.8 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.8" \
+              --notes "Native v4.8은 S07 승리 후 R_08 Scene1~22 스토리와 Scene23 출전 주경로를 재생하고 M008/S_08 실제 전투로 진입합니다. R08 0x78 초상/R형상 전송을 스토리 상태로 보존하며, S08 0x72 subtype11 AI 행동 사각형과 0x38 정신능력 보정을 실행합니다. S08은 5인 플레이어 슬롯, 유비(0)·공융(149) 보호, 20턴, 적 전멸 조건이며 Section52 승리/36·37 캐릭터 패배/53 일반패배/Scene3 정리를 원본 이벤트로 처리합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.7 build status
+      - name: Record v4.8 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.7.0",
+              "version": "4.8.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -716,7 +716,59 @@ jobs:
                   "s08OutcomeProbe": battle7.get("s08OutcomeProbe", {}),
               }
 
-          Path("native/build-status/v4.7.json").write_text(
+          battle8_path = Path("native/android-map-probe/app/src/main/assets/battle/battle8.json")
+          if battle8_path.exists():
+              battle8 = json.loads(battle8_path.read_text(encoding="utf-8"))
+              objectives8 = battle8.get("battleObjectives", {})
+              outcomes8 = battle8.get("outcomeEvents", {})
+              status["s08Battle"] = {
+                  "source": battle8.get("source"),
+                  "battleMode": battle8.get("battleMode"),
+                  "map": battle8.get("map"),
+                  "widthTiles": battle8.get("widthTiles"),
+                  "heightTiles": battle8.get("heightTiles"),
+                  "unitCount": len(battle8.get("units", [])),
+                  "playerCharacters": [
+                      {
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                      }
+                      for u in battle8.get("units", [])
+                      if u.get("faction") == "player"
+                  ],
+                  "allyCount": sum(
+                      1 for u in battle8.get("units", [])
+                      if u.get("faction") == "ally"
+                  ),
+                  "enemyCount": sum(
+                      1 for u in battle8.get("units", [])
+                      if u.get("faction") == "enemy"
+                  ),
+                  "turnLimit": objectives8.get("phase1", {}).get("turnLimit"),
+                  "protectedCharacters": objectives8.get(
+                      "protectedCharacters",
+                      [],
+                  ),
+                  "battleEventSummary": battle8.get(
+                      "battleEventSummary",
+                      {},
+                  ),
+                  "outcomeSupport": {
+                      "victory": outcomes8.get("victory", {}).get("supported"),
+                      "genericDefeat": outcomes8.get("genericDefeat", {}).get("supported"),
+                      "postBattle": outcomes8.get("postBattle", {}).get("supported"),
+                      "defeatByCharacter": {
+                          key: value.get("supported")
+                          for key, value in outcomes8.get("defeatByCharacter", {}).items()
+                      },
+                  },
+                  "nextScenarioProbe": battle8.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
+              }
+
+          Path("native/build-status/v4.8.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -724,11 +776,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.7.json
+          git add native/build-status/v4.8.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.7 build status"
+          git commit -m "Record native v4.8 build status"
           git push
