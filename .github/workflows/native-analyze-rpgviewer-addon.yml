@@ -31,3 +31,20 @@ jobs:
                 ;;
             esac
           done
+
+          echo "=== SOUSOU SUPPORT HEX/PARSE ==="
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          root=Path('addon/SouSou')
+          names=['Unit_mov.e5','Unit_spc.e5','Unit_atk.e5','Pmapobj.e5','Size.e5','U_select.e5','Mmap.e5']
+          for name in names:
+              p=root/name
+              b=p.read_bytes()
+              print('\n###',name,'size',len(b))
+              for off in range(0,len(b),16):
+                  c=b[off:off+16]
+                  print(f'{off:04x}: '+' '.join(f'{x:02x}' for x in c))
+              print('LE16 first 64:', [struct.unpack_from('<H',b,i)[0] for i in range(0,min(len(b),128),2)])
+              print('LE32 first 64:', [struct.unpack_from('<I',b,i)[0] for i in range(0,min(len(b),128),4)])
+          PY
