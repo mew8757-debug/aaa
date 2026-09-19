@@ -127,7 +127,7 @@ jobs:
                       if safety>10000: raise SystemExit('loop')
                       cid,used,params,types=parse_cmd(sec,k)
                       if cid in wanted or sj==0:
-                          print(f'cmd#{ordinal:03d} off={k:05d} id=0x{cid:02X} used={used} params={params[:80]}')
+                          print(f'cmd#{ordinal:03d} off={k:05d} id=0x{cid:02X} used={used} params={params}')
                       if si==0 and sj==0 and cid==0x46: deployment46=params
                       if si==0 and sj==0 and cid==0x47: deployment47=params
                       if si==0 and sj==0 and cid==0x4B: player_slots.append(params)
