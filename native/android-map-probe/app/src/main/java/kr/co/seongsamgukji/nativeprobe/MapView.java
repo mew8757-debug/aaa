@@ -918,17 +918,35 @@ public class MapView extends View {
             }
         }
 
-        String header = r01StoryActive
-                ? "Native v2.3 | R_01 Scene "
-                + Math.min(r01StorySceneIndex + 1,
-                r01StoryScenes == null ? 1 : r01StoryScenes.length())
-                + (storyTitle.isEmpty() ? "" : " · " + storyTitle)
-                : "Native v2.3 | " + round + "/" + turnLimit + "턴 "
-                + (playerTurn ? "아군" : "적군")
-                + " | 단계 " + battlePhase
-                + " | 아군 " + playerCount
-                + " / 우군 " + allyCount
-                + " / 적군 " + enemyCount;
+        String header;
+        if (r01StoryActive) {
+            header = "Native v2.4 | R_01 Scene "
+                    + Math.min(
+                    r01StorySceneIndex + 1,
+                    r01StoryScenes == null
+                            ? 1
+                            : r01StoryScenes.length())
+                    + (storyTitle.isEmpty()
+                    ? ""
+                    : " · " + storyTitle);
+        } else if (r02StoryActive) {
+            header = "Native v2.4 | R_02 Scene "
+                    + Math.min(
+                    r02StorySceneIndex + 1,
+                    r02StoryScenes == null
+                            ? 1
+                            : r02StoryScenes.length())
+                    + (storyTitle.isEmpty()
+                    ? ""
+                    : " · " + storyTitle);
+        } else {
+            header = "Native v2.4 | " + round + "/" + turnLimit + "턴 "
+                    + (playerTurn ? "아군" : "적군")
+                    + " | 단계 " + battlePhase
+                    + " | 아군 " + playerCount
+                    + " / 우군 " + allyCount
+                    + " / 적군 " + enemyCount;
+        }
         canvas.drawText(
                 header,
                 22,
@@ -946,8 +964,9 @@ public class MapView extends View {
                 status += " · SFX " + lastSound;
             }
             canvas.drawText(status, 22, 65, overlayTextPaint);
-        } else if (r01StoryActive) {
-            String status = "원본 R_01 스토리 재생 중";
+        } else if (r01StoryActive || r02StoryActive) {
+            String status = "원본 " + currentStoryLabel()
+                    + " 스토리 재생 중";
             if (!storyLocation.isEmpty()) {
                 status += " · " + storyLocation;
             }
@@ -1000,7 +1019,10 @@ public class MapView extends View {
                     overlayTextPaint);
         }
 
-        if (openingFinished && !r01StoryActive && selectedUnit != null) {
+        if (openingFinished
+                && !r01StoryActive
+                && !r02StoryActive
+                && selectedUnit != null) {
             String terrainInfo = "";
             if (inBounds(selectedX, selectedY)) {
                 int terrainId = terrainAt(selectedX, selectedY);
@@ -1062,6 +1084,7 @@ public class MapView extends View {
                 || enemyBusy
                 || !openingFinished
                 || r01StoryActive
+                || r02StoryActive
                 || activeChoiceAction != null
                 || !playerTurn
                 || hasActiveAttackAnimation(now)
@@ -2848,10 +2871,24 @@ public class MapView extends View {
                 finishS00Outcome();
                 return;
             }
+            if ("s01Victory".equals(outcomeStage)
+                    || "s01Defeat".equals(outcomeStage)) {
+                startS01PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s01PostBattle".equals(outcomeStage)) {
+                finishS01Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
             finishR01StoryScene();
+            return;
+        }
+        if (r02StoryActive) {
+            finishR02StoryScene();
             return;
         }
 
@@ -3362,8 +3399,42 @@ public class MapView extends View {
         if (!openingFinished
                 || battleEnded
                 || r01StoryActive
+                || r02StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
+            return;
+        }
+
+        if (currentBattleIndex == 1) {
+            int[] criticalIds = {118, 0, 36};
+            for (int characterId : criticalIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS01DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+
+            if (round > turnLimit) {
+                startS01DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+
+            if (!hasAnyAliveFriendly()) {
+                startS01DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if ("enemy-annihilation".equals(battleMode)
+                    && !hasAnyAliveEnemy()) {
+                startS01VictoryOutcome();
+            }
             return;
         }
 
@@ -3421,6 +3492,15 @@ public class MapView extends View {
         } else if (!hasVisibleAliveEnemy()) {
             startVictoryOutcome();
         }
+    }
+
+    private boolean hasAnyAliveFriendly() {
+        for (BattleUnit unit : units) {
+            if (unit.isAlive() && !unit.isEnemy()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasAnyAliveEnemy() {
