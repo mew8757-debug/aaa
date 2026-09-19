@@ -1,9 +1,16 @@
 package kr.co.seongsamgukji.nativeprobe;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class BattleUnit {
     public final int characterId;
     public final String name;
     public final int spriteId;
+    public final int jobId;
+    public final int jobFamily;
+    public final int movePoints;
+    public final int attackRangeId;
     public final String faction;
     public final boolean scripted;
 
@@ -18,10 +25,17 @@ public class BattleUnit {
     public long actionUntil;
     public long lastMoveStepAt;
 
+    public final List<Integer> movePath = new ArrayList<>();
+    public int movePathIndex;
+
     public BattleUnit(
             int characterId,
             String name,
             int spriteId,
+            int jobId,
+            int jobFamily,
+            int movePoints,
+            int attackRangeId,
             String faction,
             boolean scripted,
             boolean visible,
@@ -31,6 +45,10 @@ public class BattleUnit {
         this.characterId = characterId;
         this.name = name;
         this.spriteId = spriteId;
+        this.jobId = jobId;
+        this.jobFamily = jobFamily;
+        this.movePoints = movePoints;
+        this.attackRangeId = attackRangeId;
         this.faction = faction;
         this.scripted = scripted;
         this.visible = visible;
@@ -43,10 +61,20 @@ public class BattleUnit {
         this.actionFrame = 0;
         this.actionUntil = 0L;
         this.lastMoveStepAt = 0L;
+        this.movePathIndex = 0;
+    }
+
+    public boolean hasPlannedPath() {
+        return movePathIndex < movePath.size();
+    }
+
+    public void clearMovePath() {
+        movePath.clear();
+        movePathIndex = 0;
     }
 
     public boolean isMoving() {
-        return x != targetX || y != targetY;
+        return hasPlannedPath() || x != targetX || y != targetY;
     }
 
     public boolean isPlayer() {
