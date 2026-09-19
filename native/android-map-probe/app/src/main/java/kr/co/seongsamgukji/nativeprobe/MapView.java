@@ -30,6 +30,8 @@ import java.util.PriorityQueue;
 public class MapView extends View {
     private static final float TILE = 48f;
     private static final long MOVE_STEP_MS = 150L;
+    private static final long ATTACK_FRAME_MS = 105L;
+    private static final long ATTACK_ANIMATION_MS = 480L;
     private static final int IMPASSABLE = Integer.MAX_VALUE / 4;
 
     private final Paint mapPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -39,6 +41,7 @@ public class MapView extends View {
     private final Paint unitTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint unitLabelBackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint reachablePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint attackTargetPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint selectedTilePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint selectedUnitPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint playerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -53,6 +56,7 @@ public class MapView extends View {
     private final List<OpeningEvent> openingEvents = new ArrayList<>();
     private final Map<Integer, Bitmap[]> idleSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> moveSprites = new HashMap<>();
+    private final Map<Integer, Bitmap[]> attackSprites = new HashMap<>();
 
     private Bitmap map;
     private byte[] palette;
@@ -88,6 +92,9 @@ public class MapView extends View {
     private int musicTrack = -1;
     private int lastSound = -1;
 
+    private String lastCombatMessage;
+    private long combatMessageUntil;
+
     public MapView(Context context) {
         super(context);
         setBackgroundColor(Color.BLACK);
@@ -107,6 +114,9 @@ public class MapView extends View {
 
         reachablePaint.setColor(0x553C9DFF);
         reachablePaint.setStyle(Paint.Style.FILL);
+
+        attackTargetPaint.setColor(0x66FF3030);
+        attackTargetPaint.setStyle(Paint.Style.FILL);
 
         selectedTilePaint.setColor(0x66FFFF00);
         selectedTilePaint.setStyle(Paint.Style.FILL);
@@ -128,11 +138,11 @@ public class MapView extends View {
         enemyPaint.setStrokeWidth(3f);
 
         overlayTextPaint.setColor(Color.WHITE);
-        overlayTextPaint.setTextSize(24f);
+        overlayTextPaint.setTextSize(23f);
         overlayTextPaint.setShadowLayer(4f, 2f, 2f, Color.BLACK);
 
         unitTextPaint.setColor(Color.WHITE);
-        unitTextPaint.setTextSize(13f);
+        unitTextPaint.setTextSize(12f);
         unitTextPaint.setTextAlign(Paint.Align.CENTER);
         unitTextPaint.setShadowLayer(3f, 1f, 1f, Color.BLACK);
 
@@ -228,9 +238,15 @@ public class MapView extends View {
                     u.optInt("jobFamily", 0),
                     u.optInt("movePoints", 1),
                     u.optInt("attackRangeId", 0),
+                    u.optInt("level", 1),
+                    u.optInt("hpMax", 1),
+                    u.optInt("attack", 0),
+                    u.optInt("defense", 0),
                     u.getString("faction"),
                     u.optBoolean("scripted", false),
-                    u.optBoolean("visible", !u.optBoolean("scripted", false)),
+                    u.optBoolean(
+                            "visible",
+                            !u.optBoolean("scripted", false)),
                     u.getInt("x"),
                     u.getInt("y"),
                     u.optInt("direction", 2));
@@ -247,7 +263,8 @@ public class MapView extends View {
         }
     }
 
-    private void ensureSprite(Context context, int spriteId) throws IOException {
+    private void ensureSprite(Context context, int spriteId)
+            throws IOException {
         if (idleSprites.containsKey(spriteId)) {
             return;
         }
@@ -269,6 +286,14 @@ public class MapView extends View {
                         48,
                         48,
                         11));
+        attackSprites.put(
+                spriteId,
+                loadIndexedFrames(
+                        context,
+                        "sprites/unit_atk_" + stem + ".bin",
+                        64,
+                        64,
+                        12));
     }
 
     private byte[] loadBytes(Context context, String assetName)
@@ -319,7 +344,14 @@ public class MapView extends View {
                     width,
                     height,
                     Bitmap.Config.ARGB_8888);
-            bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
+            bitmap.setPixels(
+                    pixels,
+                    0,
+                    width,
+                    0,
+                    0,
+                    width,
+                    height);
             frames[f] = bitmap;
         }
 
@@ -349,6 +381,7 @@ public class MapView extends View {
 
         boolean moving = updateMovement();
         boolean openingBusy = pumpOpeningEvents();
+        long now = SystemClock.uptimeMillis();
 
         canvas.save();
         canvas.translate(offsetX, offsetY);
@@ -357,6 +390,7 @@ public class MapView extends View {
         canvas.drawBitmap(map, 0, 0, mapPaint);
 
         drawReachableTiles(canvas);
+        drawAttackTargets(canvas);
 
         for (int x = 0; x <= mapCols; x++) {
             canvas.drawLine(
@@ -386,8 +420,8 @@ public class MapView extends View {
         }
 
         for (BattleUnit unit : units) {
-            if (unit.visible) {
-                drawUnit(canvas, unit);
+            if (unit.visible && unit.isAlive()) {
+                drawUnit(canvas, unit, now);
             }
         }
 
@@ -397,7 +431,7 @@ public class MapView extends View {
         int allyCount = 0;
         int enemyCount = 0;
         for (BattleUnit unit : units) {
-            if (!unit.visible) {
+            if (!unit.visible || !unit.isAlive()) {
                 continue;
             }
             if ("player".equals(unit.faction)) {
@@ -410,7 +444,7 @@ public class MapView extends View {
         }
 
         canvas.drawText(
-                "Native v0.7 | 원본 배치·S형상·오프닝 + Hexzmap 지형 이동"
+                "Native v0.8 | 지형 이동 + 원본 공격모션 + 물리 공격"
                         + " | 아군 " + playerCount
                         + " / 우군 " + allyCount
                         + " / 적군 " + enemyCount,
@@ -428,12 +462,12 @@ public class MapView extends View {
             if (lastSound >= 0) {
                 status += " · SFX " + lastSound;
             }
-            canvas.drawText(status, 22, 66, overlayTextPaint);
+            canvas.drawText(status, 22, 65, overlayTextPaint);
         } else {
             canvas.drawText(
-                    "아군 선택 → 파란 이동가능 타일 선택 · 드래그 이동 · 두 손가락 확대",
+                    "아군 선택 → 파란 타일 이동 · 붉은 적 터치 공격 · 공격 후 해당 유닛 행동 종료",
                     22,
-                    66,
+                    65,
                     overlayTextPaint);
         }
 
@@ -446,16 +480,33 @@ public class MapView extends View {
                         selectedX,
                         selectedY);
                 terrainInfo = " · 지형 " + terrainId
-                        + " / 비용 " + (cost >= IMPASSABLE ? "불가" : cost);
+                        + " / 이동비용 "
+                        + (cost >= IMPASSABLE ? "불가" : cost);
             }
+
+            String rangeInfo = supportsAttackRange(selectedUnit)
+                    ? String.valueOf(selectedUnit.attackRangeId)
+                    : selectedUnit.attackRangeId + "(미지원)";
+
             canvas.drawText(
                     "선택: " + selectedUnit.name
-                            + " · 직업 " + selectedUnit.jobId
-                            + " / 계열 " + selectedUnit.jobFamily
-                            + " · 이동력 " + selectedUnit.movePoints
+                            + " Lv." + selectedUnit.level
+                            + " HP " + selectedUnit.hp
+                            + "/" + selectedUnit.maxHp
+                            + " ATK " + selectedUnit.attack
+                            + " DEF " + selectedUnit.defense
+                            + " · 범위 " + rangeInfo
                             + terrainInfo,
                     22,
-                    98,
+                    96,
+                    overlayTextPaint);
+        }
+
+        if (lastCombatMessage != null && now < combatMessageUntil) {
+            canvas.drawText(
+                    lastCombatMessage,
+                    22,
+                    127,
                     overlayTextPaint);
         }
 
@@ -463,7 +514,11 @@ public class MapView extends View {
             drawDialogueBox(canvas);
         }
 
-        if (moving || openingBusy || !openingFinished) {
+        if (moving
+                || openingBusy
+                || !openingFinished
+                || hasActiveAttackAnimation(now)
+                || (lastCombatMessage != null && now < combatMessageUntil)) {
             postInvalidateDelayed(35L);
         }
     }
@@ -472,6 +527,8 @@ public class MapView extends View {
         if (!openingFinished
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
+                || !selectedUnit.isAlive()
+                || selectedUnit.acted
                 || selectedUnit.isMoving()
                 || reachableBest == null) {
             return;
@@ -498,12 +555,53 @@ public class MapView extends View {
         }
     }
 
-    private void drawUnit(Canvas canvas, BattleUnit unit) {
-        long now = SystemClock.uptimeMillis();
+    private void drawAttackTargets(Canvas canvas) {
+        if (!openingFinished
+                || selectedUnit == null
+                || !selectedUnit.isPlayer()
+                || !selectedUnit.isAlive()
+                || selectedUnit.acted
+                || selectedUnit.isMoving()
+                || !supportsAttackRange(selectedUnit)) {
+            return;
+        }
+
+        for (BattleUnit unit : units) {
+            if (!unit.visible
+                    || !unit.isAlive()
+                    || !unit.isEnemy()
+                    || !isInAttackRange(selectedUnit, unit)) {
+                continue;
+            }
+
+            canvas.drawRect(
+                    unit.x * TILE + 1,
+                    unit.y * TILE + 1,
+                    (unit.x + 1) * TILE - 1,
+                    (unit.y + 1) * TILE - 1,
+                    attackTargetPaint);
+        }
+    }
+
+    private void drawUnit(Canvas canvas, BattleUnit unit, long now) {
         Bitmap[] source;
         int frameIndex;
+        float left = unit.x * TILE;
+        float top = unit.y * TILE;
 
-        if (now < unit.actionUntil) {
+        if (now < unit.attackUntil) {
+            source = attackSprites.get(unit.spriteId);
+            int group = attackFrameGroup(unit.direction);
+            int local = (int) Math.min(
+                    3L,
+                    Math.max(
+                            0L,
+                            (now - unit.attackStartedAt)
+                                    / ATTACK_FRAME_MS));
+            frameIndex = group + local;
+            left -= 8f;
+            top -= 8f;
+        } else if (now < unit.actionUntil) {
             source = idleSprites.get(unit.spriteId);
             frameIndex = source == null || source.length == 0
                     ? 0
@@ -524,41 +622,51 @@ public class MapView extends View {
             return;
         }
 
-        Bitmap frame = source[frameIndex];
-        float left = unit.x * TILE;
-        float top = unit.y * TILE;
+        frameIndex = Math.max(0, Math.min(frameIndex, source.length - 1));
+        canvas.drawBitmap(source[frameIndex], left, top, spritePaint);
 
-        canvas.drawBitmap(frame, left, top, spritePaint);
-
+        float tileLeft = unit.x * TILE;
+        float tileTop = unit.y * TILE;
         Paint ring = "player".equals(unit.faction)
                 ? playerPaint
                 : ("ally".equals(unit.faction) ? allyPaint : enemyPaint);
         canvas.drawRect(
-                left + 2,
-                top + 2,
-                left + TILE - 2,
-                top + TILE - 2,
+                tileLeft + 2,
+                tileTop + 2,
+                tileLeft + TILE - 2,
+                tileTop + TILE - 2,
                 ring);
 
         if (unit == selectedUnit) {
             canvas.drawRect(
-                    left + 5,
-                    top + 5,
-                    left + TILE - 5,
-                    top + TILE - 5,
+                    tileLeft + 5,
+                    tileTop + 5,
+                    tileLeft + TILE - 5,
+                    tileTop + TILE - 5,
                     selectedUnitPaint);
         }
 
-        float centerX = left + TILE / 2f;
-        float labelY = top + TILE - 3f;
-        float textWidth = unitTextPaint.measureText(unit.name);
+        float centerX = tileLeft + TILE / 2f;
+        float labelY = tileTop + TILE - 3f;
+        String label = unit.name + " " + unit.hp + "/" + unit.maxHp;
+        float textWidth = unitTextPaint.measureText(label);
         canvas.drawRect(
                 centerX - textWidth / 2f - 2f,
                 labelY - 13f,
                 centerX + textWidth / 2f + 2f,
                 labelY + 2f,
                 unitLabelBackPaint);
-        canvas.drawText(unit.name, centerX, labelY, unitTextPaint);
+        canvas.drawText(label, centerX, labelY, unitTextPaint);
+    }
+
+    private int attackFrameGroup(int direction) {
+        if (direction == 0) {
+            return 4;
+        }
+        if (direction == 2) {
+            return 0;
+        }
+        return 8;
     }
 
     private boolean updateMovement() {
@@ -805,7 +913,7 @@ public class MapView extends View {
 
     private void selectFirstPlayer() {
         for (BattleUnit unit : units) {
-            if (unit.isPlayer() && unit.visible) {
+            if (unit.isPlayer() && unit.visible && unit.isAlive()) {
                 selectedUnit = unit;
                 selectedX = unit.x;
                 selectedY = unit.y;
@@ -825,6 +933,8 @@ public class MapView extends View {
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
                 || !selectedUnit.visible
+                || !selectedUnit.isAlive()
+                || selectedUnit.acted
                 || selectedUnit.isMoving()
                 || selectedUnit.movePoints <= 0) {
             return;
@@ -890,6 +1000,8 @@ public class MapView extends View {
     private boolean planSelectedMove(int tx, int ty) {
         if (selectedUnit == null
                 || !selectedUnit.isPlayer()
+                || !selectedUnit.isAlive()
+                || selectedUnit.acted
                 || selectedUnit.isMoving()
                 || reachableBest == null
                 || !inBounds(tx, ty)) {
@@ -928,6 +1040,101 @@ public class MapView extends View {
         return true;
     }
 
+    private boolean supportsAttackRange(BattleUnit unit) {
+        return unit.attackRangeId == 0 || unit.attackRangeId == 1;
+    }
+
+    private boolean isInAttackRange(
+            BattleUnit attacker,
+            BattleUnit target) {
+        int dx = Math.abs(target.x - attacker.x);
+        int dy = Math.abs(target.y - attacker.y);
+
+        if (attacker.attackRangeId == 0) {
+            return dx + dy == 1;
+        }
+        if (attacker.attackRangeId == 1) {
+            return Math.max(dx, dy) == 1 && (dx + dy) > 0;
+        }
+        return false;
+    }
+
+    private boolean canAttack(
+            BattleUnit attacker,
+            BattleUnit target) {
+        return openingFinished
+                && attacker != null
+                && target != null
+                && attacker.isPlayer()
+                && attacker.isAlive()
+                && target.isEnemy()
+                && target.visible
+                && target.isAlive()
+                && !attacker.acted
+                && !attacker.isMoving()
+                && supportsAttackRange(attacker)
+                && isInAttackRange(attacker, target);
+    }
+
+    private void performAttack(
+            BattleUnit attacker,
+            BattleUnit target) {
+        if (!canAttack(attacker, target)) {
+            return;
+        }
+
+        long now = SystemClock.uptimeMillis();
+        attacker.direction = directionToward(attacker, target);
+        attacker.attackStartedAt = now;
+        attacker.attackUntil = now + ATTACK_ANIMATION_MS;
+        attacker.acted = true;
+
+        target.actionFrame = 1;
+        target.actionUntil = now + ATTACK_ANIMATION_MS;
+
+        // v0.8 deliberately implements only the verified core physical
+        // difference. Penetration, terrain combat affinity, equipment,
+        // crit/combo, hit/evasion and counterattack are subsequent slices.
+        int damage = Math.max(0, attacker.attack - target.defense);
+        target.hp = Math.max(0, target.hp - damage);
+
+        String suffix;
+        if (!target.isAlive()) {
+            suffix = " · 격파";
+            target.visible = false;
+            target.clearMovePath();
+            target.targetX = target.x;
+            target.targetY = target.y;
+        } else if (damage == 0) {
+            suffix = " · 방어";
+        } else {
+            suffix = "";
+        }
+
+        lastCombatMessage = attacker.name
+                + " → " + target.name
+                + " : 피해 " + damage
+                + " (ATK " + attacker.attack
+                + " - DEF " + target.defense + ")"
+                + suffix;
+        combatMessageUntil = now + 2200L;
+
+        selectedUnit = attacker;
+        selectedX = attacker.x;
+        selectedY = attacker.y;
+        clearReachable();
+        invalidate();
+    }
+
+    private boolean hasActiveAttackAnimation(long now) {
+        for (BattleUnit unit : units) {
+            if (now < unit.attackUntil || now < unit.actionUntil) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private int terrainAt(int x, int y) {
         if (!inBounds(x, y)) {
             return -1;
@@ -964,7 +1171,10 @@ public class MapView extends View {
     private BattleUnit findUnitAt(int tx, int ty) {
         for (int i = units.size() - 1; i >= 0; i--) {
             BattleUnit unit = units.get(i);
-            if (unit.visible && unit.x == tx && unit.y == ty) {
+            if (unit.visible
+                    && unit.isAlive()
+                    && unit.x == tx
+                    && unit.y == ty) {
                 return unit;
             }
         }
@@ -984,6 +1194,7 @@ public class MapView extends View {
         for (BattleUnit unit : units) {
             if (unit != except
                     && unit.visible
+                    && unit.isAlive()
                     && unit.x == tx
                     && unit.y == ty) {
                 return true;
@@ -1144,13 +1355,20 @@ public class MapView extends View {
                             BattleUnit hit = findUnitAt(tx, ty);
 
                             if (hit != null) {
-                                selectedUnit = hit;
-                                selectedX = hit.x;
-                                selectedY = hit.y;
-                                if (hit.isPlayer()) {
-                                    refreshReachable();
+                                if (selectedUnit != null
+                                        && selectedUnit.isPlayer()
+                                        && hit.isEnemy()
+                                        && canAttack(selectedUnit, hit)) {
+                                    performAttack(selectedUnit, hit);
                                 } else {
-                                    clearReachable();
+                                    selectedUnit = hit;
+                                    selectedX = hit.x;
+                                    selectedY = hit.y;
+                                    if (hit.isPlayer()) {
+                                        refreshReachable();
+                                    } else {
+                                        clearReachable();
+                                    }
                                 }
                             } else if (selectedUnit != null
                                     && selectedUnit.isPlayer()) {

@@ -1,4 +1,4 @@
-name: Build Native Android Battle v0.7
+name: Build Native Android Battle v0.8
 
 on:
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/573646841" \
             -o /tmp/game1.zip
 
-      - name: Build S00 terrain-aware assets
+      - name: Build S00 combat assets
         shell: bash
         run: |
           set -euo pipefail
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v0.7 APK
+      - name: Build native v0.8 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v0.7.apk"
+          OUT="SeongSamgukji-Native-Battle-v0.8.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v0.7 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v0.7 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v0.8 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v0.8 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v0.7 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v0.7" \
-              --notes "Winlator/Wine 없이 실행하는 네이티브 Android 전투 프로토타입입니다. v0.6의 원본 S_00 오프닝 이벤트와 실제 인물별 S형상을 유지하면서 Hexzmap.e5의 M000 지형 23x16, Data.e5의 상세병종 이동력과 병종계열별 30종 지형 이동비용을 적용합니다. 오프닝 종료 후 아군을 선택하면 실제 이동 가능 범위를 계산하고, 도달 가능한 빈 타일까지 최소 이동비용 경로로 이동합니다. 이동비용 0/255 및 지원되지 않는 지형은 통행 불가로 처리합니다. 공격/피해 계산/AI/실제 음원 재생은 다음 단계입니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v0.8 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v0.8" \
+              --notes "v0.7의 원본 Hexzmap 지형 이동과 S_00 오프닝을 유지하면서 첫 네이티브 물리 전투 루프를 추가했습니다. Data.e5의 인물 오능/초기 HP/직업 성장치와 S_00 46/47 배치 레벨을 이용해 전투 패널을 만들고, Unit_atk.e5 원본 64x64 12프레임 공격 모션을 사용합니다. 공격 범위 ID 0(십자 인접)/1(주변 1칸)은 확인된 의미대로 처리하며 그 밖의 확장 범위는 추측하지 않고 비활성화합니다. 현재 피해는 검증된 핵심 공방차 ATK-DEF만 적용하는 결정적 1차 구현이며 장비/지형 전투보정/명중/회피/치명타/연타/반격/AI는 후속 단계입니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v0.7 build status
+      - name: Record v0.8 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,32 +96,52 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "0.7.0",
+              "version": "0.8.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
 
           battle_path = Path("native/android-map-probe/app/src/main/assets/battle/battle0.json")
-          terrain_path = Path("native/android-map-probe/app/src/main/assets/battle/terrain0.bin")
-
           if battle_path.exists():
               battle = json.loads(battle_path.read_text(encoding="utf-8"))
+              status["combatModel"] = battle.get("combatModel")
+              status["damageModel"] = battle.get("damageModel")
+              status["supportedAttackRangeIds"] = battle.get("supportedAttackRangeIds", [])
               status["terrainIds"] = battle.get("terrainIds", [])
               status["playerProfiles"] = [
                   {
                       "characterId": unit.get("characterId"),
+                      "name": unit.get("name"),
                       "jobId": unit.get("jobId"),
                       "jobFamily": unit.get("jobFamily"),
                       "movePoints": unit.get("movePoints"),
+                      "attackRangeId": unit.get("attackRangeId"),
+                      "level": unit.get("level"),
+                      "baseLevel": unit.get("baseLevel"),
+                      "deployLevel": unit.get("deployLevel"),
+                      "hpMax": unit.get("hpMax"),
+                      "attack": unit.get("attack"),
+                      "defense": unit.get("defense"),
                   }
                   for unit in battle.get("units", [])
                   if unit.get("faction") == "player"
               ]
+              status["visibleEnemyProfiles"] = [
+                  {
+                      "characterId": unit.get("characterId"),
+                      "name": unit.get("name"),
+                      "attackRangeId": unit.get("attackRangeId"),
+                      "level": unit.get("level"),
+                      "deployLevel": unit.get("deployLevel"),
+                      "hpMax": unit.get("hpMax"),
+                      "attack": unit.get("attack"),
+                      "defense": unit.get("defense"),
+                  }
+                  for unit in battle.get("units", [])
+                  if unit.get("faction") == "enemy" and unit.get("visible")
+              ][:8]
 
-          if terrain_path.exists():
-              status["terrainCellCount"] = len(terrain_path.read_bytes())
-
-          Path("native/build-status/v0.7.json").write_text(
+          Path("native/build-status/v0.8.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -129,11 +149,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v0.7.json
+          git add native/build-status/v0.8.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v0.7 build status"
+          git commit -m "Record native v0.8 build status"
           git push

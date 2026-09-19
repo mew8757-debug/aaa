@@ -26,6 +26,11 @@ JOB_FAMILY_STRIDE = 60
 TERRAIN_TYPE_COUNT = 30
 JOB_FAMILY_COUNT = 40
 
+# v0.8 panel bridge. The source values are also emitted into battle0.json so
+# this deterministic prototype formula can be replaced without re-reversing data.
+COMBAT_MODEL = "ccz65-panel-bridge-v0.8"
+DAMAGE_MODEL = "physical-atk-minus-def-v0.8"
+
 
 def s16(buf, off):
     return int.from_bytes(buf[off:off + 2], "little", signed=True)
@@ -96,31 +101,6 @@ def detailed_job_to_family(job_id):
     return job_id // 3 if job_id < 60 else 20 + (job_id - 60)
 
 
-def decode_numeric_command(sec, off, types, records=1):
-    if off + 2 > len(sec):
-        raise ValueError("command header out of range")
-    p = off + 2
-    out = []
-    for _ in range(records):
-        row = []
-        for typ in types:
-            if p + 2 > len(sec):
-                raise ValueError("parameter tag out of range")
-            p += 2
-            if typ == 0x04:
-                if p + 4 > len(sec):
-                    raise ValueError("int32 out of range")
-                row.append(i32(sec, p))
-                p += 4
-            else:
-                if p + 2 > len(sec):
-                    raise ValueError("int16 out of range")
-                row.append(s16(sec, p))
-                p += 2
-        out.append(row)
-    return out, p - off
-
-
 def load_command_schema():
     src = urllib.request.urlopen(SCHEMA_URL, timeout=30).read().decode(
         "utf-8", "replace"
@@ -185,17 +165,9 @@ def parse_command(sec, k, table):
     return cid, p - k, params
 
 
-def split_dialogue(raw_text):
-    clean = raw_text.replace("\r", "")
-    lines = clean.split("\n")
-    if lines and lines[0].startswith("&"):
-        return lines[0][1:].strip(), "\n".join(lines[1:]).strip()
-    return "", clean.strip()
-
-
-def extract_opening_events(sec):
+def scan_commands(sec):
     table, test = load_command_schema()
-    events = []
+    commands = []
     k = 0
     head = True
     zflag = False
@@ -204,92 +176,7 @@ def extract_opening_events(sec):
     while k < len(sec):
         cmd_off = k
         cid, used, params = parse_command(sec, k, table)
-
-        if cmd_off >= 5760:
-            if cid == 0x09 and params:
-                events.append({"type": "delay", "value": max(1, int(params[0]))})
-            elif cid in (0x14, 0x15, 0x16, 0x69, 0x7A):
-                strings = [p for p in params if isinstance(p, str)]
-                if strings:
-                    speaker, body = split_dialogue(strings[-1])
-                    if body or speaker:
-                        events.append({
-                            "type": "dialogue",
-                            "speaker": speaker,
-                            "text": body or speaker,
-                        })
-            elif cid == 0x23 and params:
-                events.append({"type": "sound", "value": int(params[0])})
-            elif cid == 0x24 and params:
-                events.append({"type": "music", "value": int(params[0])})
-            elif cid == 0x30 and len(params) >= 5:
-                char_id = int(params[0])
-                events.append({"type": "reveal", "characterId": char_id})
-                events.append({
-                    "type": "move",
-                    "characterId": char_id,
-                    "x": int(params[1]),
-                    "y": int(params[2]),
-                    "direction": int(params[3]),
-                })
-                if int(params[4]) >= 0:
-                    events.append({
-                        "type": "action",
-                        "characterId": char_id,
-                        "value": int(params[4]),
-                    })
-            elif cid == 0x31 and len(params) >= 2 and int(params[0]) == 0:
-                events.append({"type": "hide", "characterId": int(params[1])})
-            elif cid == 0x32 and len(params) >= 6 and int(params[0]) != 1:
-                events.append({
-                    "type": "move",
-                    "characterId": int(params[1]),
-                    "x": int(params[3]),
-                    "y": int(params[4]),
-                    "direction": int(params[5]),
-                })
-            elif cid == 0x33 and len(params) >= 3:
-                char_id = int(params[0])
-                if int(params[1]) >= 0:
-                    events.append({
-                        "type": "action",
-                        "characterId": char_id,
-                        "value": int(params[1]),
-                    })
-                events.append({
-                    "type": "turn",
-                    "characterId": char_id,
-                    "direction": int(params[2]),
-                })
-            elif cid == 0x34 and len(params) >= 2:
-                events.append({
-                    "type": "action",
-                    "characterId": int(params[0]),
-                    "value": int(params[1]),
-                })
-            elif cid == 0x4C and len(params) >= 3:
-                char_id = int(params[1]) if int(params[0]) == 0 else -1
-                if char_id >= 0:
-                    events.append({"type": "reveal", "characterId": char_id})
-            elif cid == 0x4F and len(params) >= 6:
-                events.append({
-                    "type": "turn",
-                    "characterId": int(params[0]),
-                    "targetId": int(params[1]),
-                    "direction": int(params[2]),
-                })
-            elif cid == 0x50 and len(params) >= 2:
-                events.append({
-                    "type": "action",
-                    "characterId": int(params[0]),
-                    "value": int(params[1]),
-                })
-            elif cid == 0x53 and len(params) >= 2 and int(params[0]) != 1:
-                events.append({"type": "retreat", "characterId": int(params[1])})
-            elif cid == 0x5A:
-                events.append({"type": "end"})
-                break
-
+        commands.append((cmd_off, cid, params))
         k += used
 
         if cid == 0 and head:
@@ -307,7 +194,175 @@ def extract_opening_events(sec):
         if cid == 0 and zsum > 0:
             zsum -= 1
 
+    return commands
+
+
+def split_dialogue(raw_text):
+    clean = raw_text.replace("\r", "")
+    lines = clean.split("\n")
+    if lines and lines[0].startswith("&"):
+        return lines[0][1:].strip(), "\n".join(lines[1:]).strip()
+    return "", clean.strip()
+
+
+def extract_opening_events(commands):
+    events = []
+    for cmd_off, cid, params in commands:
+        if cmd_off < 5760:
+            continue
+
+        if cid == 0x09 and params:
+            events.append({"type": "delay", "value": max(1, int(params[0]))})
+        elif cid in (0x14, 0x15, 0x16, 0x69, 0x7A):
+            strings = [p for p in params if isinstance(p, str)]
+            if strings:
+                speaker, body = split_dialogue(strings[-1])
+                if body or speaker:
+                    events.append({
+                        "type": "dialogue",
+                        "speaker": speaker,
+                        "text": body or speaker,
+                    })
+        elif cid == 0x23 and params:
+            events.append({"type": "sound", "value": int(params[0])})
+        elif cid == 0x24 and params:
+            events.append({"type": "music", "value": int(params[0])})
+        elif cid == 0x30 and len(params) >= 5:
+            char_id = int(params[0])
+            events.append({"type": "reveal", "characterId": char_id})
+            events.append({
+                "type": "move",
+                "characterId": char_id,
+                "x": int(params[1]),
+                "y": int(params[2]),
+                "direction": int(params[3]),
+            })
+            if int(params[4]) >= 0:
+                events.append({
+                    "type": "action",
+                    "characterId": char_id,
+                    "value": int(params[4]),
+                })
+        elif cid == 0x31 and len(params) >= 2 and int(params[0]) == 0:
+            events.append({"type": "hide", "characterId": int(params[1])})
+        elif cid == 0x32 and len(params) >= 6 and int(params[0]) != 1:
+            events.append({
+                "type": "move",
+                "characterId": int(params[1]),
+                "x": int(params[3]),
+                "y": int(params[4]),
+                "direction": int(params[5]),
+            })
+        elif cid == 0x33 and len(params) >= 3:
+            char_id = int(params[0])
+            if int(params[1]) >= 0:
+                events.append({
+                    "type": "action",
+                    "characterId": char_id,
+                    "value": int(params[1]),
+                })
+            events.append({
+                "type": "turn",
+                "characterId": char_id,
+                "direction": int(params[2]),
+            })
+        elif cid == 0x34 and len(params) >= 2:
+            events.append({
+                "type": "action",
+                "characterId": int(params[0]),
+                "value": int(params[1]),
+            })
+        elif cid == 0x4C and len(params) >= 3:
+            char_id = int(params[1]) if int(params[0]) == 0 else -1
+            if char_id >= 0:
+                events.append({"type": "reveal", "characterId": char_id})
+        elif cid == 0x4F and len(params) >= 6:
+            events.append({
+                "type": "turn",
+                "characterId": int(params[0]),
+                "targetId": int(params[1]),
+                "direction": int(params[2]),
+            })
+        elif cid == 0x50 and len(params) >= 2:
+            events.append({
+                "type": "action",
+                "characterId": int(params[0]),
+                "value": int(params[1]),
+            })
+        elif cid == 0x53 and len(params) >= 2 and int(params[0]) != 1:
+            events.append({"type": "retreat", "characterId": int(params[1])})
+        elif cid == 0x5A:
+            events.append({"type": "end"})
+            break
+
     return events
+
+
+def extract_deployment_hints(commands):
+    """
+    Read the first 0x46/0x47 deployment blocks and retain their level/job-level/AI
+    fields. v0.8 keeps the already-verified roster/coordinates from v0.7 but uses
+    these records to enrich combat panels without guessing deployment levels.
+    """
+    hints = {}
+    seen_friend = False
+    seen_enemy = False
+
+    for _off, cid, params in commands:
+        if cid == 0x46 and not seen_friend:
+            seen_friend = True
+            for i in range(20):
+                row = params[i * 11:(i + 1) * 11]
+                if len(row) != 11:
+                    continue
+                person, hidden, x, y, direction, level, job_level, ai, target, tx, ty = row
+                if not all(isinstance(v, int) for v in row):
+                    continue
+                if 0 <= person < 1024 and 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
+                    hints[(ALLY, person, x, y)] = {
+                        "level": int(level),
+                        "jobLevel": int(job_level),
+                        "ai": int(ai),
+                        "hidden": int(hidden),
+                        "direction": int(direction),
+                    }
+
+        elif cid == 0x47 and not seen_enemy:
+            seen_enemy = True
+            for i in range(80):
+                row = params[i * 12:(i + 1) * 12]
+                if len(row) != 12:
+                    continue
+                (
+                    person,
+                    reinforcement,
+                    hidden,
+                    x,
+                    y,
+                    direction,
+                    level,
+                    job_level,
+                    ai,
+                    target,
+                    tx,
+                    ty,
+                ) = row
+                if not all(isinstance(v, int) for v in row):
+                    continue
+                if 0 <= person < 1024 and 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
+                    hints[(ENEMY, person, x, y)] = {
+                        "level": int(level),
+                        "jobLevel": int(job_level),
+                        "ai": int(ai),
+                        "hidden": int(hidden),
+                        "reinforcement": int(reinforcement),
+                        "direction": int(direction),
+                    }
+
+        if seen_friend and seen_enemy:
+            break
+
+    return hints
 
 
 def main(argv):
@@ -335,6 +390,7 @@ def main(argv):
         data = game1.read("Data.e5")
         exe = game1.read("Ekd5.exe")
         mov = game1.read("Unit_mov.e5")
+        atk = game1.read("Unit_atk.e5")
         spc = game1.read("Unit_spc.e5")
         pal = game1.read("Spalet.e5")
         s00 = game1.read("RS/S_00.eex")
@@ -361,6 +417,16 @@ def main(argv):
         move_cost_blob.extend(row)
     (battle_dir / "movement_costs.bin").write_bytes(move_cost_blob)
 
+    scene0 = int.from_bytes(s00[10:14], "little")
+    section_count = u16(s00, scene0)
+    if section_count < 1:
+        raise SystemExit("S_00 scene0 has no sections")
+    section_len = u16(s00, scene0 + 2)
+    sec = s00[scene0 + 4:scene0 + 4 + section_len]
+    commands = scan_commands(sec)
+    events = extract_opening_events(commands)
+    deployment_hints = extract_deployment_hints(commands)
+
     def character_row(cid):
         off = 0x18C + cid * 0x20
         if off < 0 or off + 0x20 > len(data):
@@ -369,7 +435,7 @@ def main(argv):
 
     def name_of(cid):
         row = character_row(cid)
-        raw = data[row:row + 12].split(b"\0", 1)[0]
+        raw = data[row:row + 13].split(b"\0", 1)[0]
         return raw.decode("cp949", "replace").strip() or f"인물{cid}"
 
     def job_profile_of(cid):
@@ -379,9 +445,68 @@ def main(argv):
         growth_off = JOB_GROWTH_BASE + job_id * JOB_GROWTH_STRIDE
         if growth_off + JOB_GROWTH_STRIDE > len(data):
             raise ValueError(f"job growth row out of range: {job_id}")
-        move_points = data[growth_off]
-        attack_range_id = data[growth_off + 1]
-        return job_id, family, move_points, attack_range_id
+        growth = data[growth_off:growth_off + JOB_GROWTH_STRIDE]
+        return {
+            "jobId": job_id,
+            "jobFamily": family,
+            "movePoints": int(growth[0]),
+            "attackRangeId": int(growth[1]),
+            "growthAttack": int(growth[2]),
+            "growthDefense": int(growth[3]),
+            "growthSpirit": int(growth[4]),
+            "growthBurst": int(growth[5]),
+            "growthMorale": int(growth[6]),
+            "growthHp": int(growth[7]),
+            "growthMp": int(growth[8]),
+        }
+
+    def combat_profile_of(cid, deploy_level):
+        row = character_row(cid)
+        job = job_profile_of(cid)
+
+        force = int(data[row + 18])
+        command = int(data[row + 19])
+        intelligence = int(data[row + 20])
+        agility = int(data[row + 21])
+        morale = int(data[row + 22])
+        initial_hp = int(u16(data, row + 23))
+        initial_mp = int(data[row + 25])
+        base_level = max(1, int(data[row + 27]))
+
+        level = int(deploy_level) if isinstance(deploy_level, int) and deploy_level > 0 else base_level
+        level = max(1, min(level, 99))
+
+        # The classic 6.x panel bridge: base five-stat contribution plus
+        # detailed-job per-level growth. We preserve every source component
+        # in JSON so later live-memory verification can replace this formula.
+        attack_value = force // 2 + job["growthAttack"] * level
+        defense_value = command // 2 + job["growthDefense"] * level
+        spirit_value = intelligence // 2 + job["growthSpirit"] * level
+        burst_value = agility // 2 + job["growthBurst"] * level
+        morale_value = morale // 2 + job["growthMorale"] * level
+        hp_max = max(
+            1,
+            initial_hp + job["growthHp"] * max(0, level - base_level),
+        )
+
+        return {
+            **job,
+            "level": level,
+            "baseLevel": base_level,
+            "force": force,
+            "command": command,
+            "intelligence": intelligence,
+            "agility": agility,
+            "morale": morale,
+            "initialHp": initial_hp,
+            "initialMp": initial_mp,
+            "attack": attack_value,
+            "defense": defense_value,
+            "spirit": spirit_value,
+            "burst": burst_value,
+            "moralePanel": morale_value,
+            "hpMax": hp_max,
+        }
 
     def sprite_of(cid):
         off = 0xD2800 + cid * 2
@@ -389,17 +514,20 @@ def main(argv):
 
     def sprite_record_valid(sid):
         expected_mov = 48 * 48 * 11
+        expected_atk = 64 * 64 * 12
         expected_spc = 48 * 48 * 5
         md = be_desc(mov, sid)
+        ad = be_desc(atk, sid)
         sd = be_desc(spc, sid)
         return (
-            md is not None and sd is not None
+            md is not None and ad is not None and sd is not None
             and md[0] == expected_mov and md[1] >= expected_mov
+            and ad[0] == expected_atk and ad[1] >= expected_atk
             and sd[0] == expected_spc and sd[1] >= expected_spc
         )
 
-    # Verified non-empty deployment records from RS/S_00.eex.
-    # flag=1 means the actor starts under scenario control/hidden.
+    # v0.7-verified initial roster/positions. v0.8 enriches these with the
+    # level/job-level/AI values read from the real 0x46/0x47 blocks above.
     player = [
         (0, 0, 3, 2),
         (1, 0, 4, 2),
@@ -434,20 +562,31 @@ def main(argv):
 
     units = []
 
+    def deployment_hint(faction, cid, x, y):
+        exact = deployment_hints.get((faction, cid, x, y))
+        if exact is not None:
+            return exact
+        for (side, person, _x, _y), hint in deployment_hints.items():
+            if side == faction and person == cid:
+                return hint
+        return {}
+
     def append_unit(cid, faction, scripted, x, y, direction, source):
         sid = sprite_of(cid)
         if not sprite_record_valid(sid):
             print(f"skip actor {cid}: invalid sprite {sid}")
             return False
-        job_id, family, move_points, attack_range_id = job_profile_of(cid)
+
+        hint = deployment_hint(faction, cid, x, y)
+        profile = combat_profile_of(cid, hint.get("level"))
         units.append({
             "characterId": cid,
             "name": name_of(cid),
             "spriteId": sid,
-            "jobId": job_id,
-            "jobFamily": family,
-            "movePoints": move_points,
-            "attackRangeId": attack_range_id,
+            **profile,
+            "deployLevel": hint.get("level"),
+            "deployJobLevel": hint.get("jobLevel"),
+            "aiPolicy": hint.get("ai"),
             "faction": faction,
             "scripted": bool(scripted),
             "visible": not bool(scripted),
@@ -464,14 +603,6 @@ def main(argv):
         append_unit(cid, ALLY, flag != 0, x, y, direction, f"S_00:0x46:{index}")
     for index, (cid, flag, x, y, direction) in enumerate(enemies):
         append_unit(cid, ENEMY, flag != 0, x, y, direction, f"S_00:0x47:{index}")
-
-    scene0 = int.from_bytes(s00[10:14], "little")
-    section_count = u16(s00, scene0)
-    if section_count < 1:
-        raise SystemExit("S_00 scene0 has no sections")
-    section_len = u16(s00, scene0 + 2)
-    sec = s00[scene0 + 4:scene0 + 4 + section_len]
-    events = extract_opening_events(sec)
 
     referenced_ids = sorted({
         e["characterId"]
@@ -491,7 +622,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 7,
+        "version": 8,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -502,6 +633,9 @@ def main(argv):
         "movementCostFile": "movement_costs.bin",
         "movementCostFamilyCount": JOB_FAMILY_COUNT,
         "terrainIds": terrain_ids,
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
         "units": units,
         "openingEvents": events,
     }
@@ -512,8 +646,13 @@ def main(argv):
 
     sprite_ids = sorted({u["spriteId"] for u in units})
     for sid in sprite_ids:
-        for label, blob, frames in (("unit_mov", mov, 11), ("unit_spc", spc, 5)):
-            expected = 48 * 48 * frames
+        specs = (
+            ("unit_mov", mov, 48, 48, 11),
+            ("unit_atk", atk, 64, 64, 12),
+            ("unit_spc", spc, 48, 48, 5),
+        )
+        for label, blob, width, height, frames in specs:
+            expected = width * height * frames
             desc = be_desc(blob, sid)
             if desc is None:
                 raise SystemExit(f"Missing {label} sprite {sid}")
@@ -539,6 +678,7 @@ def main(argv):
     print(
         "units=", len(units),
         "visible=", sum(1 for u in units if u["visible"]),
+        "deployment hints=", len(deployment_hints),
     )
     print(
         "players=",
@@ -548,6 +688,11 @@ def main(argv):
                 "job": u["jobId"],
                 "family": u["jobFamily"],
                 "move": u["movePoints"],
+                "range": u["attackRangeId"],
+                "level": u["level"],
+                "atk": u["attack"],
+                "def": u["defense"],
+                "hp": u["hpMax"],
             }
             for u in units
             if u["faction"] == PLAYER
