@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.1
+name: Build Native Android Battle v4.2
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.1 APK
+      - name: Build native v4.2 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.1.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.2.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.1 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.1 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.2 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.2 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.1 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.1" \
-              --notes "Native v4.1은 R_06 스토리의 0x3B 무장합류와 0x67 장명 명령을 지원해 R06 14개 Scene을 완전 컴파일하고, Scene14 출전 뒤 실제 S_06 문추 격퇴전으로 진입합니다. battle6은 M006/terrain6, 조운(4)·하후박(19) 플레이어, 공손찬(148) 보호, 문추(109) 격퇴 목표, 20턴 제한, S06 전장 이벤트와 원본 승패/Scene3 정리를 포함합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.2 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.2" \
+              --notes "Native v4.2는 v4.1의 R06→S06 실제 플레이 흐름을 유지하면서 S06 종료 뒤 원본 R_07.eex/S_07.eex 존재 여부, Scene/Section 수, 흐름 명령과 텍스트 샘플을 build-status에 기록합니다. 다음 구현 경로를 추측하지 않고 실제 원본 데이터로 결정하기 위한 probe입니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.1 build status
+      - name: Record v4.2 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.1.0",
+              "version": "4.2.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -621,9 +621,13 @@ jobs:
                           for key, value in outcomes6.get("defeatByCharacter", {}).items()
                       },
                   },
+                  "nextScenarioProbe": battle6.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
               }
 
-          Path("native/build-status/v4.1.json").write_text(
+          Path("native/build-status/v4.2.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -631,11 +635,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.1.json
+          git add native/build-status/v4.2.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.1 build status"
+          git commit -m "Record native v4.2 build status"
           git push
