@@ -1,4 +1,4 @@
-name: Build Native Android Battle v3.9
+name: Build Native Android Battle v4.0
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v3.9 APK
+      - name: Build native v4.0 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v3.9.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.0.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v3.9 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v3.9 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.0 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.0 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v3.9 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v3.9" \
-              --notes "Native v3.9은 v3.8의 플레이 가능한 R05→S05 흐름을 유지하면서 S05 종료 뒤 원본 R_06.eex/S_06.eex 존재 여부, Scene/Section 수, 흐름 명령과 텍스트 샘플을 battle5/build-status에 기록합니다. 다음 진행 파일을 추측하지 않고 실제 원본 구조로 결정하기 위한 probe입니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.0 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.0" \
+              --notes "Native v4.0은 v3.9에서 확인된 R_06/S_06 경로를 원본 데이터로 확장합니다. R_06 13개 스토리 Scene + Scene14 출전 흐름을 컴파일하고, M006/Hexzmap entry6를 패키징하며, S_06 초기 배치·강제출전·목표·이벤트 지원률·승패 후보를 build-status에 기록합니다. 플레이어 슬롯/보호 인물 ID를 실제 이름으로 확정한 뒤 다음 버전에서 S06 실제 진입을 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v3.9 build status
+      - name: Record v4.0 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "3.9.0",
+              "version": "4.0.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -573,9 +573,18 @@ jobs:
                           for key, value in outcomes5.get("defeatByCharacter", {}).items()
                       },
                   },
+                  "r06Story": {
+                      "supported": battle5.get("r06Story", {}).get("supported"),
+                      "sceneCount": battle5.get("r06Story", {}).get("sceneCount"),
+                      "unsupportedActionIds": battle5.get("r06Story", {}).get("unsupportedActionIds", []),
+                      "nextBattle": battle5.get("r06Story", {}).get("nextBattle"),
+                  },
+                  "s06InitProbe": battle5.get("s06InitProbe", {}),
+                  "s06EventProbe": battle5.get("s06EventProbe", {}),
+                  "s06OutcomeProbe": battle5.get("s06OutcomeProbe", {}),
               }
 
-          Path("native/build-status/v3.9.json").write_text(
+          Path("native/build-status/v4.0.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -583,11 +592,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v3.9.json
+          git add native/build-status/v4.0.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v3.9 build status"
+          git commit -m "Record native v4.0 build status"
           git push
