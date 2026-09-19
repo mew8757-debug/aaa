@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-onetouch-v7
+  group: seong-onetouch-v8
   cancel-in-progress: true
 
 jobs:
@@ -121,7 +121,7 @@ jobs:
           # IMPORTANT: keep applicationId 'com.winlator'. Native Winlator code contains
           # hard-coded /data/data/com.winlator paths for cache/X11/Vortek sockets.
           s = s.replace("versionCode 33", "versionCode 1")
-          s = s.replace('versionName "11.2"', 'versionName "1.6.0"')
+          s = s.replace('versionName "11.2"', 'versionName "1.7.0"')
           gradle.write_text(s)
           PY
 
@@ -141,7 +141,7 @@ jobs:
           BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
           WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
           ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
-          FINAL="$PWD/SeongSamgukji-OneTouch-v7.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v8.apk"
 
           test -f "$BASE"
           cp "$BASE" "$WORK"
@@ -198,14 +198,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          FINAL="SeongSamgukji-OneTouch-v7.apk"
+          FINAL="SeongSamgukji-OneTouch-v8.apk"
 
-          if gh release view one-touch-v7 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload one-touch-v7 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view one-touch-v8 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v8 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create one-touch-v7 "$FINAL" \
+            gh release create one-touch-v8 "$FINAL" \
               --repo "$GITHUB_REPOSITORY" \
               --draft \
-              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v7" \
-              --notes "비공개 개인용 수정판입니다. 설치 중 Apache Commons Compress 초기화 크래시를 제거하고 Android 기본 ZipInputStream(MS949)으로 교체했습니다. 설치 오류는 앱 종료 대신 화면에 표시합니다. 공개 배포하지 마세요."
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v8" \
+              --notes "비공개 개인용 수정판입니다. 게임 압축 해제 후 Winlator ContainerManager 생성 작업을 Android 메인 스레드로 이동해 Handler/Looper 오류를 수정했습니다. 공개 배포하지 마세요."
           fi
