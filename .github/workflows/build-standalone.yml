@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-onetouch-v8
+  group: seong-onetouch-v9
   cancel-in-progress: true
 
 jobs:
@@ -121,7 +121,7 @@ jobs:
           # IMPORTANT: keep applicationId 'com.winlator'. Native Winlator code contains
           # hard-coded /data/data/com.winlator paths for cache/X11/Vortek sockets.
           s = s.replace("versionCode 33", "versionCode 1")
-          s = s.replace('versionName "11.2"', 'versionName "1.7.0"')
+          s = s.replace('versionName "11.2"', 'versionName "1.8.0"')
           gradle.write_text(s)
           PY
 
@@ -141,7 +141,7 @@ jobs:
           BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
           WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
           ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
-          FINAL="$PWD/SeongSamgukji-OneTouch-v8.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v9.apk"
 
           test -f "$BASE"
           cp "$BASE" "$WORK"
@@ -198,14 +198,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          FINAL="SeongSamgukji-OneTouch-v8.apk"
+          FINAL="SeongSamgukji-OneTouch-v9.apk"
 
-          if gh release view one-touch-v8 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload one-touch-v8 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view one-touch-v9 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v9 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create one-touch-v8 "$FINAL" \
+            gh release create one-touch-v9 "$FINAL" \
               --repo "$GITHUB_REPOSITORY" \
               --draft \
-              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v8" \
-              --notes "비공개 개인용 수정판입니다. 게임 압축 해제 후 Winlator ContainerManager 생성 작업을 Android 메인 스레드로 이동해 Handler/Looper 오류를 수정했습니다. 공개 배포하지 마세요."
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v9" \
+              --notes "비공개 개인용 수정판입니다. 번들된 Ekd5.exe가 runtime_game_qa=NOT_RUN인 SeongFont bitmap-test 패치판임을 확인해, 실행 전에 Ekd5.exe.font-original.bak 원본을 복원하고 실험적 글꼴 훅을 비활성화합니다. 공개 배포하지 마세요."
           fi
