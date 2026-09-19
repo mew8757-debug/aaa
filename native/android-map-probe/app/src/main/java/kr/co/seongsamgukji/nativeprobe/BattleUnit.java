@@ -31,6 +31,7 @@ public class BattleUnit {
     public long lastMoveStepAt;
     public long attackStartedAt;
     public long attackUntil;
+    public boolean moved;
     public boolean acted;
 
     public final List<Integer> movePath = new ArrayList<>();
@@ -80,6 +81,7 @@ public class BattleUnit {
         this.lastMoveStepAt = 0L;
         this.attackStartedAt = 0L;
         this.attackUntil = 0L;
+        this.moved = false;
         this.acted = false;
         this.movePathIndex = 0;
     }
