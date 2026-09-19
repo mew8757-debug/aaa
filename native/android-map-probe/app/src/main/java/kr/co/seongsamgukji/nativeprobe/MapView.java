@@ -33,7 +33,9 @@ public class MapView extends View {
     private final ScaleGestureDetector scaleDetector;
 
     private Bitmap map;
-    private Bitmap[] unitFrames;
+    private Bitmap[] moveFrames;
+    private Bitmap[] idleFrames;
+    private byte[] palette;
 
     private float scale = 1f;
     private float offsetX = 0f;
@@ -65,10 +67,13 @@ public class MapView extends View {
         }
 
         try {
-            unitFrames = loadIndexedFrames(context, "sprites/unit_mov_000.bin");
+            palette = loadBytes(context, "sprites/spalet_000.bin");
+            if (palette.length != 256 * 3) throw new IOException("palette size=" + palette.length);
+            moveFrames = loadIndexedFrames(context, "sprites/unit_mov_000.bin", 48, 48, 11);
+            idleFrames = loadIndexedFrames(context, "sprites/unit_spc_000.bin", 48, 48, 5);
         }
         catch (IOException e) {
-            throw new RuntimeException("Unit_mov.e5 frame load failed", e);
+            throw new RuntimeException("native sprite decode failed", e);
         }
 
         spritePaint.setAntiAlias(false);
@@ -107,25 +112,28 @@ public class MapView extends View {
                 });
     }
 
-    private Bitmap[] loadIndexedFrames(Context context, String assetName) throws IOException {
-        byte[] raw;
+    private byte[] loadBytes(Context context, String assetName) throws IOException {
         try (InputStream in = context.getAssets().open(assetName);
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
             int n;
             while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
-            raw = out.toByteArray();
+            return out.toByteArray();
         }
+    }
 
-        int frameBytes = UNIT_W * UNIT_H;
-        if (raw.length < frameBytes * UNIT_FRAMES) {
+    private Bitmap[] loadIndexedFrames(Context context, String assetName,
+                                       int width, int height, int frameCount) throws IOException {
+        byte[] raw = loadBytes(context, assetName);
+        int frameBytes = width * height;
+        if (raw.length < frameBytes * frameCount) {
             throw new IOException("sprite payload too small: " + raw.length);
         }
 
-        Bitmap[] frames = new Bitmap[UNIT_FRAMES];
+        Bitmap[] frames = new Bitmap[frameCount];
         int[] pixels = new int[frameBytes];
 
-        for (int f = 0; f < UNIT_FRAMES; f++) {
+        for (int f = 0; f < frameCount; f++) {
             int base = f * frameBytes;
             for (int i = 0; i < frameBytes; i++) {
                 int index = raw[base + i] & 0xff;
@@ -133,16 +141,16 @@ public class MapView extends View {
                     pixels[i] = Color.TRANSPARENT;
                 }
                 else {
-                    // The original file stores 8-bit palette indexes. Exact Koei palette
-                    // reconstruction is the next decoder step; preserve index brightness
-                    // for now so the authentic sprite silhouette/animation is visible.
-                    int v = Math.min(255, 36 + (index * 219 / 255));
-                    pixels[i] = Color.argb(255, v, v, v);
+                    int q = index * 3;
+                    int r = palette[q] & 0xff;
+                    int g = palette[q + 1] & 0xff;
+                    int b = palette[q + 2] & 0xff;
+                    pixels[i] = Color.argb(255, r, g, b);
                 }
             }
 
-            Bitmap bitmap = Bitmap.createBitmap(UNIT_W, UNIT_H, Bitmap.Config.ARGB_8888);
-            bitmap.setPixels(pixels, 0, UNIT_W, 0, 0, UNIT_W, UNIT_H);
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
             frames[f] = bitmap;
         }
         return frames;
@@ -188,8 +196,11 @@ public class MapView extends View {
                     (selectedY + 1) * TILE), selectedPaint);
         }
 
-        // Real Unit_mov.e5 sprite decoded directly by the Android app.
-        Bitmap frame = unitFrames[Math.max(0, Math.min(moveFrame, unitFrames.length - 1))];
+        // Exact indexed-color sprite: Spalet.e5 RGB palette + original Unit_*.e5 indexes.
+        boolean moving = unitX != targetX || unitY != targetY;
+        Bitmap[] source = moving ? moveFrames : idleFrames;
+        int frameIndex = moving ? Math.max(0, Math.min(moveFrame, source.length - 1)) : 0;
+        Bitmap frame = source[frameIndex];
         float spriteX = unitX * TILE;
         float spriteY = unitY * TILE;
         canvas.drawBitmap(frame, spriteX, spriteY, spritePaint);
@@ -201,7 +212,7 @@ public class MapView extends View {
 
         canvas.restore();
 
-        canvas.drawText("Native v0.2  |  실제 m000 + Unit_mov.e5", 24, 40, textPaint);
+        canvas.drawText("Native v0.3  |  실제 맵 + S형상 + Spalet 원색", 24, 40, textPaint);
         canvas.drawText("터치: 유닛 이동  ·  드래그: 화면 이동  ·  두 손가락: 확대/축소", 24, 76, textPaint);
 
         if (selectedX >= 0) {
@@ -229,7 +240,7 @@ public class MapView extends View {
         else if (unitY < targetY) unitY++;
         else if (unitY > targetY) unitY--;
 
-        moveFrame = (moveFrame + 1) % UNIT_FRAMES;
+        moveFrame = (moveFrame + 1) % moveFrames.length;
     }
 
     @Override
