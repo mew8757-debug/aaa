@@ -972,7 +972,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v2.9 | R_01 Scene "
+            header = "Native v3.0 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -982,7 +982,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v2.9 | R_02 Scene "
+            header = "Native v3.0 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -992,7 +992,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v2.9 | R_03 Scene "
+            header = "Native v3.0 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1002,7 +1002,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v2.9 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v3.0 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount

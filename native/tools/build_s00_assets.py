@@ -2403,10 +2403,13 @@ def main(argv):
         s03 = read_member_by_basename(game1, "S_03.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
+        map3_bytes = read_member_by_basename(game2, "m003.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
             map2_bytes = read_member_by_basename(game1, "m002.jpg")
+        if map3_bytes is None:
+            map3_bytes = read_member_by_basename(game1, "m003.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -2418,6 +2421,8 @@ def main(argv):
         raise SystemExit("m001.jpg not found in game1/game2")
     if map2_bytes is None:
         raise SystemExit("m002.jpg not found in game1/game2")
+    if map3_bytes is None:
+        raise SystemExit("m003.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
@@ -2458,6 +2463,23 @@ def main(argv):
     )
     (map_dir / "m002.jpg").write_bytes(map2_bytes)
     (battle_dir / "terrain2.bin").write_bytes(terrain2_cells)
+
+    map3_width, map3_height = jpeg_dimensions(map3_bytes)
+    if map3_width % 48 != 0 or map3_height % 48 != 0:
+        raise SystemExit(
+            f"m003 dimensions not divisible by 48: "
+            f"{map3_width}x{map3_height}"
+        )
+    map3_cols = map3_width // 48
+    map3_rows = map3_height // 48
+    terrain3_cells = extract_hexzmap_cells(
+        hexz,
+        3,
+        map3_cols,
+        map3_rows,
+    )
+    (map_dir / "m003.jpg").write_bytes(map3_bytes)
+    (battle_dir / "terrain3.bin").write_bytes(terrain3_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -2554,6 +2576,20 @@ def main(argv):
         "terrainIds": sorted(set(terrain2_cells)),
         "hexzmapEntry": 2,
     }
+
+    s03_scenes = parse_scenario_tree(s03)
+    s03_init_probe = probe_s01_initialization(s03)
+    s03_init_probe["map"] = {
+        "filename": "m003.jpg",
+        "width": map3_width,
+        "height": map3_height,
+        "cols": map3_cols,
+        "rows": map3_rows,
+        "terrainCellCount": len(terrain3_cells),
+        "terrainIds": sorted(set(terrain3_cells)),
+        "hexzmapEntry": 3,
+    }
+    s03_event_probe = extract_scene2_native_events(s03_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -3091,6 +3127,26 @@ def main(argv):
             "R_03.eex": r03_probe,
             "S_03.eex": s03_probe,
         },
+        "s03InitProbe": s03_init_probe,
+        "s03EventProbe": {
+            "candidateCount": len(s03_event_probe),
+            "coreSupportedCount": sum(
+                1 for event in s03_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s03_event_probe
+            ],
+        },
         "battleEventSummary": {
             "candidateCount": len(s02_native_events),
             "coreSupportedCount": sum(
@@ -3255,6 +3311,34 @@ def main(argv):
         map1_rows,
         "terrain ids=",
         sorted(set(terrain1_cells)),
+    )
+    print(
+        "s03 map=",
+        map3_width,
+        "x",
+        map3_height,
+        "tiles=",
+        map3_cols,
+        "x",
+        map3_rows,
+        "terrain ids=",
+        sorted(set(terrain3_cells)),
+    )
+    print(
+        "s03 init forced players=",
+        s03_init_probe["forcedPlayers"],
+        "player slots=",
+        s03_init_probe["playerSlots"],
+        "friends=",
+        len(s03_init_probe["friendRecords"]),
+        "enemies=",
+        len(s03_init_probe["enemyRecords"]),
+        "objectives=",
+        s03_init_probe["objectiveTexts"],
+        "events=",
+        len(s03_event_probe),
+        "core-supported=",
+        sum(1 for e in s03_event_probe if e["coreSupported"]),
     )
     print(
         "s02 map=",
