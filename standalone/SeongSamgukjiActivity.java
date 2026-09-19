@@ -51,7 +51,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v9";
+    private static final String PREFS = "seong_samgukji_oneclick_v10";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -324,6 +324,7 @@ public class SeongSamgukjiActivity extends MainActivity {
         data.put("dxwrapper", DXWrappers.WINED3D);
         data.put("dxwrapperConfig", "ddrawWrapper=" + DXWrappers.CNC_DDRAW);
         data.put("audioDriver", Container.DEFAULT_AUDIO_DRIVER);
+        data.put("wincomponents", "direct3d=1,directsound=1,directmusic=1,directshow=1,directplay=0,xaudio=1,vcrun2005=0,vcrun2010=1,wmdecoder=1");
         data.put("startupSelection", Container.STARTUP_SELECTION_ESSENTIAL);
 
         manager.createContainerAsync(data, container -> {
@@ -348,6 +349,10 @@ public class SeongSamgukjiActivity extends MainActivity {
         container.setDrives("D:" + gameDir.getAbsolutePath());
         container.setDXWrapper(DXWrappers.WINED3D);
         container.setDXWrapperConfig("ddrawWrapper=" + DXWrappers.CNC_DDRAW);
+        // Ekd5.exe uses WINMM mciSendCommandA and starts LOGO.wmv.
+        // Winlator defaults DirectShow to disabled, so explicitly enable it
+        // together with the Windows Media decoder.
+        container.setWinComponents("direct3d=1,directsound=1,directmusic=1,directshow=1,directplay=0,xaudio=1,vcrun2005=0,vcrun2010=1,wmdecoder=1");
     }
 
     private void finishInstall(int containerId, File exe) {
