@@ -1,4 +1,4 @@
-name: Build Native Android Battle v1.8
+name: Build Native Android Battle v1.9
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v1.8 APK
+      - name: Build native v1.9 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v1.8.apk"
+          OUT="SeongSamgukji-Native-Battle-v1.9.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v1.8 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v1.8 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v1.9 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v1.9 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v1.8 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v1.8" \
-              --notes "Native v1.8은 S_00 완료 후 원본 R_01.eex의 Scene 1~4 스토리와 Scene 5 출발 흐름을 네이티브로 이어 재생합니다. 0x12/0x13 선택지는 화면 선택 UI로 실행하고, 대사·제목·장소·음악·효과음·보상·전역값/변수 변경을 원본 순서로 처리합니다. R 장면의 인물 배치/이동/배경 명령은 이번 버전에서 흐름 보존용으로 해석하되 전용 R 렌더러는 다음 단계입니다. R01 종료 후 S_01 전투 준비 완료 상태까지 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v1.9 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v1.9" \
+              --notes "Native v1.9은 원본 S_01.eex의 초기화/배치 구조를 진단하면서 M001 지도와 Hexzmap entry 1 지형을 APK 자산으로 패키징합니다. M001 JPEG 크기에서 타일 크기를 자동 계산하고, 0x4A 강제 출전, 0x4B 아군 슬롯, 0x46 우군, 0x47 적군, 승패조건/목표/음악/회전제한/작전개시를 build-status에 기록합니다. v1.8의 S00→R01 스토리/선택/출전 흐름은 유지합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v1.8 build status
+      - name: Record v1.9 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "1.8.0",
+              "version": "1.9.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -163,6 +163,7 @@ jobs:
                       for scene in r01_story.get("scenes", [])
                   ],
               }
+              status["s01InitProbe"] = battle.get("s01InitProbe", {})
               status["relativeMoveProbe"] = [
                   {
                       "characterId": unit.get("characterId"),
@@ -227,7 +228,7 @@ jobs:
                   if unit.get("faction") == "enemy" and unit.get("visible")
               ][:8]
 
-          Path("native/build-status/v1.8.json").write_text(
+          Path("native/build-status/v1.9.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -235,11 +236,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v1.8.json
+          git add native/build-status/v1.9.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v1.8 build status"
+          git commit -m "Record native v1.9 build status"
           git push
