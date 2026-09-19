@@ -471,12 +471,49 @@ public class MapView extends View {
         }
     }
 
+    private void enterS02Battle() {
+        try {
+            loadS02Battle(getContext());
+            lastCombatMessage = "R_02 완료 · S_02 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            r02StoryActive = false;
+            endBattle(
+                    false,
+                    "S_02 로드 실패 · " + e.getClass().getSimpleName());
+        }
+    }
+
     private void loadS01Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle1.json",
+                1,
+                "m001.jpg",
+                "terrain1.bin");
+    }
+
+    private void loadS02Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle2.json",
+                2,
+                "m002.jpg",
+                "terrain2.bin");
+    }
+
+    private void loadFollowupBattle(
+            Context context,
+            String battleFile,
+            int battleIndex,
+            String defaultMap,
+            String defaultTerrain) throws Exception {
         JSONObject battle = new JSONObject(new String(
-                loadBytes(context, "battle/battle1.json"),
+                loadBytes(context, "battle/" + battleFile),
                 StandardCharsets.UTF_8));
 
-        String mapName = battle.optString("map", "m001.jpg");
+        String mapName = battle.optString("map", defaultMap);
         try (InputStream in = context.getAssets().open("map/" + mapName)) {
             map = BitmapFactory.decodeStream(in);
         }
@@ -484,7 +521,7 @@ public class MapView extends View {
             throw new IOException(mapName + " decode failed");
         }
 
-        currentBattleIndex = 1;
+        currentBattleIndex = battleIndex;
         battleMode = battle.optString(
                 "battleMode",
                 "enemy-annihilation");
@@ -503,7 +540,7 @@ public class MapView extends View {
                 context,
                 "battle/" + battle.optString(
                         "terrainFile",
-                        "terrain1.bin"));
+                        defaultTerrain));
         baseTerrainCells = terrainCells.clone();
         movementCosts = loadBytes(
                 context,
@@ -513,13 +550,15 @@ public class MapView extends View {
 
         if (terrainCells.length != mapCols * mapRows) {
             throw new IOException(
-                    "S01 terrain size=" + terrainCells.length
+                    currentBattleLabel()
+                            + " terrain size=" + terrainCells.length
                             + " expected=" + (mapCols * mapRows));
         }
         if (movementCosts.length
                 != movementCostFamilyCount * terrainTypeCount) {
             throw new IOException(
-                    "S01 movement cost size=" + movementCosts.length);
+                    currentBattleLabel()
+                            + " movement cost size=" + movementCosts.length);
         }
 
         units.clear();
@@ -920,7 +959,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v2.5 | R_01 Scene "
+            header = "Native v2.6 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -930,7 +969,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v2.5 | R_02 Scene "
+            header = "Native v2.6 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -940,7 +979,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v2.5 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v2.6 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -2797,7 +2836,7 @@ public class MapView extends View {
         if (r02StorySceneIndex >= r02StoryScenes.length()) {
             r02StoryActive = false;
             s02Ready = true;
-            endBattle(true, "R_02 완료 · S_02 전투 준비 완료");
+            enterS02Battle();
             return;
         }
 
@@ -2828,7 +2867,13 @@ public class MapView extends View {
     }
 
     private String currentBattleLabel() {
-        return currentBattleIndex == 1 ? "S_01" : "S_00";
+        if (currentBattleIndex == 2) {
+            return "S_02";
+        }
+        if (currentBattleIndex == 1) {
+            return "S_01";
+        }
+        return "S_00";
     }
 
     private void startBattleScriptEvent(JSONObject event) {
