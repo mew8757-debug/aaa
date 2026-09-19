@@ -1,0 +1,52 @@
+name: Analyze SeongFont Patch
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/analyze-font-patch.yml"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and inspect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p game-data out
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/573646841" \
+            -o game-data/game1.Zip
+          python3 - <<'PY'
+          import zipfile, pathlib
+          root=pathlib.Path("out/game")
+          root.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile("game-data/game1.Zip") as z:
+              z.extractall(root)
+          for name in ["SeongFont.install.json","SeongFont.runtime.log","SeongFont.ini"]:
+              p=root/name
+              print("\n===",name,"===")
+              if p.exists():
+                  b=p.read_bytes()
+                  for enc in ["utf-8-sig","utf-16","cp949","latin1"]:
+                      try:
+                          print(b.decode(enc))
+                          break
+                      except: pass
+          PY
+          echo "=== PATCHED EKD5 IMPORTS ==="
+          objdump -p out/game/Ekd5.exe | sed -n '/DLL Name/,$p' | head -n 250
+          echo "=== ORIGINAL EKD5 IMPORTS ==="
+          objdump -p out/game/Ekd5.exe.font-original.bak | sed -n '/DLL Name/,$p' | head -n 250
+          echo "=== HASHES ==="
+          sha256sum out/game/Ekd5.exe out/game/Ekd5.exe.font-original.bak
