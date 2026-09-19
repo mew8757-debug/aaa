@@ -636,7 +636,7 @@ def native_action_from_node(node):
     if (
         cid == 0x78
         and len(params) >= 4
-        and int(params[3]) in (7, 32, 33)
+        and int(params[3]) in (0, 7, 32, 33)
     ):
         return {
             "type": "unitAttributeTransfer",
