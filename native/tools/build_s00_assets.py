@@ -21,10 +21,13 @@ MAP_HEIGHT = 16
 TERRAIN_HEADER_SIZE = 2
 JOB_GROWTH_BASE = 40372
 JOB_GROWTH_STRIDE = 35
+TERRAIN_POWER_BASE = 43172
 MOVE_COST_BASE = 43202
 JOB_FAMILY_STRIDE = 60
 TERRAIN_TYPE_COUNT = 30
 JOB_FAMILY_COUNT = 40
+JOB_RESTRAINT_BASE = 668288
+JOB_RESTRAINT_STRIDE = 40
 
 # v0.8 panel bridge. The source values are also emitted into battle0.json so
 # this deterministic prototype formula can be replaced without re-reversing data.
@@ -195,6 +198,216 @@ def scan_commands(sec):
             zsum -= 1
 
     return commands
+
+
+
+def parse_scenario_tree(blob):
+    table, test = load_command_schema()
+
+    first_scene_offset = i32(blob, 10)
+    if (
+        first_scene_offset < 14
+        or first_scene_offset > len(blob)
+        or (first_scene_offset - 10) % 4 != 0
+    ):
+        raise ValueError("invalid EEX scene offset table")
+
+    scene_offsets = [
+        i32(blob, off)
+        for off in range(10, first_scene_offset, 4)
+    ]
+
+    def parse_block(start, length, scene_index, section_index, kind, is_section_root):
+        end = start + length
+        if start < 0 or end > len(blob):
+            raise ValueError(
+                f"scenario block out of range scene={scene_index} "
+                f"section={section_index} kind={kind}"
+            )
+
+        nodes = []
+        cursor = start
+        head = is_section_root
+        pending_sub_event = False
+
+        while cursor < end:
+            command_offset = cursor
+            cid, used, params = parse_command(blob, cursor, table)
+            cursor += used
+
+            node = {
+                "scene": scene_index,
+                "section": section_index,
+                "kind": kind,
+                "offset": command_offset,
+                "commandId": cid,
+                "params": params,
+                "children": [],
+            }
+
+            if head and cid == 0:
+                if cursor + 2 > end:
+                    raise ValueError("body block length prefix out of range")
+                child_len = u16(blob, cursor)
+                child_start = cursor + 2
+                node["children"] = parse_block(
+                    child_start,
+                    child_len,
+                    scene_index,
+                    section_index,
+                    "Body",
+                    False,
+                )
+                cursor = child_start + child_len
+                head = False
+                pending_sub_event = False
+            elif (
+                pending_sub_event
+                and cid < len(test)
+                and test[cid] != 0
+            ):
+                if cursor + 2 > end:
+                    raise ValueError("sub-event length prefix out of range")
+                child_len = u16(blob, cursor)
+                child_start = cursor + 2
+                node["children"] = parse_block(
+                    child_start,
+                    child_len,
+                    scene_index,
+                    section_index,
+                    "SubEvent",
+                    False,
+                )
+                cursor = child_start + child_len
+                pending_sub_event = False
+            elif cid != 1:
+                pending_sub_event = False
+
+            if cid == 1:
+                pending_sub_event = True
+
+            nodes.append(node)
+
+        if cursor != end:
+            raise ValueError(
+                f"scenario block length mismatch scene={scene_index} "
+                f"section={section_index} kind={kind}"
+            )
+        return nodes
+
+    scenes = []
+    for scene_index, scene_offset in enumerate(scene_offsets, start=1):
+        if scene_offset + 2 > len(blob):
+            raise ValueError(f"scene {scene_index} offset out of range")
+
+        section_count = u16(blob, scene_offset)
+        cursor = scene_offset + 2
+        sections = []
+
+        for section_index in range(1, section_count + 1):
+            if cursor + 2 > len(blob):
+                raise ValueError(
+                    f"scene {scene_index} section {section_index} prefix out of range"
+                )
+            section_len = u16(blob, cursor)
+            section_start = cursor + 2
+            nodes = parse_block(
+                section_start,
+                section_len,
+                scene_index,
+                section_index,
+                "Section",
+                True,
+            )
+            sections.append({
+                "section": section_index,
+                "offset": section_start,
+                "length": section_len,
+                "commands": nodes,
+            })
+            cursor = section_start + section_len
+
+        scenes.append({
+            "scene": scene_index,
+            "offset": scene_offset,
+            "sections": sections,
+        })
+
+    return scenes
+
+
+def flatten_scenario_nodes(scenes):
+    flat = []
+
+    def visit(node, depth):
+        row = {
+            "scene": node["scene"],
+            "section": node["section"],
+            "kind": node["kind"],
+            "depth": depth,
+            "offset": node["offset"],
+            "commandId": node["commandId"],
+            "params": node["params"],
+            "childCommandIds": [
+                child["commandId"]
+                for child in node["children"]
+            ],
+        }
+        flat.append(row)
+        for child in node["children"]:
+            visit(child, depth + 1)
+
+    for scene in scenes:
+        for section in scene["sections"]:
+            for node in section["commands"]:
+                visit(node, 0)
+
+    return flat
+
+
+def build_scenario_diagnostics(scenes):
+    flat = flatten_scenario_nodes(scenes)
+    command_counts = {}
+    for row in flat:
+        key = f"0x{row['commandId']:02X}"
+        command_counts[key] = command_counts.get(key, 0) + 1
+
+    relevant_ids = {
+        0x19, 0x1A,
+        0x25, 0x26,
+        0x36,
+        0x3F, 0x40, 0x41,
+        0x42, 0x43,
+        0x49,
+        0x53, 0x54,
+        0x0D, 0x0E,
+    }
+    relevant = [
+        {
+            "scene": row["scene"],
+            "section": row["section"],
+            "kind": row["kind"],
+            "depth": row["depth"],
+            "offset": row["offset"],
+            "commandId": row["commandId"],
+            "commandHex": f"0x{row['commandId']:02X}",
+            "params": row["params"],
+            "childCommandIds": row["childCommandIds"],
+        }
+        for row in flat
+        if row["commandId"] in relevant_ids
+    ]
+
+    return {
+        "sceneCount": len(scenes),
+        "sectionCounts": [
+            len(scene["sections"])
+            for scene in scenes
+        ],
+        "commandCount": len(flat),
+        "commandCounts": command_counts,
+        "relevantCommands": relevant,
+    }
 
 
 def split_dialogue(raw_text):
@@ -408,14 +621,32 @@ def main(argv):
     terrain_cells = extract_hexzmap_cells(hexz, 0, MAP_WIDTH, MAP_HEIGHT)
     (battle_dir / "terrain0.bin").write_bytes(terrain_cells)
 
+    terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
     for family in range(JOB_FAMILY_COUNT):
-        start = MOVE_COST_BASE + family * JOB_FAMILY_STRIDE
-        row = data[start:start + TERRAIN_TYPE_COUNT]
-        if len(row) != TERRAIN_TYPE_COUNT:
+        power_start = TERRAIN_POWER_BASE + family * JOB_FAMILY_STRIDE
+        move_start = MOVE_COST_BASE + family * JOB_FAMILY_STRIDE
+        power_row = data[power_start:power_start + TERRAIN_TYPE_COUNT]
+        move_row = data[move_start:move_start + TERRAIN_TYPE_COUNT]
+        if len(power_row) != TERRAIN_TYPE_COUNT:
+            raise SystemExit(f"terrain power row truncated: family={family}")
+        if len(move_row) != TERRAIN_TYPE_COUNT:
             raise SystemExit(f"movement cost row truncated: family={family}")
-        move_cost_blob.extend(row)
+        terrain_power_blob.extend(power_row)
+        move_cost_blob.extend(move_row)
+    (battle_dir / "terrain_power.bin").write_bytes(terrain_power_blob)
     (battle_dir / "movement_costs.bin").write_bytes(move_cost_blob)
+
+    restraint_blob = exe[
+        JOB_RESTRAINT_BASE:
+        JOB_RESTRAINT_BASE + JOB_FAMILY_COUNT * JOB_RESTRAINT_STRIDE
+    ]
+    if len(restraint_blob) != JOB_FAMILY_COUNT * JOB_RESTRAINT_STRIDE:
+        raise SystemExit("job restraint matrix is truncated")
+    (battle_dir / "job_restraint.bin").write_bytes(restraint_blob)
+
+    scenario_scenes = parse_scenario_tree(s00)
+    scenario_diagnostics = build_scenario_diagnostics(scenario_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -622,7 +853,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 9,
+        "version": 10,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -632,6 +863,15 @@ def main(argv):
         "terrainTypeCount": TERRAIN_TYPE_COUNT,
         "movementCostFile": "movement_costs.bin",
         "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "rawCombatSemantics": {
+            "terrainPowerNeutralCandidate": 100,
+            "jobRestraintNeutralCandidate": 100,
+            "appliedToDamage": False,
+            "reason": "exact application order is not yet verified",
+        },
+        "scenarioDiagnostics": scenario_diagnostics,
         "terrainIds": terrain_ids,
         "combatModel": COMBAT_MODEL,
         "damageModel": DAMAGE_MODEL,
@@ -697,6 +937,23 @@ def main(argv):
             for u in units
             if u["faction"] == PLAYER
         ],
+    )
+    print(
+        "scenario scenes=", scenario_diagnostics["sceneCount"],
+        "sections=", scenario_diagnostics["sectionCounts"],
+        "commands=", scenario_diagnostics["commandCount"],
+    )
+    print(
+        "scenario relevant=",
+        scenario_diagnostics["relevantCommands"],
+    )
+    print(
+        "terrain power sample family0=",
+        list(terrain_power_blob[:TERRAIN_TYPE_COUNT]),
+    )
+    print(
+        "restraint sample family0=",
+        list(restraint_blob[:JOB_RESTRAINT_STRIDE]),
     )
     print("sprite ids=", sprite_ids)
     print(
