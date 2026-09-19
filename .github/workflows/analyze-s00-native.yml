@@ -109,6 +109,9 @@ jobs:
           print('scene table end=',n,'scene_pos=',scene_pos)
 
           wanted={0x44,0x45,0x46,0x47,0x48,0x4a,0x4b,0x27,0x1c,0x24,0x19,0x1a,0x5a,0x08}
+          deployment46=None
+          deployment47=None
+          player_slots=[]
           for si,sp in enumerate(scene_pos[:5]):
               section_count=u16(data,sp)
               pos=sp+2
@@ -125,6 +128,9 @@ jobs:
                       cid,used,params,types=parse_cmd(sec,k)
                       if cid in wanted or sj==0:
                           print(f'cmd#{ordinal:03d} off={k:05d} id=0x{cid:02X} used={used} params={params[:80]}')
+                      if si==0 and sj==0 and cid==0x46: deployment46=params
+                      if si==0 and sj==0 and cid==0x47: deployment47=params
+                      if si==0 and sj==0 and cid==0x4B: player_slots.append(params)
                       k+=used
                       if cid==0 and head:
                           head=False
@@ -141,6 +147,18 @@ jobs:
                       ordinal+=1
                   if k!=slen:
                       print('WARN section parse end',k,'!=',slen)
+
+          print('=== RAW PLAYER SLOTS ===',player_slots)
+          print('=== RAW ALLY DEPLOYMENT 46 ===')
+          if deployment46:
+              for n in range(20):
+                  row=deployment46[n*11:(n+1)*11]
+                  if row and row[0] >= 0: print(n,row)
+          print('=== RAW ENEMY DEPLOYMENT 47 ===')
+          if deployment47:
+              for n in range(80):
+                  row=deployment47[n*12:(n+1)*12]
+                  if row and row[0] >= 0: print(n,row)
 
           # Character names from Data.e5
           d_candidates=[n for n in names if n.lower().endswith('data.e5')]
