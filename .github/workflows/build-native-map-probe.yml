@@ -26,7 +26,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Extract private map and unit assets
+      - name: Generate first-battle native assets from private game data
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -34,6 +34,7 @@ jobs:
           set -euo pipefail
           mkdir -p native/android-map-probe/app/src/main/assets/map
           mkdir -p native/android-map-probe/app/src/main/assets/sprites
+          mkdir -p native/android-map-probe/app/src/main/assets/battle
 
           curl --fail --location --silent --show-error \
             -H "Authorization: Bearer ${GH_TOKEN}" \
@@ -50,53 +51,238 @@ jobs:
             -o /tmp/game1.zip
 
           python3 - <<'PY'
-          import pathlib, struct, zipfile
+          import json
+          import pathlib
+          import struct
+          import zipfile
 
-          assets=pathlib.Path('native/android-map-probe/app/src/main/assets')
+          assets = pathlib.Path('native/android-map-probe/app/src/main/assets')
+          sprites = assets / 'sprites'
+          battle_dir = assets / 'battle'
 
-          with zipfile.ZipFile('/tmp/game2.zip') as z:
-              data=z.read('map/m000.jpg')
-          (assets/'map'/'m000.jpg').write_bytes(data)
-          print('m000.jpg bytes=',len(data))
+          with zipfile.ZipFile('/tmp/game2.zip') as z2:
+              map_data = z2.read('map/m000.jpg')
+          (assets / 'map' / 'm000.jpg').write_bytes(map_data)
+          print('m000.jpg bytes=', len(map_data))
 
-          with zipfile.ZipFile('/tmp/game1.zip') as z:
-              data=z.read('Unit_mov.e5')
+          with zipfile.ZipFile('/tmp/game1.zip') as z1:
+              data = z1.read('Data.e5')
+              exe = z1.read('Ekd5.exe')
+              mov = z1.read('Unit_mov.e5')
+              spc = z1.read('Unit_spc.e5')
+              pal = z1.read('Spalet.e5')
+              s00 = z1.read('RS/S_00.eex')
 
-          # Ls12 container: 12-byte big-endian descriptors begin at 0x110.
-          # Each descriptor is (uncompressed_size, stored_size, absolute_offset).
-          unpacked, stored, offset = struct.unpack_from('>III', data, 0x110)
-          expected = 48 * 48 * 11
-          if unpacked != expected or stored < expected:
-              raise SystemExit(f'Unexpected Unit_mov record: unpacked={unpacked} stored={stored} offset={offset}')
-          payload=data[offset:offset+expected]
-          if len(payload) != expected:
-              raise SystemExit('Unit_mov payload truncated')
-          (assets/'sprites'/'unit_mov_000.bin').write_bytes(payload)
-          print('Unit_mov record0=',unpacked,stored,offset,'payload=',len(payload))
+          def be_desc(blob, zero_based_index):
+              off = 0x110 + zero_based_index * 12
+              if off < 0 or off + 12 > len(blob):
+                  return None
+              size, stored, data_off = struct.unpack_from('>III', blob, off)
+              if size <= 0 or data_off < 0 or data_off + min(size, stored) > len(blob):
+                  return None
+              return size, stored, data_off
 
-          with zipfile.ZipFile('/tmp/game1.zip') as z:
-              spc=z.read('Unit_spc.e5')
-              palfile=z.read('Spalet.e5')
-
-          spc_unpacked, spc_stored, spc_offset = struct.unpack_from('>III', spc, 0x110)
-          spc_expected = 48 * 48 * 5
-          if spc_unpacked != spc_expected or spc_stored < spc_expected:
-              raise SystemExit(f'Unexpected Unit_spc record: {spc_unpacked}/{spc_stored}/{spc_offset}')
-          (assets/'sprites'/'unit_spc_000.bin').write_bytes(
-              spc[spc_offset:spc_offset+spc_expected])
-
-          pal_unpacked, pal_stored, pal_offset = struct.unpack_from('>III', palfile, 0x110)
-          if pal_unpacked != 768 or pal_stored < 768:
-              raise SystemExit(f'Unexpected Spalet record: {pal_unpacked}/{pal_stored}/{pal_offset}')
-          palette=palfile[pal_offset:pal_offset+768]
+          # Spalet is a project-wide RAW palette source. Its first valid entry is
+          # stored as B,R,G triples (matching the 6.5 toolchain decoder).
+          pdesc = be_desc(pal, 0)
+          if not pdesc:
+              raise SystemExit('Spalet.e5 record 0 invalid')
+          psize, pstored, poff = pdesc
+          palette = pal[poff:poff + 768]
           if len(palette) != 768:
               raise SystemExit('Spalet palette truncated')
-          (assets/'sprites'/'spalet_000.bin').write_bytes(palette)
-          print('Unit_spc record0=',spc_unpacked,spc_stored,spc_offset)
-          print('Spalet palette0=',pal_unpacked,pal_stored,pal_offset)
+          (sprites / 'palette.bin').write_bytes(palette)
+          print('palette=', psize, pstored, poff, 'bytes=', len(palette))
+
+          def s16(buf, off):
+              return int.from_bytes(buf[off:off+2], 'little', signed=True)
+
+          def i32(buf, off):
+              return int.from_bytes(buf[off:off+4], 'little', signed=True)
+
+          def decode_numeric_command(sec, off, types, records=1):
+              if off + 2 > len(sec):
+                  raise ValueError('command header out of range')
+              p = off + 2
+              out = []
+              for _ in range(records):
+                  row = []
+                  for typ in types:
+                      if p + 2 > len(sec):
+                          raise ValueError('parameter tag out of range')
+                      p += 2  # serialized parameter type marker
+                      if typ == 0x04:
+                          if p + 4 > len(sec):
+                              raise ValueError('int32 out of range')
+                          row.append(i32(sec, p))
+                          p += 4
+                      else:
+                          if p + 2 > len(sec):
+                              raise ValueError('int16 out of range')
+                          row.append(s16(sec, p))
+                          p += 2
+                  out.append(row)
+              return out, p - off
+
+          scene0 = int.from_bytes(s00[10:14], 'little')
+          section_count = int.from_bytes(s00[scene0:scene0+2], 'little')
+          if section_count < 1:
+              raise SystemExit('S_00 scene0 has no sections')
+          section_len = int.from_bytes(s00[scene0+2:scene0+4], 'little')
+          sec = s00[scene0+4:scene0+4+section_len]
+
+          # Verified offsets in this exact S_00: enemy deployment and the three
+          # player deployment slots in the initialization section.
+          enemy_off = 1105
+          player_offs = [5607, 5635, 5663]
+          if sec[enemy_off] != 0x47:
+              raise SystemExit(f'Expected 0x47 at {enemy_off}, got {sec[enemy_off]:02x}')
+          if any(sec[o] != 0x4B for o in player_offs):
+              raise SystemExit('Expected three 0x4B player slots')
+
+          enemy_types = [0x02,0x26,0x26,0x04,0x04,0x2B,0x3E,0x45,0x07,0x02,0x04,0x04]
+          enemy_rows, enemy_used = decode_numeric_command(sec, enemy_off, enemy_types, 80)
+          print('enemy 0x47 bytes=', enemy_used)
+
+          player_types = [0x04,0x04,0x04,0x2B,0x26]
+          player_slots = []
+          for off in player_offs:
+              rows, used = decode_numeric_command(sec, off, player_types, 1)
+              if used != 28:
+                  raise SystemExit(f'Unexpected 0x4B length {used}')
+              player_slots.append(rows[0])
+          player_slots.sort(key=lambda r: r[0])
+          print('player slots=', player_slots)
+
+          def char_info(cid):
+              row = 0x18C + cid * 0x20
+              if row + 0x20 > len(data):
+                  raise ValueError(f'character out of Data.e5 range: {cid}')
+              raw_name = data[row:row+13].split(b'\0', 1)[0]
+              name = raw_name.decode('cp949', 'replace').replace('\x00', '').strip()
+              job = data[row + 26]
+              level = data[row + 27]
+              s_id = int.from_bytes(exe[0xD2800 + cid*2:0xD2802 + cid*2], 'little')
+              return name or f'인물{cid}', job, level, s_id
+
+          def map_s_to_unit_image(s_id, job, faction_slot, promotion_tier):
+              if s_id == 0:
+                  return job * 3 + faction_slot
+              if 1 <= s_id <= 32:
+                  tier = max(0, min(2, promotion_tier))
+                  return 241 + (s_id - 1) * 3 + tier
+              return 337 + (s_id - 33)
+
+          MOV_BYTES = 48 * 48 * 11
+          SPC_BYTES = 48 * 48 * 5
+
+          def valid_raw(blob, image_number, expected):
+              idx = image_number - 1
+              desc = be_desc(blob, idx)
+              if not desc:
+                  return False
+              size, stored, off = desc
+              return size >= expected and stored >= expected and off + expected <= len(blob)
+
+          def safe_unit_image(image_number, job, faction_slot):
+              if valid_raw(mov, image_number, MOV_BYTES) and valid_raw(spc, image_number, SPC_BYTES):
+                  return image_number
+              fallback = job * 3 + faction_slot
+              if valid_raw(mov, fallback, MOV_BYTES) and valid_raw(spc, fallback, SPC_BYTES):
+                  print('sprite fallback', image_number, '->', fallback)
+                  return fallback
+              print('sprite fallback', image_number, '-> 1')
+              return 1
+
+          units = []
+
+          # The opening script explicitly brings out 刘/关/张 through slots 0/1/2.
+          # Their Korean Data.e5 rows are 0/1/2 (유비/관우/장비).
+          for cid, slot in zip([0, 1, 2], player_slots):
+              _, x, y, direction, _flag = slot
+              name, job, data_level, s_id = char_info(cid)
+              image = map_s_to_unit_image(s_id, job, 1, 0)
+              image = safe_unit_image(image, job, 1)
+              units.append({
+                  'characterId': cid,
+                  'name': name,
+                  'faction': 0,
+                  'x': x,
+                  'y': y,
+                  'direction': direction,
+                  'level': data_level,
+                  'job': job,
+                  'sImage': s_id,
+                  'unitImage': image,
+                  'source': 'S_00:0x4B'
+              })
+
+          # 0x47 record:
+          # person, reinforcement, hidden, x, y, direction, level,
+          # class-tier, AI, target-person, target-x, target-y.
+          for record_index, row in enumerate(enemy_rows):
+              person = row[0]
+              if person < 0:
+                  continue
+              hidden = row[2]
+              if hidden != 0:
+                  continue
+
+              x, y = row[3], row[4]
+              direction = row[5]
+              battle_level = row[6]
+              class_tier = row[7]
+              name, job, data_level, s_id = char_info(person)
+              image = map_s_to_unit_image(s_id, job, 3, class_tier)
+              image = safe_unit_image(image, job, 3)
+
+              units.append({
+                  'characterId': person,
+                  'name': name,
+                  'faction': 2,
+                  'x': x,
+                  'y': y,
+                  'direction': direction,
+                  'level': battle_level if battle_level >= 0 else data_level,
+                  'job': job,
+                  'sImage': s_id,
+                  'unitImage': image,
+                  'source': f'S_00:0x47:{record_index}'
+              })
+
+          # Extract only the Unit entries actually needed by the initial battle.
+          images = sorted({u['unitImage'] for u in units})
+          for image_number in images:
+              idx = image_number - 1
+              mdesc = be_desc(mov, idx)
+              sdesc = be_desc(spc, idx)
+              if not mdesc or not sdesc:
+                  raise SystemExit(f'No E5 record for Unit image {image_number}')
+              _, _, moff = mdesc
+              _, _, soff = sdesc
+              mpayload = mov[moff:moff + MOV_BYTES]
+              spayload = spc[soff:soff + SPC_BYTES]
+              if len(mpayload) != MOV_BYTES or len(spayload) != SPC_BYTES:
+                  raise SystemExit(f'Truncated Unit image {image_number}')
+              (sprites / f'mov_{image_number:04d}.bin').write_bytes(mpayload)
+              (sprites / f'spc_{image_number:04d}.bin').write_bytes(spayload)
+              print('sprite image=', image_number, 'mov=', len(mpayload), 'spc=', len(spayload))
+
+          battle = {
+              'version': 4,
+              'map': 'm000',
+              'source': 'RS/S_00.eex Scene0 initialization',
+              'units': units,
+          }
+          (battle_dir / 'battle0.json').write_text(
+              json.dumps(battle, ensure_ascii=False, indent=2),
+              encoding='utf-8')
+          print('battle units=', len(units), 'images=', images)
+          for u in units:
+              print(u)
           PY
 
-      - name: Build native map probe APK
+      - name: Build native battle APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -107,10 +293,13 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-MapProbe-v0.3.apk"
+          OUT="SeongSamgukji-Native-Battle-v0.4.apk"
           cp "$APK" "$OUT"
-          if gh release view native-map-probe-v0.3 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload native-map-probe-v0.3 "$OUT" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view native-battle-v0.4 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload native-battle-v0.4 "$OUT" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create native-map-probe-v0.3 "$OUT" --draft               --title "PRIVATE - 성삼국지 Native Map Probe v0.3"               --notes "Winlator/Wine 없이 실제 m000.jpg, Unit_mov.e5, Unit_spc.e5, Spalet.e5를 Android에서 직접 읽는 네이티브 프로토타입입니다. Spalet의 256색 RGB 팔레트를 적용해 원본 S형상을 실제 색으로 렌더링하고, 맵 터치 이동/핀치 줌/드래그를 지원합니다. 공개 배포하지 마세요."               --repo "$GITHUB_REPOSITORY"
+            gh release create native-battle-v0.4 "$OUT" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v0.4" \
+              --notes "Winlator/Wine 없이 원본 RS/S_00.eex의 첫 전투 초기 배치를 읽어 실제 m000 전투맵 위에 표시합니다. Data.e5의 CP949 한글 인물명, Ekd5.exe의 S형상 지정표, Unit_mov/Unit_spc 원본 프레임, Spalet 원본 팔레트를 연결합니다. 유비/관우/장비와 초기 적군 배치를 직접 렌더링하며 아군 선택/터치 이동, 드래그, 핀치 줌을 지원합니다. 공개 배포하지 마세요." \
+              --repo "$GITHUB_REPOSITORY"
           fi
