@@ -23,9 +23,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
 
 public class MapView extends View {
     private static final float TILE = 48f;
@@ -60,6 +62,10 @@ public class MapView extends View {
     private final List<OpeningEvent> openingEvents = new ArrayList<>();
     private final List<OpeningEvent> phaseTransitionEvents = new ArrayList<>();
     private final List<Integer> protectedCharacterIds = new ArrayList<>();
+    private final List<JSONObject> battleEvents = new ArrayList<>();
+    private final Set<Integer> firedBattleSections = new HashSet<>();
+    private final Set<Integer> reinforcementCharacterIds = new HashSet<>();
+    private final Map<Integer, Integer> scenarioVariables = new HashMap<>();
     private final Map<Integer, Bitmap[]> idleSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> moveSprites = new HashMap<>();
     private final Map<Integer, Bitmap[]> attackSprites = new HashMap<>();
@@ -133,6 +139,13 @@ public class MapView extends View {
     private boolean battleEnded = false;
     private boolean battleVictory = false;
     private String battleResultText = "";
+
+    private JSONObject activeBattleEvent;
+    private JSONArray activeBattleActions;
+    private int activeBattleActionIndex = 0;
+    private long battleEventWaitUntil = 0L;
+    private BattleUnit battleEventMovingUnit;
+    private boolean scriptEventActive = false;
 
     public MapView(Context context) {
         super(context);
@@ -303,6 +316,9 @@ public class MapView extends View {
                     u.getInt("y"),
                     u.optInt("direction", 2));
             units.add(unit);
+            if (u.optBoolean("reinforcement", false)) {
+                reinforcementCharacterIds.add(unit.characterId);
+            }
             ensureSprite(context, unit.spriteId);
         }
 
@@ -358,6 +374,17 @@ public class MapView extends View {
                     phaseTransitionEvents.add(
                             OpeningEvent.fromJson(
                                     transition.getJSONObject(i)));
+                }
+            }
+        }
+
+        JSONArray compiledEvents = battle.optJSONArray("battleEvents");
+        if (compiledEvents != null) {
+            for (int i = 0; i < compiledEvents.length(); i++) {
+                JSONObject event = compiledEvents.optJSONObject(i);
+                if (event != null
+                        && event.optBoolean("coreSupported", false)) {
+                    battleEvents.add(event);
                 }
             }
         }
@@ -484,6 +511,7 @@ public class MapView extends View {
         boolean openingBusy = pumpOpeningEvents();
         checkBattleState();
         boolean phaseBusy = pumpPhaseTransitionEvents();
+        boolean sceneEventBusy = pumpBattleScriptEvents();
         boolean counterBusy = updatePendingCounter(now);
         boolean enemyBusy = updateEnemyTurn(now);
 
@@ -582,6 +610,16 @@ public class MapView extends View {
                     22,
                     65,
                     overlayTextPaint);
+        } else if (scriptEventActive) {
+            int section = activeBattleEvent == null
+                    ? -1
+                    : activeBattleEvent.optInt("section", -1);
+            canvas.drawText(
+                    "원본 S_00 전장 이벤트 재생 중"
+                            + (section > 0 ? " · Section " + section : ""),
+                    22,
+                    65,
+                    overlayTextPaint);
         } else if (playerTurn) {
             String objective = objectivePopupText == null
                     || objectivePopupText.isEmpty()
@@ -646,7 +684,8 @@ public class MapView extends View {
         if (openingFinished
                 && playerTurn
                 && !battleEnded
-                && !phaseTransitionActive) {
+                && !phaseTransitionActive
+                && !scriptEventActive) {
             drawEndTurnButton(canvas);
         }
 
@@ -657,6 +696,7 @@ public class MapView extends View {
         if (moving
                 || openingBusy
                 || phaseBusy
+                || sceneEventBusy
                 || counterBusy
                 || enemyBusy
                 || !openingFinished
@@ -694,6 +734,7 @@ public class MapView extends View {
         if (!openingFinished
                 || battleEnded
                 || phaseTransitionActive
+                || scriptEventActive
                 || !playerTurn
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
@@ -730,6 +771,7 @@ public class MapView extends View {
         if (!openingFinished
                 || battleEnded
                 || phaseTransitionActive
+                || scriptEventActive
                 || !playerTurn
                 || selectedUnit == null
                 || !selectedUnit.isPlayer()
@@ -1082,6 +1124,563 @@ public class MapView extends View {
         return false;
     }
 
+
+    private boolean pumpBattleScriptEvents() {
+        if (!openingFinished
+                || battleEnded
+                || phaseTransitionActive) {
+            return false;
+        }
+
+        long now = SystemClock.uptimeMillis();
+
+        if (scriptEventActive) {
+            if (dialogueText != null) {
+                return true;
+            }
+
+            if (battleEventMovingUnit != null) {
+                if (battleEventMovingUnit.isMoving()) {
+                    return true;
+                }
+                battleEventMovingUnit = null;
+                activeBattleActionIndex++;
+                battleEventWaitUntil = now + 80L;
+            }
+
+            if (now < battleEventWaitUntil) {
+                return true;
+            }
+
+            while (activeBattleActions != null
+                    && activeBattleActionIndex
+                    < activeBattleActions.length()) {
+                JSONObject action = activeBattleActions.optJSONObject(
+                        activeBattleActionIndex);
+                if (action == null) {
+                    activeBattleActionIndex++;
+                    continue;
+                }
+
+                String type = action.optString("type", "");
+                switch (type) {
+                    case "dialogue":
+                        dialogueSpeaker = action.optString("speaker", "");
+                        dialogueText = action.optString("text", "");
+                        return true;
+
+                    case "delay":
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now
+                                + Math.max(
+                                100L,
+                                action.optInt("value", 1) * 80L);
+                        return true;
+
+                    case "move": {
+                        BattleUnit unit = findUnitByCharacterId(
+                                action.optInt("characterId", -1));
+                        if (unit == null) {
+                            activeBattleActionIndex++;
+                            break;
+                        }
+                        unit.visible = true;
+                        unit.clearMovePath();
+                        unit.targetX = action.optInt("x", unit.x);
+                        unit.targetY = action.optInt("y", unit.y);
+                        int direction = action.optInt("direction", -1);
+                        if (direction >= 0) {
+                            unit.direction = direction;
+                        }
+                        unit.lastMoveStepAt = 0L;
+                        if (unit.isMoving()) {
+                            battleEventMovingUnit = unit;
+                            return true;
+                        }
+                        activeBattleActionIndex++;
+                        break;
+                    }
+
+                    case "reveal": {
+                        BattleUnit unit = findUnitByCharacterId(
+                                action.optInt("characterId", -1));
+                        if (unit != null) {
+                            unit.visible = true;
+                        }
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 100L;
+                        return true;
+                    }
+
+                    case "hide":
+                    case "retreat": {
+                        BattleUnit unit = findUnitByCharacterId(
+                                action.optInt("characterId", -1));
+                        if (unit != null) {
+                            unit.visible = false;
+                            unit.clearMovePath();
+                            unit.targetX = unit.x;
+                            unit.targetY = unit.y;
+                        }
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 100L;
+                        return true;
+                    }
+
+                    case "kill": {
+                        BattleUnit unit = findUnitByCharacterId(
+                                action.optInt("characterId", -1));
+                        if (unit != null) {
+                            unit.hp = 0;
+                            unit.visible = false;
+                            unit.clearMovePath();
+                            unit.targetX = unit.x;
+                            unit.targetY = unit.y;
+                        }
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 120L;
+                        return true;
+                    }
+
+                    case "revive": {
+                        BattleUnit unit = findUnitByCharacterId(
+                                action.optInt("characterId", -1));
+                        if (unit != null) {
+                            unit.hp = unit.maxHp;
+                            unit.visible = true;
+                            unit.x = action.optInt("x", unit.x);
+                            unit.y = action.optInt("y", unit.y);
+                            unit.targetX = unit.x;
+                            unit.targetY = unit.y;
+                            int direction = action.optInt(
+                                    "direction",
+                                    unit.direction);
+                            if (direction >= 0) {
+                                unit.direction = direction;
+                            }
+                        }
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 120L;
+                        return true;
+                    }
+
+                    case "turn": {
+                        BattleUnit unit = findUnitByCharacterId(
+                                action.optInt("characterId", -1));
+                        if (unit != null) {
+                            int direction = action.optInt("direction", -1);
+                            int targetId = action.optInt("targetId", -1);
+                            if (direction < 0 && targetId >= 0) {
+                                BattleUnit target =
+                                        findUnitByCharacterId(targetId);
+                                if (target != null) {
+                                    direction = directionToward(unit, target);
+                                }
+                            }
+                            if (direction >= 0) {
+                                unit.direction = direction;
+                            }
+                        }
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 100L;
+                        return true;
+                    }
+
+                    case "action": {
+                        BattleUnit unit = findUnitByCharacterId(
+                                action.optInt("characterId", -1));
+                        if (unit != null) {
+                            unit.actionFrame = action.optInt("value", 0);
+                            unit.actionUntil = now + 420L;
+                        }
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 420L;
+                        return true;
+                    }
+
+                    case "sound":
+                        lastSound = action.optInt("value", -1);
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "music":
+                        musicTrack = action.optInt("value", -1);
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "reward":
+                        lastCombatMessage = "원본 보상 이벤트 · 아이템 "
+                                + action.optInt("value", -1)
+                                + " → 인물 "
+                                + action.optInt("targetId", -1);
+                        combatMessageUntil = now + 1800L;
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "setVariable":
+                        scenarioVariables.put(
+                                action.optInt("variableId", -1),
+                                action.optInt("value", 0));
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "turnLimit":
+                        turnLimit = Math.max(
+                                1,
+                                action.optInt("value", turnLimit));
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "objective":
+                        objectiveText = action.optString(
+                                "text",
+                                objectiveText);
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "objectivePopup":
+                        objectivePopupText = action.optString(
+                                "text",
+                                objectivePopupText);
+                        activeBattleActionIndex++;
+                        break;
+
+                    default:
+                        activeBattleActionIndex++;
+                        break;
+                }
+            }
+
+            finishBattleScriptEvent();
+            return false;
+        }
+
+        if (dialogueText != null
+                || pendingCounterAttacker != null
+                || hasActiveAttackAnimation(now)
+                || anyUnitMoving()) {
+            return false;
+        }
+
+        for (JSONObject event : battleEvents) {
+            int section = event.optInt("section", -1);
+            if (section < 0 || firedBattleSections.contains(section)) {
+                continue;
+            }
+            if (battleEventConditionsSatisfied(event)) {
+                startBattleScriptEvent(event);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void startBattleScriptEvent(JSONObject event) {
+        activeBattleEvent = event;
+        activeBattleActions = event.optJSONArray("actions");
+        activeBattleActionIndex = 0;
+        battleEventWaitUntil = SystemClock.uptimeMillis() + 80L;
+        battleEventMovingUnit = null;
+        scriptEventActive = true;
+
+        int section = event.optInt("section", -1);
+        if (section >= 0) {
+            firedBattleSections.add(section);
+        }
+
+        clearReachable();
+        lastCombatMessage = "S_00 Section " + section + " 이벤트 발동";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+        invalidate();
+    }
+
+    private void finishBattleScriptEvent() {
+        activeBattleEvent = null;
+        activeBattleActions = null;
+        activeBattleActionIndex = 0;
+        battleEventMovingUnit = null;
+        battleEventWaitUntil = 0L;
+        scriptEventActive = false;
+
+        checkBattleState();
+        if (!battleEnded
+                && !phaseTransitionActive
+                && playerTurn) {
+            if (selectedUnit == null
+                    || !selectedUnit.visible
+                    || !selectedUnit.isAlive()) {
+                selectFirstPlayer();
+            }
+            refreshReachable();
+        }
+        invalidate();
+    }
+
+    private boolean battleEventConditionsSatisfied(JSONObject event) {
+        JSONArray trueVariables = event.optJSONArray(
+                "requireTrueVariables");
+        if (trueVariables != null) {
+            for (int i = 0; i < trueVariables.length(); i++) {
+                int id = trueVariables.optInt(i, -1);
+                if (id >= 0
+                        && scenarioVariables.getOrDefault(id, 0) == 0) {
+                    return false;
+                }
+            }
+        }
+
+        JSONArray falseVariables = event.optJSONArray(
+                "requireFalseVariables");
+        if (falseVariables != null) {
+            for (int i = 0; i < falseVariables.length(); i++) {
+                int id = falseVariables.optInt(i, -1);
+                if (id >= 0
+                        && scenarioVariables.getOrDefault(id, 0) != 0) {
+                    return false;
+                }
+            }
+        }
+
+        JSONArray triggers = event.optJSONArray("triggers");
+        if (triggers == null || triggers.length() == 0) {
+            return false;
+        }
+
+        for (int i = 0; i < triggers.length(); i++) {
+            JSONObject trigger = triggers.optJSONObject(i);
+            if (trigger == null || !battleTriggerSatisfied(trigger)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean battleTriggerSatisfied(JSONObject trigger) {
+        String type = trigger.optString("type", "");
+
+        switch (type) {
+            case "position":
+                return anyMatchingUnitAt(
+                        trigger.optInt("personCode", -1),
+                        trigger.optInt("x", -1),
+                        trigger.optInt("y", -1));
+
+            case "area":
+                return anyMatchingUnitInArea(
+                        trigger.optInt("personCode", -1),
+                        trigger.optInt("x1", -1),
+                        trigger.optInt("y1", -1),
+                        trigger.optInt("x2", -1),
+                        trigger.optInt("y2", -1));
+
+            case "unitHpEqualsZero": {
+                BattleUnit unit = findUnitByCharacterId(
+                        trigger.optInt("characterId", -1));
+                return unit != null && unit.hp <= 0;
+            }
+
+            case "roundCompare":
+                return compareScenarioInt(
+                        round,
+                        trigger.optInt("value", 0),
+                        trigger.optInt("compare", 2));
+
+            case "side": {
+                int side = trigger.optInt("side", -1);
+                if (side == 0) {
+                    return playerTurn;
+                }
+                if (side == 1) {
+                    return false;
+                }
+                return !playerTurn;
+            }
+
+            case "campCount": {
+                int count = countCampUnits(
+                        trigger.optInt("camp", 6),
+                        trigger.optBoolean("area", false),
+                        trigger.optInt("x1", 0),
+                        trigger.optInt("y1", 0),
+                        trigger.optInt("x2", mapCols - 1),
+                        trigger.optInt("y2", mapRows - 1));
+                return compareScenarioInt(
+                        count,
+                        trigger.optInt("value", 0),
+                        trigger.optInt("compare", 2));
+            }
+
+            case "adjacent": {
+                BattleUnit first = findUnitByCharacterId(
+                        trigger.optInt("firstCharacterId", -1));
+                BattleUnit second = findUnitByCharacterId(
+                        trigger.optInt("secondCharacterId", -1));
+                if (first == null
+                        || second == null
+                        || !first.visible
+                        || !second.visible
+                        || !first.isAlive()
+                        || !second.isAlive()) {
+                    return false;
+                }
+
+                int distance = Math.abs(first.x - second.x)
+                        + Math.abs(first.y - second.y);
+                if (distance != 1) {
+                    return false;
+                }
+
+                if (trigger.optBoolean("requireAttackable", false)) {
+                    return supportsAttackRange(first)
+                            && isInAttackRange(first, second);
+                }
+                return true;
+            }
+
+            default:
+                return false;
+        }
+    }
+
+    private boolean compareScenarioInt(
+            int actual,
+            int expected,
+            int compare) {
+        if (compare == 0) {
+            return actual >= expected;
+        }
+        if (compare == 1) {
+            return actual < expected;
+        }
+        return actual == expected;
+    }
+
+    private boolean anyMatchingUnitAt(
+            int personCode,
+            int x,
+            int y) {
+        for (BattleUnit unit : units) {
+            if (unit.visible
+                    && unit.isAlive()
+                    && unit.x == x
+                    && unit.y == y
+                    && matchesPersonCode(unit, personCode)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean anyMatchingUnitInArea(
+            int personCode,
+            int x1,
+            int y1,
+            int x2,
+            int y2) {
+        int left = Math.min(x1, x2);
+        int right = Math.max(x1, x2);
+        int top = Math.min(y1, y2);
+        int bottom = Math.max(y1, y2);
+
+        for (BattleUnit unit : units) {
+            if (unit.visible
+                    && unit.isAlive()
+                    && unit.x >= left
+                    && unit.x <= right
+                    && unit.y >= top
+                    && unit.y <= bottom
+                    && matchesPersonCode(unit, personCode)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesPersonCode(
+            BattleUnit unit,
+            int personCode) {
+        if (personCode == 1024) {
+            return true;
+        }
+        if (personCode == 1025) {
+            return !unit.isEnemy();
+        }
+        if (personCode == 1026) {
+            return unit.isEnemy();
+        }
+        if (personCode == 1027) {
+            return unit == selectedUnit && unit.isPlayer();
+        }
+        return unit.characterId == personCode;
+    }
+
+    private int countCampUnits(
+            int camp,
+            boolean area,
+            int x1,
+            int y1,
+            int x2,
+            int y2) {
+        int left = Math.min(x1, x2);
+        int right = Math.max(x1, x2);
+        int top = Math.min(y1, y2);
+        int bottom = Math.max(y1, y2);
+        int count = 0;
+
+        for (BattleUnit unit : units) {
+            if (!unit.visible || !unit.isAlive()) {
+                continue;
+            }
+            if (area
+                    && (unit.x < left
+                    || unit.x > right
+                    || unit.y < top
+                    || unit.y > bottom)) {
+                continue;
+            }
+            if (matchesCamp(unit, camp)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean matchesCamp(BattleUnit unit, int camp) {
+        boolean reinforcement = reinforcementCharacterIds.contains(
+                unit.characterId);
+
+        switch (camp) {
+            case 0:
+                return unit.isPlayer();
+            case 1:
+                return "ally".equals(unit.faction);
+            case 2:
+                return unit.isEnemy() && !reinforcement;
+            case 3:
+                return unit.isEnemy() && reinforcement;
+            case 4:
+                return !unit.isEnemy();
+            case 5:
+                return unit.isEnemy();
+            case 6:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean anyUnitMoving() {
+        for (BattleUnit unit : units) {
+            if (unit.visible
+                    && unit.isAlive()
+                    && unit.isMoving()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean pumpPhaseTransitionEvents() {
         if (!phaseTransitionActive || battleEnded) {
             return false;
@@ -1225,6 +1824,13 @@ public class MapView extends View {
                     phaseEventIndex++;
                     break;
 
+                case "setVariable":
+                    if (event.variableId >= 0) {
+                        scenarioVariables.put(event.variableId, event.value);
+                    }
+                    phaseEventIndex++;
+                    break;
+
                 case "turnLimit":
                     turnLimit = Math.max(1, event.value);
                     phaseEventIndex++;
@@ -1301,7 +1907,10 @@ public class MapView extends View {
     }
 
     private void checkBattleState() {
-        if (!openingFinished || battleEnded || phaseTransitionActive) {
+        if (!openingFinished
+                || battleEnded
+                || phaseTransitionActive
+                || scriptEventActive) {
             return;
         }
 
@@ -1372,6 +1981,10 @@ public class MapView extends View {
         battleVictory = victory;
         battleResultText = reason;
         phaseTransitionActive = false;
+        scriptEventActive = false;
+        activeBattleEvent = null;
+        activeBattleActions = null;
+        battleEventMovingUnit = null;
         pendingCounterAttacker = null;
         pendingCounterTarget = null;
         pendingCounterAt = 0L;
@@ -1640,6 +2253,7 @@ public class MapView extends View {
         return openingFinished
                 && !battleEnded
                 && !phaseTransitionActive
+                && !scriptEventActive
                 && playerTurn
                 && attacker != null
                 && attacker.isPlayer()
@@ -1802,6 +2416,7 @@ public class MapView extends View {
         if (!openingFinished
                 || battleEnded
                 || phaseTransitionActive
+                || scriptEventActive
                 || !playerTurn
                 || pendingCounterAttacker != null) {
             return false;
@@ -1866,6 +2481,7 @@ public class MapView extends View {
         if (!openingFinished
                 || battleEnded
                 || phaseTransitionActive
+                || scriptEventActive
                 || playerTurn) {
             return false;
         }
@@ -1975,7 +2591,9 @@ public class MapView extends View {
 
         resetSideTurnState(false);
         checkBattleState();
-        if (!battleEnded && !phaseTransitionActive) {
+        if (!battleEnded
+                && !phaseTransitionActive
+                && !scriptEventActive) {
             selectFirstPlayer();
             refreshReachable();
         }
@@ -2177,6 +2795,9 @@ public class MapView extends View {
         if (phaseTransitionActive) {
             phaseEventIndex++;
             phaseEventWaitUntil = SystemClock.uptimeMillis() + 80L;
+        } else if (scriptEventActive) {
+            activeBattleActionIndex++;
+            battleEventWaitUntil = SystemClock.uptimeMillis() + 80L;
         } else {
             openingIndex++;
             openingWaitUntil = SystemClock.uptimeMillis() + 80L;
@@ -2328,7 +2949,7 @@ public class MapView extends View {
                         return true;
                     }
 
-                    if (phaseTransitionActive) {
+                    if (phaseTransitionActive || scriptEventActive) {
                         if (moved < 24f && dialogueText != null) {
                             advanceDialogue();
                         }
