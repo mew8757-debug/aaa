@@ -51,7 +51,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v13";
+    private static final String PREFS = "seong_samgukji_oneclick_v14";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -256,6 +256,26 @@ public class SeongSamgukjiActivity extends MainActivity {
                 if (!exe.isFile()) exe = findExactExe(gameDir, "Ekd5.exe");
                 if (exe == null || !exe.isFile()) exe = findBestExe(gameDir);
                 if (exe == null) throw new Exception("게임 실행 EXE를 찾지 못했습니다.");
+
+                // Sanity-check the map resources that the game loads through relative paths.
+                String[] requiredMapFiles = {"Mmap.e5", "Pmap.e5", "Pmapobj.e5", "Hexzmap.e5"};
+                for (String name : requiredMapFiles) {
+                    File required = new File(gameDir, name);
+                    if (!required.isFile()) {
+                        throw new Exception("필수 맵 파일이 없습니다: " + name);
+                    }
+                }
+
+                // Launch through a tiny batch file that explicitly sets D:\\ as the
+                // Windows current directory. Older Koei-era games resolve many data
+                // files (including map resources) relative to the current directory.
+                File launcher = new File(gameDir, "SeongLaunch.bat");
+                try (PrintWriter pw = new PrintWriter(new FileOutputStream(launcher, false))) {
+                    pw.println("@echo off");
+                    pw.println("D:");
+                    pw.println("cd \\");
+                    pw.println("start /wait Ekd5.exe");
+                }
 
                 final File selectedExe = exe;
                 handler.post(() -> {
