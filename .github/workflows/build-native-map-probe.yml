@@ -117,6 +117,19 @@ jobs:
                   "command": "0x4E",
                   "policies": [0, 1, 2, 3, 4, 5, 6],
               }
+              status["relativeMoveProbe"] = [
+                  {
+                      "characterId": unit.get("characterId"),
+                      "name": unit.get("name"),
+                      "faction": unit.get("faction"),
+                      "visible": unit.get("visible"),
+                      "x": unit.get("x"),
+                      "y": unit.get("y"),
+                      "direction": unit.get("direction"),
+                  }
+                  for unit in battle.get("units", [])
+                  if unit.get("characterId") in (309, 310)
+              ]
               objectives = battle.get("battleObjectives", {})
               status["battleObjectives"] = {
                   "phase1": objectives.get("phase1", {}),
