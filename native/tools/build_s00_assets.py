@@ -480,6 +480,22 @@ def native_action_from_node(node):
     if cid == 0x4C and len(params) >= 3 and int(params[0]) == 0:
         return {"type": "reveal", "characterId": int(params[1])}
 
+    if cid == 0x4E and len(params) >= 11:
+        return {
+            "type": "aiPolicy",
+            "targetMode": int(params[0]),
+            "characterId": int(params[1]),
+            "x1": int(params[2]),
+            "y1": int(params[3]),
+            "x2": int(params[4]),
+            "y2": int(params[5]),
+            "camp": int(params[6]),
+            "policy": int(params[7]),
+            "targetCharacterId": int(params[8]),
+            "targetX": int(params[9]),
+            "targetY": int(params[10]),
+        }
+
     if cid == 0x4F and len(params) >= 6:
         return {
             "type": "turn",
@@ -660,6 +676,7 @@ def extract_scene2_native_events(scenes):
 
         actions = []
         unsupported_action_ids = []
+        unsupported_actions = []
         nested_branch_count = 0
 
         for node in body_node["children"]:
@@ -669,6 +686,10 @@ def extract_scene2_native_events(scenes):
             action = native_action_from_node(node)
             if action is None:
                 unsupported_action_ids.append(node["commandId"])
+                unsupported_actions.append({
+                    "commandId": node["commandId"],
+                    "params": node["params"],
+                })
             elif action["type"] != "noop":
                 actions.append(action)
 
@@ -688,6 +709,7 @@ def extract_scene2_native_events(scenes):
             "coreSupported": core_supported,
             "unsupportedTriggerIds": sorted(set(unsupported_trigger_ids)),
             "unsupportedActionIds": sorted(set(unsupported_action_ids)),
+            "unsupportedActions": unsupported_actions,
             "nestedBranchCount": nested_branch_count,
         })
 
@@ -1370,6 +1392,7 @@ def main(argv):
                     "coreSupported": event["coreSupported"],
                     "unsupportedTriggerIds": event["unsupportedTriggerIds"],
                     "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
                     "nestedBranchCount": event["nestedBranchCount"],
                 }
                 for event in native_scene2_events
