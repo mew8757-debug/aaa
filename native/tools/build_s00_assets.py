@@ -631,12 +631,14 @@ def native_action_from_node(node):
             "sound": int(params[6]) != 0,
         }
 
-    # 0x78 in S01 transfers an integer variable to/from a unit attribute.
-    # Verified attributes used here: 7=HP(max), 33=HpCur.
+    # 0x78 transfers an integer variable to/from a character attribute.
+    # Verified AllCondition indices used by R07/R08/S08:
+    # 0=R image, 1=face, 7=HP(max), 8=MP(max), 26=auxiliary,
+    # 32=battle direction, 33=HpCur, 34=MpCur.
     if (
         cid == 0x78
         and len(params) >= 4
-        and int(params[3]) in (0, 7, 32, 33)
+        and int(params[3]) in (0, 1, 7, 8, 26, 32, 33, 34)
     ):
         return {
             "type": "unitAttributeTransfer",
@@ -2358,6 +2360,16 @@ def compile_r07_story(blob):
     )
 
 
+def compile_r08_story(blob):
+    return compile_r_story(
+        blob,
+        "R_08.eex",
+        22,
+        23,
+        "S_08.eex",
+    )
+
+
 
 def build_next_scenario_probe(filename, blob):
     if blob is None:
@@ -3114,6 +3126,7 @@ def main(argv):
     s07_outcome_events = extract_s07_outcome_events(s07_scenes)
     r08_probe = build_next_scenario_probe("R_08.eex", r08)
     s08_probe = build_next_scenario_probe("S_08.eex", s08)
+    r08_story = compile_r08_story(r08)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -3186,6 +3199,11 @@ def main(argv):
             1,
             initial_hp + job["growthHp"] * max(0, level - base_level),
         )
+        mp_max = max(
+            0,
+            initial_mp + job["growthMp"] * max(0, level - base_level),
+        )
+        auxiliary_item = int(data[row + 31])
 
         return {
             **job,
@@ -3198,6 +3216,8 @@ def main(argv):
             "morale": morale,
             "initialHp": initial_hp,
             "initialMp": initial_mp,
+            "mpMax": mp_max,
+            "auxiliaryItem": auxiliary_item,
             "attack": attack_value,
             "defense": defense_value,
             "spirit": spirit_value,
@@ -4773,7 +4793,7 @@ def main(argv):
         raise SystemExit(f"S07 Liu Bei mapping mismatch: 0={name_of(0)}")
 
     s07_battle = {
-        "version": 45,
+        "version": 46,
         "source": "RS/S_07.eex",
         "battleMode": "kill-character",
         "mapId": 7,
@@ -4815,6 +4835,7 @@ def main(argv):
             "R_08.eex": r08_probe,
             "S_08.eex": s08_probe,
         },
+        "r08Story": r08_story,
         "battleEventSummary": {
             "candidateCount": len(s07_native_events),
             "coreSupportedCount": sum(
