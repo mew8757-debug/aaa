@@ -1,4 +1,4 @@
-name: Build Native Android Battle v1.0
+name: Build Native Android Battle v1.1
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v1.0 APK
+      - name: Build native v1.1 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v1.0.apk"
+          OUT="SeongSamgukji-Native-Battle-v1.1.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v1.0 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v1.0 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v1.1 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v1.1 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v1.0 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v1.0" \
-              --notes "Native v1.0은 v0.9 턴 루프 위에 S_00.eex 원본 승패 상태기를 연결합니다. 1단계는 1025(우리군 또는 우군)가 (6,13)에 도착하는 목표이며, 도달 시 원본 Section 2-1의 백성5/추정/유비 대사·등장/숨김·보상 이벤트를 재생하고 0x5D 원본값으로 회합 상한을 15턴으로 바꿔 2단계 적 전멸 목표로 전환합니다. 유비(0)·추정(181) 사망, 1단계 적군(1026)의 (13,11) 마을 진입, 턴 초과를 패배 조건으로 적용합니다. 지형발휘/병종상성 행렬은 계속 원본 그대로 패키징하되 정확한 계산 순서가 검증될 때까지 피해 공식에는 섞지 않습니다. 공개 배포하지 마세요." \\
+            gh release create native-battle-v1.1 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v1.1" \
+              --notes "Native v1.1은 v1.0의 S_00 원본 목표 상태기 위에 Scene 2 전장 이벤트 실행기를 추가합니다. 빌드 시 위치(0x25), 영역(0x26), 인접(0x2E), HP 상태(0x36), 회합(0x3F), 행동 측(0x40), 진영 인원수(0x41) 트리거와 0x05 참/거짓 변수 게이트를 구조화하고, 의미가 확인된 이벤트만 Android에서 재생합니다. 0x0B 변수 설정과 원본 적군/증원 구분도 유지합니다. 중첩 분기나 미확인 액션이 있는 Section은 부분 실행하지 않고 진단에 남겨 잘못된 진행을 막습니다. 지형발휘/병종상성은 정확한 보정 순서가 검증될 때까지 피해 공식에 적용하지 않습니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v1.0 build status
+      - name: Record v1.1 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "1.0.0",
+              "version": "1.1.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -112,6 +112,7 @@ jobs:
               status["supportedAttackRangeIds"] = battle.get("supportedAttackRangeIds", [])
               status["terrainIds"] = battle.get("terrainIds", [])
               status["rawCombatSemantics"] = battle.get("rawCombatSemantics", {})
+              status["battleEventSummary"] = battle.get("battleEventSummary", {})
               objectives = battle.get("battleObjectives", {})
               status["battleObjectives"] = {
                   "phase1": objectives.get("phase1", {}),
@@ -163,7 +164,7 @@ jobs:
                   if unit.get("faction") == "enemy" and unit.get("visible")
               ][:8]
 
-          Path("native/build-status/v1.0.json").write_text(
+          Path("native/build-status/v1.1.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -171,11 +172,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v1.0.json
+          git add native/build-status/v1.1.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v1.0 build status"
+          git commit -m "Record native v1.1 build status"
           git push

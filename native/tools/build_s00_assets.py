@@ -439,6 +439,262 @@ def build_scenario_diagnostics(scenes):
 
 
 
+
+def native_action_from_node(node):
+    cid = node["commandId"]
+    params = node["params"]
+
+    if cid == 0x09 and params:
+        return {"type": "delay", "value": max(1, int(params[0]))}
+
+    if cid in (0x14, 0x15, 0x16, 0x69, 0x7A):
+        strings = [p for p in params if isinstance(p, str)]
+        if strings:
+            speaker, body = split_dialogue(strings[-1])
+            if body or speaker:
+                return {
+                    "type": "dialogue",
+                    "speaker": speaker,
+                    "text": body or speaker,
+                }
+        return {"type": "noop", "commandId": cid}
+
+    if cid == 0x23 and params:
+        return {"type": "sound", "value": int(params[0])}
+
+    if cid == 0x24 and params:
+        return {"type": "music", "value": int(params[0])}
+
+    if cid == 0x31 and len(params) >= 2 and int(params[0]) == 0:
+        return {"type": "hide", "characterId": int(params[1])}
+
+    if cid == 0x32 and len(params) >= 6 and int(params[0]) != 1:
+        return {
+            "type": "move",
+            "characterId": int(params[1]),
+            "x": int(params[3]),
+            "y": int(params[4]),
+            "direction": int(params[5]),
+        }
+
+    if cid == 0x4C and len(params) >= 3 and int(params[0]) == 0:
+        return {"type": "reveal", "characterId": int(params[1])}
+
+    if cid == 0x4F and len(params) >= 6:
+        return {
+            "type": "turn",
+            "characterId": int(params[0]),
+            "targetId": int(params[1]),
+            "direction": int(params[2]),
+        }
+
+    if cid == 0x50 and len(params) >= 2:
+        return {
+            "type": "action",
+            "characterId": int(params[0]),
+            "value": int(params[1]),
+        }
+
+    if cid == 0x53 and len(params) >= 8 and int(params[0]) == 0:
+        return {
+            "type": "kill" if int(params[7]) != 0 else "retreat",
+            "characterId": int(params[1]),
+        }
+
+    if cid == 0x55 and len(params) >= 6 and int(params[0]) == 0:
+        return {
+            "type": "revive",
+            "characterId": int(params[1]),
+            "x": int(params[3]),
+            "y": int(params[4]),
+            "direction": int(params[5]),
+        }
+
+    if cid == 0x3D and len(params) >= 4:
+        return {
+            "type": "reward",
+            "value": int(params[0]),
+            "targetId": int(params[3]),
+        }
+
+    if cid == 0x0B and len(params) >= 2:
+        return {
+            "type": "setVariable",
+            "variableId": int(params[0]),
+            "value": int(params[1]),
+        }
+
+    if cid == 0x5D and len(params) >= 2:
+        return {"type": "turnLimit", "value": int(params[1])}
+
+    if cid == 0x19 and params and isinstance(params[0], str):
+        return {"type": "objective", "text": params[0]}
+
+    if cid == 0x1A and params and isinstance(params[0], str):
+        return {"type": "objectivePopup", "text": params[0]}
+
+    if cid in (0x00, 0x01, 0x02, 0x1B, 0x51):
+        return {"type": "noop", "commandId": cid}
+
+    return None
+
+
+def native_trigger_from_node(node):
+    cid = node["commandId"]
+    params = node["params"]
+
+    if cid == 0x25 and len(params) >= 3:
+        return {
+            "type": "position",
+            "personCode": int(params[0]),
+            "x": int(params[1]),
+            "y": int(params[2]),
+        }
+
+    if cid == 0x26 and len(params) >= 5:
+        return {
+            "type": "area",
+            "personCode": int(params[0]),
+            "x1": int(params[1]),
+            "y1": int(params[2]),
+            "x2": int(params[3]),
+            "y2": int(params[4]),
+        }
+
+    if cid == 0x2E and len(params) >= 3:
+        return {
+            "type": "adjacent",
+            "firstCharacterId": int(params[0]),
+            "secondCharacterId": int(params[1]),
+            "requireAttackable": int(params[2]) == 0,
+        }
+
+    if cid == 0x36 and len(params) >= 4:
+        if (
+            int(params[1]) == 7
+            and int(params[2]) == 0
+            and int(params[3]) == 2
+        ):
+            return {
+                "type": "unitHpEqualsZero",
+                "characterId": int(params[0]),
+            }
+        return None
+
+    if cid == 0x3F and len(params) >= 2:
+        return {
+            "type": "roundCompare",
+            "value": int(params[0]),
+            "compare": int(params[1]),
+        }
+
+    if cid == 0x40 and params:
+        return {
+            "type": "side",
+            "side": int(params[0]),
+        }
+
+    if cid == 0x41 and len(params) >= 8:
+        return {
+            "type": "campCount",
+            "camp": int(params[0]),
+            "value": int(params[1]),
+            "compare": int(params[2]),
+            "area": int(params[3]) != 0,
+            "x1": int(params[4]),
+            "y1": int(params[5]),
+            "x2": int(params[6]),
+            "y2": int(params[7]),
+        }
+
+    return None
+
+
+def extract_scene2_native_events(scenes):
+    if len(scenes) < 2:
+        return []
+
+    excluded_sections = {1, 20, 21, 31, 33, 34}
+    trigger_ids = {0x25, 0x26, 0x2E, 0x36, 0x3F, 0x40, 0x41}
+    events = []
+
+    for section in scenes[1]["sections"]:
+        section_id = section["section"]
+        if section_id in excluded_sections:
+            continue
+
+        root_nodes = section["commands"]
+        body_node = next(
+            (
+                node for node in root_nodes
+                if node["commandId"] == 0 and node["children"]
+            ),
+            None,
+        )
+        if body_node is None:
+            continue
+
+        require_true = []
+        require_false = []
+        triggers = []
+        unsupported_trigger_ids = []
+
+        for node in root_nodes:
+            cid = node["commandId"]
+            if cid == 0x05 and len(node["params"]) >= 2:
+                first = node["params"][0]
+                second = node["params"][1]
+                if isinstance(first, list):
+                    require_true.extend(int(v) for v in first)
+                if isinstance(second, list):
+                    require_false.extend(int(v) for v in second)
+            elif cid in trigger_ids:
+                trigger = native_trigger_from_node(node)
+                if trigger is None:
+                    unsupported_trigger_ids.append(cid)
+                else:
+                    triggers.append(trigger)
+
+        if not triggers:
+            continue
+
+        actions = []
+        unsupported_action_ids = []
+        nested_branch_count = 0
+
+        for node in body_node["children"]:
+            if node["children"]:
+                nested_branch_count += 1
+                continue
+            action = native_action_from_node(node)
+            if action is None:
+                unsupported_action_ids.append(node["commandId"])
+            elif action["type"] != "noop":
+                actions.append(action)
+
+        core_supported = (
+            not unsupported_trigger_ids
+            and not unsupported_action_ids
+            and bool(actions)
+        )
+
+        events.append({
+            "scene": 2,
+            "section": section_id,
+            "requireTrueVariables": sorted(set(require_true)),
+            "requireFalseVariables": sorted(set(require_false)),
+            "triggers": triggers,
+            "actions": actions,
+            "coreSupported": core_supported,
+            "unsupportedTriggerIds": sorted(set(unsupported_trigger_ids)),
+            "unsupportedActionIds": sorted(set(unsupported_action_ids)),
+            "nestedBranchCount": nested_branch_count,
+        })
+
+    return events
+
+
+
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
 
@@ -600,6 +856,12 @@ def extract_s00_objective_model(scenes):
                 "type": "reward",
                 "value": int(params[0]),
                 "targetId": int(params[3]),
+            })
+        elif cid == 0x0B and len(params) >= 2:
+            transition_events.append({
+                "type": "setVariable",
+                "variableId": int(params[0]),
+                "value": int(params[1]),
             })
 
     transition_events.append({"type": "phaseComplete", "value": 2})
@@ -867,6 +1129,7 @@ def main(argv):
     scenario_scenes = parse_scenario_tree(s00)
     scenario_diagnostics = build_scenario_diagnostics(scenario_scenes)
     objective_model = extract_s00_objective_model(scenario_scenes)
+    native_scene2_events = extract_scene2_native_events(scenario_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -1038,6 +1301,7 @@ def main(argv):
             "deployLevel": hint.get("level"),
             "deployJobLevel": hint.get("jobLevel"),
             "aiPolicy": hint.get("ai"),
+            "reinforcement": bool(hint.get("reinforcement", 0)),
             "faction": faction,
             "scripted": bool(scripted),
             "visible": not bool(scripted),
@@ -1093,6 +1357,24 @@ def main(argv):
         },
         "scenarioDiagnostics": scenario_diagnostics,
         "battleObjectives": objective_model,
+        "battleEvents": native_scene2_events,
+        "battleEventSummary": {
+            "candidateCount": len(native_scene2_events),
+            "coreSupportedCount": sum(
+                1 for event in native_scene2_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                }
+                for event in native_scene2_events
+            ],
+        },
         "terrainIds": terrain_ids,
         "combatModel": COMBAT_MODEL,
         "damageModel": DAMAGE_MODEL,
@@ -1169,6 +1451,12 @@ def main(argv):
         scenario_diagnostics["relevantCommands"],
     )
     print("objective model=", objective_model)
+    print(
+        "native scene2 events=",
+        len(native_scene2_events),
+        "core-supported=",
+        sum(1 for event in native_scene2_events if event["coreSupported"]),
+    )
     print(
         "terrain power sample family0=",
         list(terrain_power_blob[:TERRAIN_TYPE_COUNT]),
