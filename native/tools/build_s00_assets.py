@@ -656,6 +656,45 @@ def native_action_from_node(node):
     if cid == 0x5F:
         return {"type": "duelEnd"}
 
+    if cid == 0x59 and len(params) >= 8:
+        return {
+            "type": "loot",
+            "category": int(params[0]),
+            "slots": [
+                {
+                    "itemId": int(params[1]),
+                    "level": int(params[2]),
+                },
+                {
+                    "itemId": int(params[3]),
+                    "level": int(params[4]),
+                },
+                {
+                    "itemId": int(params[5]),
+                    "level": int(params[6]),
+                },
+            ],
+            "ending": int(params[7]),
+        }
+
+    if cid == 0x49:
+        return {"type": "battleEndMarker"}
+
+    if cid == 0x0D:
+        return {"type": "sceneEnd"}
+
+    if cid == 0x0E:
+        return {"type": "battleFailureMarker"}
+
+    if cid == 0x08 and params:
+        return {
+            "type": "menu",
+            "enabled": int(params[0]) != 0,
+        }
+
+    if cid == 0x1D:
+        return {"type": "paletteReset"}
+
     if cid in (0x00, 0x01, 0x02, 0x1B, 0x51):
         return {"type": "noop", "commandId": cid}
 
@@ -799,6 +838,17 @@ def compile_native_action_tree(node):
                     total_nested,
                 )
 
+        if cid == 0x03:
+            return (
+                {
+                    "type": "elseBranch",
+                    "actions": child_actions,
+                },
+                unsupported_ids,
+                unsupported_actions,
+                total_nested,
+            )
+
         unsupported_ids.append(cid)
         unsupported_actions.append({
             "commandId": cid,
@@ -919,6 +969,99 @@ def extract_scene2_native_events(scenes):
 
     return events
 
+
+
+
+def compile_scenario_section_actions(scenes, scene_number, section_number):
+    if scene_number < 1 or scene_number > len(scenes):
+        return {
+            "actions": [],
+            "unsupportedActionIds": [],
+            "unsupportedActions": [],
+            "nestedBranchCount": 0,
+            "supported": False,
+        }
+
+    scene = scenes[scene_number - 1]
+    section = next(
+        (
+            row for row in scene["sections"]
+            if row["section"] == section_number
+        ),
+        None,
+    )
+    if section is None:
+        return {
+            "actions": [],
+            "unsupportedActionIds": [],
+            "unsupportedActions": [],
+            "nestedBranchCount": 0,
+            "supported": False,
+        }
+
+    body_node = next(
+        (
+            node for node in section["commands"]
+            if node["commandId"] == 0 and node["children"]
+        ),
+        None,
+    )
+    if body_node is None:
+        return {
+            "actions": [],
+            "unsupportedActionIds": [],
+            "unsupportedActions": [],
+            "nestedBranchCount": 0,
+            "supported": False,
+        }
+
+    actions = []
+    unsupported_ids = []
+    unsupported_actions = []
+    nested_count = 0
+
+    for node in body_node["children"]:
+        (
+            action,
+            node_unsupported_ids,
+            node_unsupported_actions,
+            node_nested_count,
+        ) = compile_native_action_tree(node)
+        nested_count += node_nested_count
+        unsupported_ids.extend(node_unsupported_ids)
+        unsupported_actions.extend(node_unsupported_actions)
+        if action is not None:
+            actions.append(action)
+
+    return {
+        "scene": scene_number,
+        "section": section_number,
+        "actions": actions,
+        "unsupportedActionIds": sorted(set(unsupported_ids)),
+        "unsupportedActions": unsupported_actions,
+        "nestedBranchCount": nested_count,
+        "supported": bool(actions) and not unsupported_ids,
+    }
+
+
+def extract_s00_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            33,
+        ),
+        "defeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            34,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
 
 
 def extract_s00_objective_model(scenes):
@@ -1356,6 +1499,7 @@ def main(argv):
     scenario_diagnostics = build_scenario_diagnostics(scenario_scenes)
     objective_model = extract_s00_objective_model(scenario_scenes)
     native_scene2_events = extract_scene2_native_events(scenario_scenes)
+    outcome_events = extract_s00_outcome_events(scenario_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -1563,7 +1707,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 14,
+        "version": 15,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -1583,6 +1727,7 @@ def main(argv):
         },
         "scenarioDiagnostics": scenario_diagnostics,
         "battleObjectives": objective_model,
+        "outcomeEvents": outcome_events,
         "battleEvents": native_scene2_events,
         "battleEventSummary": {
             "candidateCount": len(native_scene2_events),
@@ -1602,6 +1747,20 @@ def main(argv):
                 }
                 for event in native_scene2_events
             ],
+        },
+        "outcomeEventSummary": {
+            key: {
+                "scene": value.get("scene"),
+                "section": value.get("section"),
+                "supported": value.get("supported", False),
+                "actionCount": len(value.get("actions", [])),
+                "nestedBranchCount": value.get("nestedBranchCount", 0),
+                "unsupportedActionIds": value.get(
+                    "unsupportedActionIds",
+                    [],
+                ),
+            }
+            for key, value in outcome_events.items()
         },
         "terrainIds": terrain_ids,
         "combatModel": COMBAT_MODEL,
