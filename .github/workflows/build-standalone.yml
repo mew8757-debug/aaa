@@ -9,7 +9,7 @@ on:
       - ".github/workflows/build-standalone.yml"
 
 concurrency:
-  group: seong-onetouch-v10
+  group: seong-onetouch-v11
   cancel-in-progress: true
 
 jobs:
@@ -121,7 +121,7 @@ jobs:
           # IMPORTANT: keep applicationId 'com.winlator'. Native Winlator code contains
           # hard-coded /data/data/com.winlator paths for cache/X11/Vortek sockets.
           s = s.replace("versionCode 33", "versionCode 1")
-          s = s.replace('versionName "11.2"', 'versionName "1.9.0"')
+          s = s.replace('versionName "11.2"', 'versionName "2.0.0"')
           gradle.write_text(s)
           PY
 
@@ -141,7 +141,7 @@ jobs:
           BASE="winlator-src/app/build/outputs/apk/debug/app-debug.apk"
           WORK="$PWD/SeongSamgukji-OneTouch-working.apk"
           ALIGNED="$PWD/SeongSamgukji-OneTouch-aligned.apk"
-          FINAL="$PWD/SeongSamgukji-OneTouch-v10.apk"
+          FINAL="$PWD/SeongSamgukji-OneTouch-v11.apk"
 
           test -f "$BASE"
           cp "$BASE" "$WORK"
@@ -198,14 +198,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          FINAL="SeongSamgukji-OneTouch-v10.apk"
+          FINAL="SeongSamgukji-OneTouch-v11.apk"
 
-          if gh release view one-touch-v10 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload one-touch-v10 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view one-touch-v11 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload one-touch-v11 "$FINAL" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create one-touch-v10 "$FINAL" \
+            gh release create one-touch-v11 "$FINAL" \
               --repo "$GITHUB_REPOSITORY" \
               --draft \
-              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v10" \
-              --notes "비공개 개인용 수정판입니다. Ekd5.exe가 WINMM mciSendCommandA로 LOGO.wmv를 시작하는 것을 확인했고, Winlator 기본값에서 꺼져 있는 DirectShow를 켜고 Windows Media Decoder를 함께 활성화합니다. 공개 배포하지 마세요."
+              --title "PRIVATE - 성삼국지 촉한영걸전 원터치 APK v11" \
+              --notes "비공개 개인용 수정판입니다. Wine 로그에서 RPC_S_SERVER_UNAVAILABLE 및 Failed to start RpcSs service를 확인했고, Startup Selection을 Normal로 변경해 RpcSs를 포함한 Windows 서비스를 모두 로드합니다. DirectShow와 Windows Media Decoder 활성화는 유지합니다. 공개 배포하지 마세요."
           fi
