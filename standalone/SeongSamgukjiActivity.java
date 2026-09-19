@@ -13,6 +13,7 @@ import android.os.StatFs;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -49,7 +50,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v5";
+    private static final String PREFS = "seong_samgukji_oneclick_v6";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -144,7 +145,17 @@ public class SeongSamgukjiActivity extends MainActivity {
         });
         root.addView(copyDiagnostic, fullButtonParams());
 
-        setContentView(root);
+        // MainActivity owns the Winlator fragment host (FLFragmentContainer).
+        // Do NOT replace its content view; doing so makes ContainersFragment crash
+        // during onStart. Overlay our one-touch UI on top of the existing layout.
+        FrameLayout content = findViewById(android.R.id.content);
+        if (content != null) {
+            root.setBackgroundColor(0xFF101010);
+            FrameLayout.LayoutParams overlayParams = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT);
+            content.addView(root, overlayParams);
+        }
     }
 
     private LinearLayout.LayoutParams fullButtonParams() {
