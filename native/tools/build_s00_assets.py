@@ -605,6 +605,19 @@ def native_action_from_node(node):
             "value": int(params[2]),
         }
 
+    if (
+        cid == 0x38
+        and len(params) >= 4
+        and int(params[1]) == 7
+    ):
+        return {
+            "type": "unitHpChange",
+            "characterId": int(params[0]),
+            "operation": int(params[2]),
+            "value": int(params[3]),
+        }
+
+
     # 0x58: object/display/terrain/x/y/viewpoint/sound.
     if cid == 0x58 and len(params) >= 7:
         return {
@@ -647,6 +660,13 @@ def native_action_from_node(node):
             "target": int(params[0]),
         }
 
+
+    if cid == 0x5C and params:
+        return {
+            "type": "highlightUnit",
+            "characterId": int(params[0]),
+            "mode": int(params[1]) if len(params) >= 2 else 0,
+        }
 
     if cid == 0x5D and len(params) >= 2:
         return {"type": "turnLimit", "value": int(params[1])}
@@ -817,14 +837,12 @@ def native_trigger_from_node(node):
         }
 
     if cid == 0x36 and len(params) >= 4:
-        if (
-            int(params[1]) == 7
-            and int(params[2]) == 0
-            and int(params[3]) == 2
-        ):
+        if int(params[1]) == 7:
             return {
-                "type": "unitHpEqualsZero",
+                "type": "unitHpCompare",
                 "characterId": int(params[0]),
+                "value": int(params[2]),
+                "compare": int(params[3]),
             }
         return None
 
@@ -985,7 +1003,7 @@ def compile_native_action_tree(node):
                 total_nested,
             )
 
-        if cid == 0x41:
+        if cid in (0x36, 0x41):
             trigger = native_trigger_from_node(node)
             if trigger is not None:
                 return (
@@ -2364,7 +2382,7 @@ def build_next_scenario_probe(filename, blob):
         0x19, 0x1A,
         0x3A, 0x3D,
         0x44, 0x4A, 0x4B, 0x5A,
-        0x77,
+        0x77, 0x78,
     }
     text_ids = {
         0x14, 0x15, 0x16, 0x17, 0x18,
@@ -4755,7 +4773,7 @@ def main(argv):
         raise SystemExit(f"S07 Liu Bei mapping mismatch: 0={name_of(0)}")
 
     s07_battle = {
-        "version": 44,
+        "version": 45,
         "source": "RS/S_07.eex",
         "battleMode": "kill-character",
         "mapId": 7,
