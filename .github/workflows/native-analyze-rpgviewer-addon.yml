@@ -2,6 +2,10 @@ name: Analyze RPGViewer support data
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/native-analyze-rpgviewer-addon.yml"
 
 jobs:
   analyze:
