@@ -1301,6 +1301,7 @@ def main(argv):
             "deployLevel": hint.get("level"),
             "deployJobLevel": hint.get("jobLevel"),
             "aiPolicy": hint.get("ai"),
+            "reinforcement": bool(hint.get("reinforcement", 0)),
             "faction": faction,
             "scripted": bool(scripted),
             "visible": not bool(scripted),
