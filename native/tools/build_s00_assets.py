@@ -617,6 +617,20 @@ def native_action_from_node(node):
             "value": int(params[3]),
         }
 
+    if (
+        cid == 0x38
+        and len(params) >= 4
+        and int(params[1]) in (0, 1, 2, 3, 4)
+    ):
+        return {
+            "type": "unitAbilityChange",
+            "characterId": int(params[0]),
+            "ability": int(params[1]),
+            "operation": int(params[2]),
+            "value": int(params[3]),
+        }
+
+
 
     # 0x58: object/display/terrain/x/y/viewpoint/sound.
     if cid == 0x58 and len(params) >= 7:
@@ -636,7 +650,7 @@ def native_action_from_node(node):
     if (
         cid == 0x78
         and len(params) >= 4
-        and int(params[3]) in (0, 7, 32, 33)
+        and int(params[3]) in (0, 1, 7, 32, 33)
     ):
         return {
             "type": "unitAttributeTransfer",
@@ -676,6 +690,38 @@ def native_action_from_node(node):
 
     if cid == 0x1A and params and isinstance(params[0], str):
         return {"type": "objectivePopup", "text": params[0]}
+
+
+    # 0x72 subtype 11: per-unit AI movement rectangle.
+    # S08 encodes "x1,y1|x2,y2\ncid,cid,..." in the payload.
+    if (
+        cid == 0x72
+        and len(params) >= 2
+        and int(params[0]) == 11
+        and isinstance(params[1], str)
+    ):
+        lines = [
+            line.strip()
+            for line in params[1].replace("\r", "").split("\n")
+            if line.strip()
+        ]
+        if len(lines) >= 2 and "|" in lines[0]:
+            left_raw, right_raw = lines[0].split("|", 1)
+            x1, y1 = [int(v.strip()) for v in left_raw.split(",", 1)]
+            x2, y2 = [int(v.strip()) for v in right_raw.split(",", 1)]
+            character_ids = [
+                int(v.strip())
+                for v in lines[1].split(",")
+                if v.strip()
+            ]
+            return {
+                "type": "aiRangeLimit",
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2,
+                "characterIds": character_ids,
+            }
 
     # 0x77: this S00 uses integer-variable = constant around reward UI.
     if (
@@ -1570,6 +1616,39 @@ def extract_s07_outcome_events(scenes):
             1,
         ),
     }
+
+
+def extract_s08_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            52,
+        ),
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                36,
+            ),
+            "149": compile_scenario_section_actions(
+                scenes,
+                2,
+                37,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            53,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
 
 
 
@@ -2769,6 +2848,8 @@ def main(argv):
         s07 = read_member_by_basename(game1, "S_07.eex")
         r08 = read_member_by_basename(game1, "R_08.eex")
         s08 = read_member_by_basename(game1, "S_08.eex")
+        r09 = read_member_by_basename(game1, "R_09.eex")
+        s09 = read_member_by_basename(game1, "S_09.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3183,6 +3264,14 @@ def main(argv):
     }
     s08_event_probe = extract_scene2_native_events(s08_scenes)
     s08_outcome_probe = probe_battle_outcome_candidates(s08_scenes)
+
+    s08_native_events = extract_scene2_native_events(
+        s08_scenes,
+        excluded_sections={36, 37, 52, 53},
+    )
+    s08_outcome_events = extract_s08_outcome_events(s08_scenes)
+    r09_probe = build_next_scenario_probe("R_09.eex", r09)
+    s09_probe = build_next_scenario_probe("S_09.eex", s09)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -4842,7 +4931,7 @@ def main(argv):
         raise SystemExit(f"S07 Liu Bei mapping mismatch: 0={name_of(0)}")
 
     s07_battle = {
-        "version": 47,
+        "version": 48,
         "source": "RS/S_07.eex",
         "battleMode": "kill-character",
         "mapId": 7,
@@ -4917,6 +5006,191 @@ def main(argv):
     }
     (battle_dir / "battle7.json").write_text(
         json.dumps(s07_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+    # S_08: Beihai rescue. R08 deployment allows Liu Bei plus
+    # Guan Yu, Zhang Fei, Jian Yong and character 20 for five slots.
+    s08_units = []
+
+    def make_s08_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S08 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s08_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s08_player_ids = [0, 1, 2, 26, 20]
+    s08_slots = sorted(
+        s08_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    )
+    if len(s08_slots) < len(s08_player_ids):
+        raise SystemExit(
+            "S08 player slot count too small: "
+            + repr(s08_slots)
+        )
+    for slot, cid in zip(s08_slots, s08_player_ids):
+        make_s08_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_08:0x4B:{slot['slot']}",
+        )
+
+    for index, row in enumerate(s08_init_probe["friendRecords"]):
+        make_s08_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_08:0x46:{index}",
+        )
+
+    for index, row in enumerate(s08_init_probe["enemyRecords"]):
+        make_s08_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_08:0x47:{index}",
+        )
+
+    s08_objective_text = (
+        s08_init_probe["objectiveTexts"][0]
+        if s08_init_probe["objectiveTexts"]
+        else ""
+    )
+    s08_popup_text = (
+        s08_init_probe["objectivePopups"][0]
+        if s08_init_probe["objectivePopups"]
+        else ""
+    )
+    s08_turn_match = re.search(r"(\d+)턴", s08_objective_text)
+    s08_turn_limit = int(s08_turn_match.group(1)) if s08_turn_match else 20
+
+    if name_of(0) != "유비":
+        raise SystemExit(f"S08 Liu Bei mapping mismatch: 0={name_of(0)}")
+    if name_of(149) != "공융":
+        raise SystemExit(f"S08 Kong Rong mapping mismatch: 149={name_of(149)}")
+
+    s08_battle = {
+        "version": 48,
+        "source": "RS/S_08.eex",
+        "battleMode": "enemy-annihilation",
+        "mapId": 8,
+        "map": "m008.jpg",
+        "widthTiles": map8_cols,
+        "heightTiles": map8_rows,
+        "terrainFile": "terrain8.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s08_objective_text,
+                "popupText": s08_popup_text,
+                "turnLimit": s08_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s08_turn_limit,
+            },
+            "protectedCharacterIds": [0, 149],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+                {"characterId": 149, "name": name_of(149)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s08_native_events,
+        "outcomeEvents": s08_outcome_events,
+        "outcomeProbe": s08_outcome_probe,
+        "nextScenarioProbe": {
+            "R_09.eex": r09_probe,
+            "S_09.eex": s09_probe,
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s08_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s08_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s08_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain8_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s08_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle8.json").write_text(
+        json.dumps(s08_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -5019,6 +5293,7 @@ def main(argv):
             + s05_units
             + s06_units
             + s07_units
+            + s08_units
         )
     })
     for sid in sprite_ids:
