@@ -24,8 +24,6 @@ import com.winlator.container.DXWrappers;
 import com.winlator.xenvironment.RootFS;
 import com.winlator.xenvironment.RootFSInstaller;
 
-import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
@@ -39,6 +37,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -48,9 +47,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v6";
+    private static final String PREFS = "seong_samgukji_oneclick_v7";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -228,19 +229,29 @@ public class SeongSamgukjiActivity extends MainActivity {
                 mergeInto(normalizeRoot(part1), gameDir);
                 mergeInto(normalizeRoot(part2), gameDir);
 
-                disableIntroMovies(gameDir);
-
-                File exe = findBestExe(gameDir);
+                File exe = new File(gameDir, "Ekd5.exe");
+                if (!exe.isFile()) exe = findExactExe(gameDir, "Ekd5.exe");
+                if (exe == null || !exe.isFile()) exe = findBestExe(gameDir);
                 if (exe == null) throw new Exception("게임 실행 EXE를 찾지 못했습니다.");
 
                 handler.post(() -> status.setText("게임 실행환경을 자동 구성하고 있습니다…"));
                 createOrUpdateContainer(exe);
                 deleteRecursive(work);
             }
-            catch (Exception e) {
+            catch (Throwable e) {
+                try {
+                    File out = new File(getFilesDir(), "last_install_error.txt");
+                    try (PrintWriter pw = new PrintWriter(new FileOutputStream(out, false))) {
+                        e.printStackTrace(pw);
+                    }
+                }
+                catch (Exception ignored) {}
+
                 runOnUiThread(() -> {
                     progress.setVisibility(View.GONE);
-                    status.setText("자동 설치 실패: " + e.getMessage());
+                    String msg = e.getMessage();
+                    if (msg == null || msg.isEmpty()) msg = e.getClass().getSimpleName();
+                    status.setText("자동 설치 실패: " + msg);
                 });
             }
         });
@@ -338,23 +349,27 @@ public class SeongSamgukjiActivity extends MainActivity {
     }
 
     private void unzipAsset(String assetName, File destination) throws Exception {
+        Charset legacyCharset = Charset.forName("MS949");
+
         try (InputStream raw = getAssets().open(assetName);
              BufferedInputStream bis = new BufferedInputStream(raw, 65536);
-             ZipArchiveInputStream zis = new ZipArchiveInputStream(bis, "MS949", true)) {
+             ZipInputStream zis = new ZipInputStream(bis, legacyCharset)) {
 
-            ZipArchiveEntry entry;
+            ZipEntry entry;
             byte[] buffer = new byte[65536];
             String rootCanonical = destination.getCanonicalPath() + File.separator;
 
-            while ((entry = zis.getNextZipEntry()) != null) {
-                if (entry.isUnixSymlink()) continue;
-
+            while ((entry = zis.getNextEntry()) != null) {
                 File out = new File(destination, entry.getName());
                 String outCanonical = out.getCanonicalPath();
-                if (!outCanonical.startsWith(rootCanonical)) continue;
+                if (!outCanonical.startsWith(rootCanonical)) {
+                    zis.closeEntry();
+                    continue;
+                }
 
                 if (entry.isDirectory()) {
                     out.mkdirs();
+                    zis.closeEntry();
                     continue;
                 }
 
@@ -363,8 +378,12 @@ public class SeongSamgukjiActivity extends MainActivity {
 
                 try (OutputStream os = new BufferedOutputStream(new FileOutputStream(out), 65536)) {
                     int n;
-                    while ((n = zis.read(buffer)) > 0) os.write(buffer, 0, n);
+                    while ((n = zis.read(buffer)) != -1) {
+                        if (n > 0) os.write(buffer, 0, n);
+                    }
                 }
+
+                zis.closeEntry();
             }
         }
     }
