@@ -37,7 +37,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class SeongSamgukjiActivity extends MainActivity {
-    private static final String PREFS = "seong_samgukji_oneclick_v2";
+    private static final String PREFS = "seong_samgukji_oneclick_v3";
     private static final String KEY_INSTALLED = "installed";
     private static final String KEY_CONTAINER_ID = "container_id";
     private static final String KEY_EXE_PATH = "exe_path";
@@ -351,6 +351,21 @@ public class SeongSamgukjiActivity extends MainActivity {
             int n;
             while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
         }
+    }
+
+    private File findExactExe(File dir, String targetName) {
+        File[] files = dir.listFiles();
+        if (files == null) return null;
+        for (File f : files) {
+            if (f.isFile() && f.getName().equalsIgnoreCase(targetName)) return f;
+        }
+        for (File f : files) {
+            if (f.isDirectory()) {
+                File found = findExactExe(f, targetName);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private File findBestExe(File root) {
