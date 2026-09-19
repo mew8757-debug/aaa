@@ -33,6 +33,10 @@ public class BattleUnit {
     public long attackUntil;
     public boolean moved;
     public boolean acted;
+    public int aiPolicy;
+    public int aiTargetCharacterId;
+    public int aiTargetX;
+    public int aiTargetY;
 
     public final List<Integer> movePath = new ArrayList<>();
     public int movePathIndex;
@@ -83,6 +87,10 @@ public class BattleUnit {
         this.attackUntil = 0L;
         this.moved = false;
         this.acted = false;
+        this.aiPolicy = 1;
+        this.aiTargetCharacterId = -1;
+        this.aiTargetX = -1;
+        this.aiTargetY = -1;
         this.movePathIndex = 0;
     }
 
