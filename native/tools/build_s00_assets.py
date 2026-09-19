@@ -2362,6 +2362,8 @@ def main(argv):
         s01 = read_member_by_basename(game1, "S_01.eex")
         r02 = read_member_by_basename(game1, "R_02.eex")
         s02 = read_member_by_basename(game1, "S_02.eex")
+        r03 = read_member_by_basename(game1, "R_03.eex")
+        s03 = read_member_by_basename(game1, "S_03.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         if map1_bytes is None:
@@ -2487,6 +2489,21 @@ def main(argv):
     }
     s02_scenes = parse_scenario_tree(s02)
     s02_native_events = extract_scene2_native_events(s02_scenes)
+    s02_outcome_probe = probe_selected_scenario_sections(
+        s02_scenes,
+        [
+            (2, 20),
+            (2, 21),
+            (2, 31),
+            (2, 33),
+            (2, 34),
+            (2, 37),
+            (2, 38),
+            (3, 1),
+        ],
+    )
+    r03_probe = build_next_scenario_probe("R_03.eex", r03)
+    s03_probe = build_next_scenario_probe("S_03.eex", s03)
     s02_init_probe = probe_s01_initialization(s02)
     s02_init_probe["map"] = {
         "filename": "m002.jpg",
@@ -2797,7 +2814,7 @@ def main(argv):
     s01_turn_limit = int(s01_turn_match.group(1)) if s01_turn_match else 20
 
     s01_battle = {
-        "version": 27,
+        "version": 28,
         "source": "RS/S_01.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 1,
@@ -3028,6 +3045,11 @@ def main(argv):
             "phase1TransitionEvents": [],
         },
         "battleEvents": s02_native_events,
+        "outcomeProbe": s02_outcome_probe,
+        "nextScenarioProbe": {
+            "R_03.eex": r03_probe,
+            "S_03.eex": s03_probe,
+        },
         "battleEventSummary": {
             "candidateCount": len(s02_native_events),
             "coreSupportedCount": sum(
