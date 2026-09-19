@@ -571,6 +571,90 @@ def native_action_from_node(node):
     if cid == 0x1A and params and isinstance(params[0], str):
         return {"type": "objectivePopup", "text": params[0]}
 
+    # 0x77: this S00 uses integer-variable = constant around reward UI.
+    if (
+        cid == 0x77
+        and len(params) >= 5
+        and int(params[0]) == 2
+        and int(params[3]) == 0
+    ):
+        return {
+            "type": "intVariableOp",
+            "variableId": int(params[1]),
+            "operation": int(params[2]),
+            "value": int(params[4]),
+        }
+
+    # 0x4D: preserve the full verified battlefield-status target shape.
+    if cid == 0x4D and len(params) >= 13:
+        return {
+            "type": "statusChange",
+            "targetMode": int(params[0]),
+            "characterId": int(params[1]),
+            "battleNumber": int(params[2]),
+            "x1": int(params[3]),
+            "y1": int(params[4]),
+            "x2": int(params[5]),
+            "y2": int(params[6]),
+            "camp": int(params[7]),
+            "condition": int(params[8]),
+            "change": int(params[9]),
+            "debuffMask": int(params[10]),
+            "value1": int(params[11]),
+            "value2": int(params[12]),
+        }
+
+    # Scripted duel command family used by S00 Sections 11/12.
+    if cid == 0x68 and len(params) >= 3:
+        return {
+            "type": "duelStart",
+            "firstCharacterId": int(params[0]),
+            "secondCharacterId": int(params[1]),
+            "logo": int(params[2]),
+        }
+    if cid == 0x60 and len(params) >= 3:
+        strings = [p for p in params if isinstance(p, str)]
+        return {
+            "type": "duelIntro",
+            "side": int(params[0]),
+            "text": strings[-1] if strings else "",
+            "gesture": int(params[-1]) if isinstance(params[-1], int) else -1,
+        }
+    if cid == 0x61:
+        return {"type": "duelClash"}
+    if cid == 0x62 and params:
+        return {"type": "duelDefeat", "side": int(params[0])}
+    if cid == 0x63 and len(params) >= 3:
+        strings = [p for p in params if isinstance(p, str)]
+        return {
+            "type": "duelDialogue",
+            "side": int(params[0]),
+            "text": strings[-1] if strings else "",
+            "delay": int(params[-1]) if isinstance(params[-1], int) else 0,
+        }
+    if cid == 0x64 and len(params) >= 2:
+        return {
+            "type": "duelGesture",
+            "side": int(params[0]),
+            "gesture": int(params[1]),
+        }
+    if cid == 0x65 and len(params) >= 3:
+        return {
+            "type": "duelAttack",
+            "side": int(params[0]),
+            "result": int(params[1]),
+            "critical": int(params[2]) != 0,
+        }
+    if cid == 0x66 and len(params) >= 3:
+        return {
+            "type": "duelCharge",
+            "side": int(params[0]),
+            "mode": int(params[1]),
+            "result": int(params[2]),
+        }
+    if cid == 0x5F:
+        return {"type": "duelEnd"}
+
     if cid in (0x00, 0x01, 0x02, 0x1B, 0x51):
         return {"type": "noop", "commandId": cid}
 
@@ -648,6 +732,102 @@ def native_trigger_from_node(node):
     return None
 
 
+
+def compile_native_action_tree(node):
+    nested_count = 1 if node["children"] else 0
+
+    if node["children"]:
+        child_actions = []
+        unsupported_ids = []
+        unsupported_actions = []
+        total_nested = nested_count
+
+        for child in node["children"]:
+            (
+                child_action,
+                child_unsupported_ids,
+                child_unsupported_actions,
+                child_nested,
+            ) = compile_native_action_tree(child)
+            total_nested += child_nested
+            unsupported_ids.extend(child_unsupported_ids)
+            unsupported_actions.extend(child_unsupported_actions)
+            if child_action is not None:
+                child_actions.append(child_action)
+
+        cid = node["commandId"]
+        params = node["params"]
+
+        if cid == 0x02:
+            return (
+                {
+                    "type": "sequence",
+                    "actions": child_actions,
+                },
+                unsupported_ids,
+                unsupported_actions,
+                total_nested,
+            )
+
+        if cid == 0x05 and len(params) >= 2:
+            first = params[0] if isinstance(params[0], list) else []
+            second = params[1] if isinstance(params[1], list) else []
+            return (
+                {
+                    "type": "conditionalVariables",
+                    "requireTrueVariables": [int(v) for v in first],
+                    "requireFalseVariables": [int(v) for v in second],
+                    "actions": child_actions,
+                },
+                unsupported_ids,
+                unsupported_actions,
+                total_nested,
+            )
+
+        if cid == 0x41:
+            trigger = native_trigger_from_node(node)
+            if trigger is not None:
+                return (
+                    {
+                        "type": "conditionalTrigger",
+                        "trigger": trigger,
+                        "actions": child_actions,
+                    },
+                    unsupported_ids,
+                    unsupported_actions,
+                    total_nested,
+                )
+
+        unsupported_ids.append(cid)
+        unsupported_actions.append({
+            "commandId": cid,
+            "params": params,
+            "nested": True,
+        })
+        return (
+            None,
+            unsupported_ids,
+            unsupported_actions,
+            total_nested,
+        )
+
+    action = native_action_from_node(node)
+    if action is None:
+        return (
+            None,
+            [node["commandId"]],
+            [{
+                "commandId": node["commandId"],
+                "params": node["params"],
+                "nested": False,
+            }],
+            0,
+        )
+    if action["type"] == "noop":
+        return None, [], [], 0
+    return action, [], [], 0
+
+
 def extract_scene2_native_events(scenes):
     if len(scenes) < 2:
         return []
@@ -702,17 +882,16 @@ def extract_scene2_native_events(scenes):
         nested_branch_count = 0
 
         for node in body_node["children"]:
-            if node["children"]:
-                nested_branch_count += 1
-                continue
-            action = native_action_from_node(node)
-            if action is None:
-                unsupported_action_ids.append(node["commandId"])
-                unsupported_actions.append({
-                    "commandId": node["commandId"],
-                    "params": node["params"],
-                })
-            elif action["type"] != "noop":
+            (
+                action,
+                node_unsupported_ids,
+                node_unsupported_actions,
+                node_nested_count,
+            ) = compile_native_action_tree(node)
+            nested_branch_count += node_nested_count
+            unsupported_action_ids.extend(node_unsupported_ids)
+            unsupported_actions.extend(node_unsupported_actions)
+            if action is not None:
                 actions.append(action)
 
         core_supported = (
@@ -733,6 +912,8 @@ def extract_scene2_native_events(scenes):
             "unsupportedActionIds": sorted(set(unsupported_action_ids)),
             "unsupportedActions": unsupported_actions,
             "nestedBranchCount": nested_branch_count,
+            "nestedSupported": nested_branch_count == 0
+            or not unsupported_action_ids,
         })
 
     return events
@@ -1381,7 +1562,7 @@ def main(argv):
         print("warning: terrain ids outside movement table:", unsupported_terrain)
 
     battle = {
-        "version": 13,
+        "version": 14,
         "source": "RS/S_00.eex",
         "mapId": 0,
         "map": "m000.jpg",
@@ -1416,6 +1597,7 @@ def main(argv):
                     "unsupportedActionIds": event["unsupportedActionIds"],
                     "unsupportedActions": event["unsupportedActions"],
                     "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
                 }
                 for event in native_scene2_events
             ],
