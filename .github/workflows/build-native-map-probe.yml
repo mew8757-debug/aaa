@@ -26,21 +26,53 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Download private game2 archive
+      - name: Extract private map and unit assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p native/android-map-probe/app/src/main/assets/map
-          curl --fail --location --silent --show-error             -H "Authorization: Bearer ${GH_TOKEN}"             -H "Accept: application/octet-stream"             -H "X-GitHub-Api-Version: 2022-11-28"             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/573647280"             -o /tmp/game2.zip
+          mkdir -p native/android-map-probe/app/src/main/assets/sprites
+
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/573647280" \
+            -o /tmp/game2.zip
+
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/573646841" \
+            -o /tmp/game1.zip
+
           python3 - <<'PY'
-          import zipfile, pathlib
+          import pathlib, struct, zipfile
+
+          assets=pathlib.Path('native/android-map-probe/app/src/main/assets')
+
           with zipfile.ZipFile('/tmp/game2.zip') as z:
               data=z.read('map/m000.jpg')
-          p=pathlib.Path('native/android-map-probe/app/src/main/assets/map/m000.jpg')
-          p.write_bytes(data)
+          (assets/'map'/'m000.jpg').write_bytes(data)
           print('m000.jpg bytes=',len(data))
+
+          with zipfile.ZipFile('/tmp/game1.zip') as z:
+              data=z.read('Unit_mov.e5')
+
+          # Ls12 container: 12-byte big-endian descriptors begin at 0x110.
+          # Each descriptor is (uncompressed_size, stored_size, absolute_offset).
+          unpacked, stored, offset = struct.unpack_from('>III', data, 0x110)
+          expected = 48 * 48 * 11
+          if unpacked != expected or stored < expected:
+              raise SystemExit(f'Unexpected Unit_mov record: unpacked={unpacked} stored={stored} offset={offset}')
+          payload=data[offset:offset+expected]
+          if len(payload) != expected:
+              raise SystemExit('Unit_mov payload truncated')
+          (assets/'sprites'/'unit_mov_000.bin').write_bytes(payload)
+          print('Unit_mov record0=',unpacked,stored,offset,'payload=',len(payload))
           PY
 
       - name: Build native map probe APK
@@ -54,10 +86,10 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-MapProbe-v0.1.apk"
+          OUT="SeongSamgukji-Native-MapProbe-v0.2.apk"
           cp "$APK" "$OUT"
-          if gh release view native-map-probe-v0.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload native-map-probe-v0.1 "$OUT" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view native-map-probe-v0.2 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload native-map-probe-v0.2 "$OUT" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create native-map-probe-v0.1 "$OUT" --draft               --title "PRIVATE - 성삼국지 Native Map Probe v0.1"               --notes "Winlator/Wine 없이 Android Canvas에서 실제 m000.jpg 전투맵을 직접 렌더링하는 첫 네이티브 프로토타입입니다. 핀치 줌, 드래그 이동, 48px 타일 좌표 선택을 지원합니다. 공개 배포하지 마세요."               --repo "$GITHUB_REPOSITORY"
+            gh release create native-map-probe-v0.2 "$OUT" --draft               --title "PRIVATE - 성삼국지 Native Map Probe v0.2"               --notes "Winlator/Wine 없이 실제 m000.jpg 전투맵과 Unit_mov.e5의 첫 유닛 레코드(48x48x11 프레임)를 Android에서 직접 디코딩합니다. 맵 터치로 실제 유닛 데이터를 타일 단위로 이동시키며 핀치 줌/드래그를 지원합니다. 팔레트는 현재 인덱스 명암으로 표시하며 정확한 Koei 팔레트 복원은 다음 단계입니다. 공개 배포하지 마세요."               --repo "$GITHUB_REPOSITORY"
           fi
