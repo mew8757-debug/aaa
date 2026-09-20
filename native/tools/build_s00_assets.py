@@ -2247,7 +2247,7 @@ def compile_r_story_leaf(node):
         }
 
     if cid in (
-        0x0A, 0x1C, 0x1E, 0x28, 0x2F,
+        0x0A, 0x1C, 0x1E, 0x20, 0x28, 0x2F,
         0x30, 0x31, 0x32, 0x33, 0x34,
     ):
         return {
@@ -2601,6 +2601,33 @@ def extract_r09_departure_players(blob):
     return ids[:8]
 
 
+
+
+
+def extract_r10_departure_players(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 26:
+        return []
+
+    ids = [0]
+    seen = {0}
+    for section in scenes[25]["sections"]:
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            if node["commandId"] == 0x2D and node["params"]:
+                value = node["params"][0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in seen
+                ):
+                    ids.append(int(value))
+                    seen.add(int(value))
+            stack.extend(node["children"])
+    return ids[:8]
 
 
 def build_next_scenario_probe(filename, blob):
@@ -3529,16 +3556,19 @@ def main(argv):
     r10_probe = build_next_scenario_probe("R_10.eex", r10)
     s10_probe = build_next_scenario_probe("S_10.eex", s10)
     r10_story = compile_r10_story(r10)
+    r10_player_ids = extract_r10_departure_players(r10)
     s10_init_probe = {
         "found": s10 is not None,
         "validEex": bool(s10 and s10.startswith(b"EEX")),
     }
     s10_event_probe = []
+    s10_native_events = []
     s10_outcome_probe = {}
     if s10 and s10.startswith(b"EEX"):
         s10_scenes = parse_scenario_tree(s10)
         s10_init_probe = probe_s01_initialization(s10)
         s10_event_probe = extract_scene2_native_events(s10_scenes)
+        s10_native_events = s10_event_probe
         s10_outcome_probe = probe_battle_outcome_candidates(s10_scenes)
     s10_init_probe["map"] = map10_probe
 
@@ -5735,6 +5765,221 @@ def main(argv):
         encoding="utf-8",
     )
 
+    # S_10: R10 departure selection resolves to eight player characters.
+    # Keep the full Scene2 event graph and let the original scripted events
+    # drive its multi-phase victory/defeat state.
+    if not map10_probe.get("valid"):
+        raise SystemExit("S10 map probe is not valid: " + repr(map10_probe))
+
+    s10_units = []
+
+    def make_s10_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S10 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s10_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s10_slots = sorted(
+        s10_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(r10_player_ids) != 8:
+        raise SystemExit(
+            "R10 departure roster must contain 8 characters: "
+            + repr([(cid, name_of(cid)) for cid in r10_player_ids])
+        )
+    if len(s10_slots) < len(r10_player_ids):
+        raise SystemExit(
+            "S10 player slot count too small: " + repr(s10_slots)
+        )
+
+    for slot, cid in zip(s10_slots, r10_player_ids):
+        make_s10_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_10:0x4B:{slot['slot']}",
+        )
+
+    for index, row in enumerate(s10_init_probe.get("friendRecords", [])):
+        make_s10_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_10:0x46:{index}",
+        )
+
+    for index, row in enumerate(s10_init_probe.get("enemyRecords", [])):
+        make_s10_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_10:0x47:{index}",
+        )
+
+    s10_objective_texts = s10_init_probe.get("objectiveTexts", [])
+    s10_popup_texts = s10_init_probe.get("objectivePopups", [])
+    s10_phase1_text = (
+        s10_objective_texts[0] if s10_objective_texts else ""
+    )
+    s10_phase2_text = (
+        s10_objective_texts[1]
+        if len(s10_objective_texts) > 1
+        else ""
+    )
+    s10_phase1_popup = (
+        s10_popup_texts[0] if s10_popup_texts else ""
+    )
+    s10_phase2_popup = (
+        s10_popup_texts[1]
+        if len(s10_popup_texts) > 1
+        else ""
+    )
+    s10_turn_candidates = [
+        int(match.group(1))
+        for text_value in s10_objective_texts
+        for match in [re.search(r"(\d+)턴", text_value)]
+        if match
+    ]
+    s10_turn_limit = max(s10_turn_candidates) if s10_turn_candidates else 15
+
+    s10_special_sprite_ids = set()
+
+    def collect_s10_special_sprites(actions):
+        for action in actions:
+            if action.get("type") == "specialSprite":
+                sid = int(action.get("spriteId", -1))
+                if sid >= 0 and sprite_record_valid(sid):
+                    s10_special_sprite_ids.add(sid)
+            nested = action.get("actions")
+            if isinstance(nested, list):
+                collect_s10_special_sprites(nested)
+            for case in action.get("cases", []):
+                if isinstance(case, dict):
+                    case_actions = case.get("actions")
+                    if isinstance(case_actions, list):
+                        collect_s10_special_sprites(case_actions)
+
+    for event in s10_native_events:
+        collect_s10_special_sprites(event.get("actions", []))
+
+    s10_battle = {
+        "version": 57,
+        "source": "RS/S_10.eex",
+        "battleMode": "s10-event-driven",
+        "mapId": 10,
+        "map": "m010.jpg",
+        "widthTiles": map10_probe["cols"],
+        "heightTiles": map10_probe["rows"],
+        "terrainFile": "terrain10.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s10_phase1_text,
+                "popupText": s10_phase1_popup,
+                "turnLimit": s10_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": s10_phase2_text,
+                "popupText": s10_phase2_popup,
+                "turnLimit": s10_turn_limit,
+            },
+            "protectedCharacterIds": [0],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s10_native_events,
+        "outcomeProbe": s10_outcome_probe,
+        "r10Story": r10_story,
+        "battleEventSummary": {
+            "candidateCount": len(s10_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s10_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s10_native_events
+            ],
+        },
+        "terrainIds": map10_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s10_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle10.json").write_text(
+        json.dumps(s10_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
@@ -5837,9 +6082,11 @@ def main(argv):
                 + s07_units
                 + s08_units
                 + s09_units
+                + s10_units
             )
         }
         | s09_special_sprite_ids
+        | s10_special_sprite_ids
     )
     for sid in sprite_ids:
         specs = (
@@ -6203,6 +6450,28 @@ def main(argv):
         r09_story["unsupportedActionIds"],
         "players=",
         [(cid, name_of(cid)) for cid in r09_player_ids],
+    )
+    print(
+        "r10 story supported=",
+        r10_story["supported"],
+        "scenes=",
+        r10_story["sceneCount"],
+        "unsupported=",
+        r10_story["unsupportedActionIds"],
+        "players=",
+        [(cid, name_of(cid)) for cid in r10_player_ids],
+    )
+    print(
+        "s10 battle units=",
+        len(s10_units),
+        "players=",
+        [(u["characterId"], u["name"]) for u in s10_units if u["faction"] == PLAYER],
+        "events=",
+        len(s10_native_events),
+        "core-supported=",
+        sum(1 for e in s10_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s10_turn_limit,
     )
     print(
         "s09 battle units=",
