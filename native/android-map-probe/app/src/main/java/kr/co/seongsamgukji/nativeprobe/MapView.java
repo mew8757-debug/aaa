@@ -6082,8 +6082,21 @@ public class MapView extends View {
                         "아군 전멸 · 원본 패배 조건");
                 return;
             }
-            // Victory remains event-driven. v4.22 packages a transition
-            // probe so the dawn/capture trigger can be bound exactly.
+            // Original S11 victory route A: Section 9 fires on
+            // round 25 / player side, finishes the dawn retreat sequence,
+            // then sets scenario variable 9.
+            boolean dawnVictory =
+                    scenarioVariables.getOrDefault(9, 0) != 0;
+
+            // Original S11 victory route B: Section 10 fires when a
+            // player/ally occupies Guangling at (11,0), then sets variable
+            // 16 after the capture/reward/retreat sequence.
+            boolean guanglingVictory =
+                    scenarioVariables.getOrDefault(16, 0) != 0;
+
+            if (dawnVictory || guanglingVictory) {
+                startS11VictoryOutcome();
+            }
             return;
         }
 
