@@ -1,7 +1,7 @@
 {
   "version": "4.47.0",
-  "sourceCommit": "f776d914a8ebbc358083c816482b01116ab32b39",
-  "status": "failure",
+  "sourceCommit": "74197e1f78230287a8f902db9133af330ed9abf7",
+  "status": "success",
   "r10Story": {
     "supported": true,
     "sceneCount": 26,
@@ -79438,6 +79438,101 @@
           }
         ]
       }
+    }
+  },
+  "s20Battle": {
+    "source": "RS/S_20.eex",
+    "battleMode": "kill-target",
+    "map": "m020.jpg",
+    "widthTiles": 20,
+    "heightTiles": 30,
+    "playerCharacters": [
+      {
+        "characterId": 2,
+        "name": "장비"
+      },
+      {
+        "characterId": 19,
+        "name": "하후박"
+      },
+      {
+        "characterId": 17,
+        "name": "진도"
+      },
+      {
+        "characterId": 26,
+        "name": "간옹"
+      },
+      {
+        "characterId": 28,
+        "name": "미방"
+      }
+    ],
+    "allyCount": 0,
+    "enemyCount": 24,
+    "battleObjectives": {
+      "phase1": {
+        "objectiveText": "승리 조건\n★·유대를 격파하라!\n\n패배 조건\n☆·장비 사망.\n☆·15턴 초과.",
+        "popupText": "유대를 격파하라!",
+        "turnLimit": 15,
+        "goal": {
+          "type": "kill-character",
+          "characterId": 63,
+          "name": "유대"
+        }
+      },
+      "phase2": {
+        "objectiveText": "승리 조건\n★·유대를 격파하라!\n\n패배 조건\n☆·장비 사망.\n☆·15턴 초과.",
+        "popupText": "유대를 격파하라!",
+        "turnLimit": 15
+      },
+      "protectedCharacterIds": [
+        2
+      ],
+      "protectedCharacters": [
+        {
+          "characterId": 2,
+          "name": "장비"
+        }
+      ],
+      "phase1TransitionEvents": []
+    },
+    "eventCandidateCount": 15,
+    "eventSupportedCount": 15,
+    "rawEventCandidateCount": 16,
+    "rawEventSupportedCount": 16,
+    "unsupportedEvents": [],
+    "outcomeSupport": {
+      "victory": true,
+      "genericDefeat": true,
+      "postBattle": true,
+      "defeatByCharacter": {
+        "2": true
+      }
+    },
+    "routeModel": {
+      "targetCharacterId": 63,
+      "targetName": "유대",
+      "victorySection": 18,
+      "defeatByCharacterSections": {
+        "2": 3
+      },
+      "genericDefeatSection": 19,
+      "postBattleScene": "S03-SEC01"
+    },
+    "r20PlayerIds": [
+      2,
+      19,
+      17,
+      26,
+      28
+    ],
+    "skippedActors": [],
+    "r20Story": {
+      "supported": true,
+      "sceneCount": 10,
+      "unsupportedActionIds": [],
+      "nextBattle": "S_20.eex"
     }
   }
 }
