@@ -3249,6 +3249,8 @@ def main(argv):
         s11 = read_member_by_basename(game1, "S_11.eex")
         r12 = read_member_by_basename(game1, "R_12.eex")
         s12 = read_member_by_basename(game1, "S_12.eex")
+        r13 = read_member_by_basename(game1, "R_13.eex")
+        s13 = read_member_by_basename(game1, "S_13.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3261,6 +3263,7 @@ def main(argv):
         map10_bytes = read_member_by_basename(game2, "m010.jpg")
         map11_bytes = read_member_by_basename(game2, "m011.jpg")
         map12_bytes = read_member_by_basename(game2, "m012.jpg")
+        map13_bytes = read_member_by_basename(game2, "m013.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -3285,6 +3288,8 @@ def main(argv):
             map11_bytes = read_member_by_basename(game1, "m011.jpg")
         if map12_bytes is None:
             map12_bytes = read_member_by_basename(game1, "m012.jpg")
+        if map13_bytes is None:
+            map13_bytes = read_member_by_basename(game1, "m013.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -3580,6 +3585,45 @@ def main(argv):
             })
         except Exception as exc:
             map12_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
+    map13_probe = {
+        "filename": "m013.jpg",
+        "found": map13_bytes is not None,
+        "hexzmapEntry": 13,
+    }
+    if map13_bytes is not None:
+        try:
+            map13_width, map13_height = jpeg_dimensions(map13_bytes)
+            if map13_width % 48 != 0 or map13_height % 48 != 0:
+                raise ValueError(
+                    f"m013 dimensions not divisible by 48: "
+                    f"{map13_width}x{map13_height}"
+                )
+            map13_cols = map13_width // 48
+            map13_rows = map13_height // 48
+            terrain13_cells = extract_hexzmap_cells(
+                hexz,
+                13,
+                map13_cols,
+                map13_rows,
+            )
+            (map_dir / "m013.jpg").write_bytes(map13_bytes)
+            (battle_dir / "terrain13.bin").write_bytes(terrain13_cells)
+            map13_probe.update({
+                "valid": True,
+                "width": map13_width,
+                "height": map13_height,
+                "cols": map13_cols,
+                "rows": map13_rows,
+                "terrainCellCount": len(terrain13_cells),
+                "terrainIds": sorted(set(terrain13_cells)),
+            })
+        except Exception as exc:
+            map13_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -3911,6 +3955,22 @@ def main(argv):
         )
     r11_player_ids = extract_r11_departure_players(r11)
     r12_player_ids = extract_r12_departure_players(r12)
+
+    r13_probe = build_next_scenario_probe("R_13.eex", r13)
+    s13_probe = build_next_scenario_probe("S_13.eex", s13)
+    s13_init_probe = {
+        "found": s13 is not None,
+        "validEex": bool(s13 and s13.startswith(b"EEX")),
+        "map": map13_probe,
+    }
+    s13_event_probe = []
+    s13_outcome_probe = {}
+    if s13 and s13.startswith(b"EEX"):
+        s13_scenes = parse_scenario_tree(s13)
+        s13_init_probe = probe_s01_initialization(s13)
+        s13_init_probe["map"] = map13_probe
+        s13_event_probe = extract_scene2_native_events(s13_scenes)
+        s13_outcome_probe = probe_battle_outcome_candidates(s13_scenes)
 
     s12_init_probe = {
         "found": s12 is not None,
@@ -6862,7 +6922,7 @@ def main(argv):
     )
 
     s12_battle = {
-        "version": 67,
+        "version": 68,
         "source": "RS/S_12.eex",
         "battleMode": "s12-route-driven",
         "mapId": 12,
@@ -6898,6 +6958,28 @@ def main(argv):
         "outcomeEvents": s12_outcome_events,
         "outcomeProbe": s12_outcome_probe,
         "transitionProbe": s12_transition_probe,
+        "nextScenarioProbe": {
+            "R_13.eex": r13_probe,
+            "S_13.eex": s13_probe,
+        },
+        "s13Probe": {
+            "init": s13_init_probe,
+            "eventCandidateCount": len(s13_event_probe),
+            "eventSupportedCount": sum(
+                1 for event in s13_event_probe
+                if event["coreSupported"]
+            ),
+            "unsupportedEvents": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                }
+                for event in s13_event_probe
+                if not event["coreSupported"]
+            ],
+            "outcomeCandidates": sorted(s13_outcome_probe.keys()),
+        },
         "battleEventSummary": {
             "candidateCount": len(s12_native_events),
             "coreSupportedCount": sum(
@@ -7071,6 +7153,28 @@ def main(argv):
 
     print("map bytes=", len(map_bytes))
     print("terrain cells=", len(terrain_cells), "ids=", terrain_ids)
+    print(
+        "post-S12 probes=",
+        {
+            "R_13.eex": {
+                "found": r13_probe.get("found"),
+                "sceneCount": r13_probe.get("sceneCount"),
+                "sectionCounts": r13_probe.get("sectionCounts"),
+            },
+            "S_13.eex": {
+                "found": s13_probe.get("found"),
+                "sceneCount": s13_probe.get("sceneCount"),
+                "sectionCounts": s13_probe.get("sectionCounts"),
+                "map": map13_probe,
+                "events": len(s13_event_probe),
+                "coreSupported": sum(
+                    1 for event in s13_event_probe
+                    if event["coreSupported"]
+                ),
+                "outcomes": sorted(s13_outcome_probe.keys()),
+            },
+        },
+    )
     print(
         "s01 map=",
         map1_width,
