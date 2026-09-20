@@ -3951,6 +3951,8 @@ def main(argv):
         s21 = read_member_by_basename(game1, "S_21.eex")
         r22 = read_member_by_basename(game1, "R_22.eex")
         s22 = read_member_by_basename(game1, "S_22.eex")
+        r23 = read_member_by_basename(game1, "R_23.eex")
+        s23 = read_member_by_basename(game1, "S_23.eex")
 
         rs_inventory = []
         for member in game1.namelist():
@@ -4012,6 +4014,7 @@ def main(argv):
         map20_bytes = read_member_by_basename(game2, "m020.jpg")
         map21_bytes = read_member_by_basename(game2, "m021.jpg")
         map22_bytes = read_member_by_basename(game2, "m022.jpg")
+        map23_bytes = read_member_by_basename(game2, "m023.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -4056,6 +4059,8 @@ def main(argv):
             map21_bytes = read_member_by_basename(game1, "m021.jpg")
         if map22_bytes is None:
             map22_bytes = read_member_by_basename(game1, "m022.jpg")
+        if map23_bytes is None:
+            map23_bytes = read_member_by_basename(game1, "m023.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -4741,6 +4746,46 @@ def main(argv):
             })
         except Exception as exc:
             map22_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
+
+    map23_probe = {
+        "filename": "m023.jpg",
+        "found": map23_bytes is not None,
+        "hexzmapEntry": 23,
+    }
+    if map23_bytes is not None:
+        try:
+            map23_width, map23_height = jpeg_dimensions(map23_bytes)
+            if map23_width % 48 != 0 or map23_height % 48 != 0:
+                raise ValueError(
+                    f"m023 dimensions not divisible by 48: "
+                    f"{map23_width}x{map23_height}"
+                )
+            map23_cols = map23_width // 48
+            map23_rows = map23_height // 48
+            terrain23_cells = extract_hexzmap_cells(
+                hexz,
+                23,
+                map23_cols,
+                map23_rows,
+            )
+            (map_dir / "m023.jpg").write_bytes(map23_bytes)
+            (battle_dir / "terrain23.bin").write_bytes(terrain23_cells)
+            map23_probe.update({
+                "valid": True,
+                "width": map23_width,
+                "height": map23_height,
+                "cols": map23_cols,
+                "rows": map23_rows,
+                "terrainCellCount": len(terrain23_cells),
+                "terrainIds": sorted(set(terrain23_cells)),
+            })
+        except Exception as exc:
+            map23_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -5649,6 +5694,46 @@ def main(argv):
         ),
     }
 
+    r23_probe = build_next_scenario_probe("R_23.eex", r23)
+    s23_probe = build_next_scenario_probe("S_23.eex", s23)
+    s23_init_probe = {
+        "found": s23 is not None,
+        "validEex": bool(s23 and s23.startswith(b"EEX")),
+        "map": map23_probe,
+    }
+    s23_event_probe = []
+    s23_outcome_probe = {}
+    if s23 and s23.startswith(b"EEX"):
+        s23_scenes = parse_scenario_tree(s23)
+        s23_init_probe = probe_s01_initialization(s23)
+        s23_init_probe["map"] = map23_probe
+        s23_event_probe = extract_scene2_native_events(s23_scenes)
+        s23_outcome_probe = probe_battle_outcome_candidates(s23_scenes)
+
+    post_s22_probe = {
+        "R_23.eex": r23_probe,
+        "S_23.eex": s23_probe,
+        "M023": map23_probe,
+        "S23Init": s23_init_probe,
+        "S23EventSummary": {
+            "candidateCount": len(s23_event_probe),
+            "coreSupportedCount": sum(
+                1 for event in s23_event_probe
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                }
+                for event in s23_event_probe
+                if not event["coreSupported"]
+            ],
+        },
+        "S23OutcomeProbe": s23_outcome_probe,
+    }
+
     s21_native_events = []
     s21_outcome_events = {
         "defeatByCharacter": {},
@@ -6396,7 +6481,7 @@ def main(argv):
         )
 
     s02_battle = {
-        "version": 31,
+        "version": 32,
         "source": "RS/S_02.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 2,
@@ -11295,6 +11380,11 @@ def main(argv):
         "battleEvents": s22_native_events,
         "outcomeEvents": s22_outcome_events,
         "outcomeProbe": s22_outcome_probe,
+        "nextScenarioProbe": {
+            "R_23.eex": r23_probe,
+            "S_23.eex": s23_probe,
+        },
+        "postS22Probe": post_s22_probe,
         "routeModel": {
             "targetCharacterId": yan_liang_id,
             "targetName": "안량",
