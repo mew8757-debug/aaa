@@ -2147,6 +2147,28 @@ def compile_r_story_leaf(node):
             "levelAdjust": int(params[2]),
         }
 
+    # 0x3E R-story join equipment setup.
+    # Legacy formatter semantics:
+    # person, weaponCode, weaponLevel, armorCode, armorLevel, auxiliaryCode.
+    # Codes are scenario-relative equipment encodings (0=default, 1=remove,
+    # 2+=category-relative item index), so preserve them raw here.
+    if cid == 0x3E and len(params) >= 6:
+        return {
+            "type": "equipmentSet",
+            "characterId": int(params[0]),
+            "weaponCode": int(params[1]),
+            "weaponLevel": int(params[2]),
+            "armorCode": int(params[3]),
+            "armorLevel": int(params[4]),
+            "auxiliaryCode": int(params[5]),
+            "rawParams": [
+                int(v)
+                for v in params
+                if isinstance(v, int)
+            ],
+        }
+
+
     if cid == 0x67:
         strings = [p for p in params if isinstance(p, str)]
         return {
