@@ -2972,6 +2972,8 @@ def main(argv):
         s08 = read_member_by_basename(game1, "S_08.eex")
         r09 = read_member_by_basename(game1, "R_09.eex")
         s09 = read_member_by_basename(game1, "S_09.eex")
+        r10 = read_member_by_basename(game1, "R_10.eex")
+        s10 = read_member_by_basename(game1, "S_10.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -2981,6 +2983,7 @@ def main(argv):
         map7_bytes = read_member_by_basename(game2, "m007.jpg")
         map8_bytes = read_member_by_basename(game2, "m008.jpg")
         map9_bytes = read_member_by_basename(game2, "m009.jpg")
+        map10_bytes = read_member_by_basename(game2, "m010.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -2999,6 +3002,8 @@ def main(argv):
             map8_bytes = read_member_by_basename(game1, "m008.jpg")
         if map9_bytes is None:
             map9_bytes = read_member_by_basename(game1, "m009.jpg")
+        if map10_bytes is None:
+            map10_bytes = read_member_by_basename(game1, "m010.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -3183,6 +3188,44 @@ def main(argv):
     )
     (map_dir / "m009.jpg").write_bytes(map9_bytes)
     (battle_dir / "terrain9.bin").write_bytes(terrain9_cells)
+
+    map10_probe = {
+        "filename": "m010.jpg",
+        "found": map10_bytes is not None,
+        "hexzmapEntry": 10,
+    }
+    if map10_bytes is not None:
+        try:
+            map10_width, map10_height = jpeg_dimensions(map10_bytes)
+            if map10_width % 48 != 0 or map10_height % 48 != 0:
+                raise ValueError(
+                    f"m010 dimensions not divisible by 48: "
+                    f"{map10_width}x{map10_height}"
+                )
+            map10_cols = map10_width // 48
+            map10_rows = map10_height // 48
+            terrain10_cells = extract_hexzmap_cells(
+                hexz,
+                10,
+                map10_cols,
+                map10_rows,
+            )
+            (map_dir / "m010.jpg").write_bytes(map10_bytes)
+            (battle_dir / "terrain10.bin").write_bytes(terrain10_cells)
+            map10_probe.update({
+                "valid": True,
+                "width": map10_width,
+                "height": map10_height,
+                "cols": map10_cols,
+                "rows": map10_rows,
+                "terrainCellCount": len(terrain10_cells),
+                "terrainIds": sorted(set(terrain10_cells)),
+            })
+        except Exception as exc:
+            map10_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -3449,6 +3492,21 @@ def main(argv):
             (2, 51),
         ],
     )
+
+    r10_probe = build_next_scenario_probe("R_10.eex", r10)
+    s10_probe = build_next_scenario_probe("S_10.eex", s10)
+    s10_init_probe = {
+        "found": s10 is not None,
+        "validEex": bool(s10 and s10.startswith(b"EEX")),
+    }
+    s10_event_probe = []
+    s10_outcome_probe = {}
+    if s10 and s10.startswith(b"EEX"):
+        s10_scenes = parse_scenario_tree(s10)
+        s10_init_probe = probe_s01_initialization(s10)
+        s10_event_probe = extract_scene2_native_events(s10_scenes)
+        s10_outcome_probe = probe_battle_outcome_candidates(s10_scenes)
+    s10_init_probe["map"] = map10_probe
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -5558,7 +5616,7 @@ def main(argv):
             enrich_s09_action_list(outcome.get("actions", []))
 
     s09_battle = {
-        "version": 52,
+        "version": 53,
         "source": "RS/S_09.eex",
         "battleMode": "s09-xuzhou-rescue",
         "mapId": 9,
@@ -5603,6 +5661,13 @@ def main(argv):
         "outcomeEvents": s09_outcome_events,
         "outcomeProbe": s09_outcome_probe,
         "goalProbe": s09_goal_probe,
+        "nextScenarioProbe": {
+            "R_10.eex": r10_probe,
+            "S_10.eex": s10_probe,
+        },
+        "s10InitProbe": s10_init_probe,
+        "s10EventProbe": s10_event_probe,
+        "s10OutcomeProbe": s10_outcome_probe,
         "r09Story": r09_story,
         "battleEventSummary": {
             "candidateCount": len(s09_native_events),
