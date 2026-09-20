@@ -5115,27 +5115,6 @@ public class MapView extends View {
         if (currentBattleIndex == 11) {
             return "S_11";
         }
-        if (currentBattleIndex == 11) {
-            for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS11DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-            if (!hasAnyAliveFriendly()) {
-                startS11DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-            // Victory remains event-driven. v4.22 packages a transition
-            // probe so the dawn/capture trigger can be bound exactly.
-            return;
-        }
-
         if (currentBattleIndex == 10) {
             return "S_10";
         }
@@ -6084,6 +6063,27 @@ public class MapView extends View {
                     && !hasAnyAliveEnemy()) {
                 startS08VictoryOutcome();
             }
+            return;
+        }
+
+        if (currentBattleIndex == 11) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS11DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS11DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+            // Victory remains event-driven. v4.22 packages a transition
+            // probe so the dawn/capture trigger can be bound exactly.
             return;
         }
 
