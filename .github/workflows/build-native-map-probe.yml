@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.44
+name: Build Native Android Battle v4.45
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.44 APK
+      - name: Build native v4.45 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.44.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.45.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.44 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.44 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.45 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.45 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.44 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.44" \
-              --notes "Native v4.44는 v4.43의 S17→R18→S18 연속 플레이를 유지하면서 원본 R_19.eex/S_19.eex/M019를 자동 진단합니다. R19 Scene/Section/흐름 명령, S19 초기 배치·목표·맵·전장 이벤트 지원률·승패 후보 전체 트리를 compact status로 기록해 다음 버전에서 S18→R19→S19를 추측 없이 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.45 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.45" \
+              --notes "Native v4.45는 S18 승리 후 원본 R_19.eex Scene 1~28 스토리와 Scene 29 출전 흐름을 실제 재생하고, 9인 출전 roster를 원본 0x06/0x2D 순서로 구성해 M019/terrain19/battle19로 S19 전투에 연속 진입합니다. S19 전장 이벤트는 종료 Section 30/31/46/47을 제외해 공용 이벤트 엔진에서 실행하고, 유비(0)·진등(172) 보호/25턴/적 전멸 승리 및 원본 승리·패배·Scene3 정리를 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.44 build status
+      - name: Record v4.45 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.44.0",
+              "version": "4.45.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.44.0",
+              "version": "4.45.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -2010,11 +2010,104 @@ jobs:
               }
               status["s18Battle"] = compact["s18Battle"]
 
+
+          battle19_path = Path(
+              "native/android-map-probe/app/src/main/assets/battle/battle19.json"
+          )
+          if battle19_path.exists():
+              battle19 = json.loads(
+                  battle19_path.read_text(encoding="utf-8")
+              )
+              summary19 = battle19.get("battleEventSummary", {})
+              outcome19 = battle19.get("outcomeEvents", {})
+              r19_story = battle18.get("r19Story", {}) if battle18_path.exists() else {}
+              compact["s19Battle"] = {
+                  "source": battle19.get("source"),
+                  "battleMode": battle19.get("battleMode"),
+                  "map": battle19.get("map"),
+                  "widthTiles": battle19.get("widthTiles"),
+                  "heightTiles": battle19.get("heightTiles"),
+                  "playerCharacters": [
+                      {
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                      }
+                      for u in battle19.get("units", [])
+                      if u.get("faction") == "player"
+                  ],
+                  "allyCount": sum(
+                      1 for u in battle19.get("units", [])
+                      if u.get("faction") == "ally"
+                  ),
+                  "enemyCount": sum(
+                      1 for u in battle19.get("units", [])
+                      if u.get("faction") == "enemy"
+                  ),
+                  "battleObjectives": battle19.get(
+                      "battleObjectives",
+                      {},
+                  ),
+                  "eventCandidateCount": summary19.get(
+                      "candidateCount"
+                  ),
+                  "eventSupportedCount": summary19.get(
+                      "coreSupportedCount"
+                  ),
+                  "rawEventCandidateCount": summary19.get(
+                      "rawCandidateCount"
+                  ),
+                  "rawEventSupportedCount": summary19.get(
+                      "rawCoreSupportedCount"
+                  ),
+                  "unsupportedEvents": [
+                      row for row in summary19.get("sections", [])
+                      if not row.get("coreSupported")
+                  ],
+                  "outcomeSupport": {
+                      "victory": outcome19.get(
+                          "victory",
+                          {},
+                      ).get("supported"),
+                      "genericDefeat": outcome19.get(
+                          "genericDefeat",
+                          {},
+                      ).get("supported"),
+                      "postBattle": outcome19.get(
+                          "postBattle",
+                          {},
+                      ).get("supported"),
+                      "defeatByCharacter": {
+                          key: value.get("supported")
+                          for key, value in outcome19.get(
+                              "defeatByCharacter",
+                              {},
+                          ).items()
+                      },
+                  },
+                  "routeModel": battle19.get("routeModel", {}),
+                  "r19PlayerIds": battle19.get("r19PlayerIds", []),
+                  "r19SelectableIds": battle19.get(
+                      "r19SelectableIds",
+                      [],
+                  ),
+                  "skippedActors": battle19.get("skippedActors", []),
+                  "r19Story": {
+                      "supported": r19_story.get("supported"),
+                      "sceneCount": r19_story.get("sceneCount"),
+                      "unsupportedActionIds": r19_story.get(
+                          "unsupportedActionIds",
+                          [],
+                      ),
+                      "nextBattle": r19_story.get("nextBattle"),
+                  },
+              }
+              status["s19Battle"] = compact["s19Battle"]
+
           s18_compact = compact.get("s18Battle", {})
           post_s18 = s18_compact.get("postS18Probe", {})
           next_19 = s18_compact.get("nextScenarioProbe", {})
           r19_small = {
-              "version": "4.44.0",
+              "version": "4.45.0",
               "status": os.environ["BUILD_STATUS"],
               "r19": next_19.get("R_19.eex", {}),
               "s19": next_19.get("S_19.eex", {}),
@@ -2033,7 +2126,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.44-r19.json").write_text(
+          Path("native/build-status/v4.45-r19.json").write_text(
               json.dumps(
                   r19_small,
                   ensure_ascii=False,
@@ -2042,7 +2135,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.44-summary.json").write_text(
+          Path("native/build-status/v4.45-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -2055,7 +2148,7 @@ jobs:
           post_s17 = s17_compact.get("postS17Probe", {})
           next_probe = s17_compact.get("nextScenarioProbe", {})
           r18_small = {
-              "version": "4.44.0",
+              "version": "4.45.0",
               "status": os.environ["BUILD_STATUS"],
               "r18": next_probe.get("R_18.eex", {}),
               "s18": next_probe.get("S_18.eex", {}),
@@ -2075,7 +2168,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.44-r18.json").write_text(
+          Path("native/build-status/v4.45-r18.json").write_text(
               json.dumps(
                   r18_small,
                   ensure_ascii=False,
@@ -2084,7 +2177,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.44.json").write_text(
+          Path("native/build-status/v4.45.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -2092,11 +2185,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.44.json native/build-status/v4.44-summary.json native/build-status/v4.44-r18.json native/build-status/v4.44-r19.json
+          git add native/build-status/v4.45.json native/build-status/v4.45-summary.json native/build-status/v4.45-r18.json native/build-status/v4.45-r19.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.44 build status"
+          git commit -m "Record native v4.45 build status"
           git push

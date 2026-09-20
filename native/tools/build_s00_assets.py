@@ -2867,6 +2867,16 @@ def compile_r18_story(blob):
     )
 
 
+def compile_r19_story(blob):
+    return compile_r_story(
+        blob,
+        "R_19.eex",
+        28,
+        29,
+        "S_19.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -3261,6 +3271,69 @@ def extract_r17_departure_players(blob):
             seen.add(cid)
 
     roster = (fixed + selectable)[:8]
+    return roster, selectable
+
+
+def extract_r19_departure_players(blob):
+    # R19 Scene 29 exposes nine deployment slots. Preserve mandatory
+    # Liu Bei first, then fixed 0x06 members and 0x2D candidates in
+    # original section order until all nine S19 slots are filled.
+    fixed = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return fixed, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 29:
+        return fixed, selectable
+
+    departure = scenes[28]
+    fixed_from_limit = []
+    selectable_from_sections = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed_from_limit
+                    ):
+                        fixed_from_limit.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in selectable_from_sections
+                ):
+                    selectable_from_sections.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed_from_limit:
+        if cid not in seen:
+            fixed.append(cid)
+            seen.add(cid)
+
+    for cid in selectable_from_sections:
+        if cid not in seen:
+            selectable.append(cid)
+            seen.add(cid)
+
+    roster = (fixed + selectable)[:9]
     return roster, selectable
 
 
@@ -5075,19 +5148,51 @@ def main(argv):
 
     r19_probe = build_next_scenario_probe("R_19.eex", r19)
     s19_probe = build_next_scenario_probe("S_19.eex", s19)
+    r19_story = compile_r19_story(r19)
+    r19_player_ids, r19_selectable_ids = extract_r19_departure_players(r19)
     s19_init_probe = {
         "found": s19 is not None,
         "validEex": bool(s19 and s19.startswith(b"EEX")),
         "map": map19_probe,
     }
     s19_event_probe = []
+    s19_native_events = []
     s19_outcome_probe = {}
+    s19_outcome_events = {
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s19 and s19.startswith(b"EEX"):
         s19_scenes = parse_scenario_tree(s19)
         s19_init_probe = probe_s01_initialization(s19)
         s19_init_probe["map"] = map19_probe
         s19_event_probe = extract_scene2_native_events(s19_scenes)
+        s19_native_events = [
+            event for event in s19_event_probe
+            if event["section"] not in {30, 31, 46, 47}
+        ]
         s19_outcome_probe = probe_battle_outcome_candidates(s19_scenes)
+        s19_outcome_events = {
+            "defeatByCharacter": {
+                "172": compile_scenario_section_actions(
+                    s19_scenes, 2, 30
+                ),
+                "0": compile_scenario_section_actions(
+                    s19_scenes, 2, 31
+                ),
+            },
+            "victory": compile_scenario_section_actions(
+                s19_scenes, 2, 46
+            ),
+            "genericDefeat": compile_scenario_section_actions(
+                s19_scenes, 2, 47
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s19_scenes, 3, 1
+            ),
+        }
 
     s17_route_model = {
         "outerCityClearSection": 5,
@@ -9603,6 +9708,9 @@ def main(argv):
             "R_19.eex": r19_probe,
             "S_19.eex": s19_probe,
         },
+        "r19Story": r19_story,
+        "r19PlayerIds": r19_player_ids,
+        "r19SelectableIds": r19_selectable_ids,
         "postS18Probe": {
             "map19": map19_probe,
             "s19Init": s19_init_probe,
@@ -9677,6 +9785,234 @@ def main(argv):
     }
     (battle_dir / "battle18.json").write_text(
         json.dumps(s18_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+
+    # S19: eliminate all enemies while keeping Liu Bei and Chen Deng alive.
+    s19_units = []
+    s19_skipped_actors = []
+
+    def make_s19_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s19_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S19 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s19_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s19_slots = sorted(
+        s19_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    s19_player_ids = r19_player_ids[:len(s19_slots)]
+
+    if not map19_probe.get("valid"):
+        raise SystemExit(
+            "M019 map probe invalid: " + repr(map19_probe)
+        )
+    if not r19_story.get("supported"):
+        raise SystemExit(
+            "R19 story unsupported: "
+            + repr(r19_story.get("unsupportedActionIds", []))
+        )
+    if len(s19_player_ids) != len(s19_slots):
+        raise SystemExit(
+            "S19 player roster/slot mismatch: "
+            + repr({
+                "players": s19_player_ids,
+                "slots": s19_slots,
+                "selectable": r19_selectable_ids,
+            })
+        )
+
+    for slot, cid in zip(s19_slots, s19_player_ids):
+        if not make_s19_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_19:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S19 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s19_init_probe.get("friendRecords", [])):
+        make_s19_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_19:0x46:{index}",
+        )
+
+    for index, row in enumerate(s19_init_probe.get("enemyRecords", [])):
+        make_s19_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_19:0x47:{index}",
+        )
+
+    s19_objective_text = (
+        s19_init_probe.get("objectiveTexts", [""])[0]
+        if s19_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s19_popup_text = (
+        s19_init_probe.get("objectivePopups", [""])[0]
+        if s19_init_probe.get("objectivePopups")
+        else ""
+    )
+    s19_turn_limit = objective_turn_limit(
+        s19_objective_text,
+        25,
+    )
+    s19_protected_ids = [0, 172]
+
+    s19_battle = {
+        "version": 85,
+        "source": "RS/S_19.eex",
+        "battleMode": "enemy-annihilation",
+        "mapId": 19,
+        "map": "m019.jpg",
+        "widthTiles": map19_probe["cols"],
+        "heightTiles": map19_probe["rows"],
+        "terrainFile": "terrain19.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s19_objective_text,
+                "popupText": s19_popup_text,
+                "turnLimit": s19_turn_limit,
+                "goal": {"type": "enemy-annihilation"},
+            },
+            "phase2": {
+                "objectiveText": s19_objective_text,
+                "popupText": s19_popup_text,
+                "turnLimit": s19_turn_limit,
+            },
+            "protectedCharacterIds": s19_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s19_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s19_native_events,
+        "outcomeEvents": s19_outcome_events,
+        "outcomeProbe": s19_outcome_probe,
+        "routeModel": {
+            "victorySection": 46,
+            "defeatByCharacterSections": {
+                "172": 30,
+                "0": 31,
+            },
+            "genericDefeatSection": 47,
+            "postBattleScene": "S03-SEC01",
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s19_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s19_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s19_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s19_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s19_native_events
+            ],
+        },
+        "terrainIds": map19_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s19_skipped_actors,
+        "r19PlayerIds": s19_player_ids,
+        "r19SelectableIds": r19_selectable_ids,
+        "r19SelectionMode": "fixed-plus-source-order-selectables",
+        "units": s19_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle19.json").write_text(
+        json.dumps(s19_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -9792,6 +10128,7 @@ def main(argv):
                 + s16_units
                 + s17_units
                 + s18_units
+                + s19_units
             )
         }
         | s09_special_sprite_ids
