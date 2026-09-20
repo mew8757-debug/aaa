@@ -557,6 +557,46 @@ public class MapView extends View {
             r01StoryScenes = r01Story.optJSONArray("scenes");
         }
 
+        if (currentBattleIndex == 23) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS23DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (round > turnLimit) {
+                startS23DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS23DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if ("s23-cao-cao-or-annihilation".equals(battleMode)) {
+                BattleUnit caoCao = findUnitByCharacterId(
+                        killTargetCharacterId >= 0
+                                ? killTargetCharacterId
+                                : 36);
+                if (caoCao != null && !caoCao.isAlive()) {
+                    startS23VictoryOutcome(true);
+                    return;
+                }
+                if (!hasAnyAliveEnemy()) {
+                    startS23VictoryOutcome(false);
+                    return;
+                }
+            }
+            return;
+        }
+
         if (currentBattleIndex == 22) {
             JSONObject routeModel = battle.optJSONObject("routeModel");
             if (routeModel != null) {
@@ -7572,7 +7612,179 @@ public class MapView extends View {
                             : battleResultText);
             return;
         }
-        endBattle(true, "S_22 원본 승리 흐름 완료");
+        if (r23StoryScenes != null && r23StoryScenes.length() > 0) {
+            startR23Story();
+        } else {
+            endBattle(true, "S_22 원본 승리 흐름 완료");
+        }
+    }
+
+    private void startR23Story() {
+        outcomeFlowActive = false;
+        r23StoryActive = true;
+        r23StorySceneIndex = 0;
+        s23Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR23StoryScene();
+    }
+
+    private void startR23StoryScene() {
+        if (!r23StoryActive || r23StoryScenes == null) {
+            return;
+        }
+        if (r23StorySceneIndex >= r23StoryScenes.length()) {
+            r23StoryActive = false;
+            s23Ready = true;
+            enterS23Battle();
+            return;
+        }
+
+        JSONObject scene = r23StoryScenes.optJSONObject(
+                r23StorySceneIndex);
+        if (scene == null) {
+            r23StorySceneIndex++;
+            startR23StoryScene();
+            return;
+        }
+
+        prepareScriptActionSequence(scene.optJSONArray("actions"));
+        int sceneNumber = scene.optInt("scene", r23StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_23 Scene " + sceneNumber
+                + ("departure".equals(kind) ? " · 출전" : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR23StoryScene() {
+        r23StorySceneIndex++;
+        startR23StoryScene();
+    }
+
+    private void enterS23Battle() {
+        try {
+            loadS23Battle(getContext());
+            lastCombatMessage = "R_23 완료 · S_23 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            endBattle(
+                    false,
+                    "S_23 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS23Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle23.json",
+                23,
+                "m023.jpg",
+                "terrain23.bin");
+    }
+
+    private void startS23VictoryOutcome(boolean targetSpecific) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (targetSpecific && s18VictoryOutcomeEvents != null) {
+            JSONObject entry = s18VictoryOutcomeEvents.optJSONObject("36");
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null) {
+            actions = victoryOutcomeActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(
+                    true,
+                    targetSpecific
+                            ? "조조 격퇴 · 원본 승리 조건"
+                            : "적군 전멸 · 원본 승리 조건");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s23Victory";
+        battleVictory = true;
+        battleResultText = targetSpecific
+                ? "조조 격퇴 · 원본 승리 조건"
+                : "적군 전멸 · 원본 승리 조건";
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_23 승리 정산";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS23DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s23Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_23 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS23PostBattleCleanup() {
+        outcomeStage = "s23PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS23Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_23 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS23Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_23 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+        endBattle(true, "S_23 원본 승리 흐름 완료");
     }
 
     private String currentBattleLabel() {
@@ -7909,6 +8121,16 @@ public class MapView extends View {
                 finishS22Outcome();
                 return;
             }
+            if ("s23Victory".equals(outcomeStage)
+                    || "s23Defeat".equals(outcomeStage)) {
+                startS23PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s23PostBattle".equals(outcomeStage)) {
+                finishS23Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -7993,6 +8215,10 @@ public class MapView extends View {
         }
         if (r22StoryActive) {
             finishR22StoryScene();
+            return;
+        }
+        if (r23StoryActive) {
+            finishR23StoryScene();
             return;
         }
 
@@ -8635,6 +8861,7 @@ public class MapView extends View {
                 || r20StoryActive
                 || r21StoryActive
                 || r22StoryActive
+                || r23StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
             return;
