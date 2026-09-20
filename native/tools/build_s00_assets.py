@@ -3693,13 +3693,49 @@ def main(argv):
         "map": map11_probe,
     }
     s11_event_probe = []
+    s11_native_events = []
     s11_outcome_probe = {}
+    s11_transition_probe = {}
+    s11_outcome_events = {
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s11 and s11.startswith(b"EEX"):
         s11_scenes = parse_scenario_tree(s11)
         s11_init_probe = probe_s01_initialization(s11)
         s11_init_probe["map"] = map11_probe
         s11_event_probe = extract_scene2_native_events(s11_scenes)
+        s11_native_events = [
+            event
+            for event in s11_event_probe
+            if event["section"] not in {38, 39, 40, 51, 52}
+        ]
         s11_outcome_probe = probe_battle_outcome_candidates(s11_scenes)
+        s11_outcome_events = {
+            "defeatByCharacter": {
+                "0": compile_scenario_section_actions(s11_scenes, 2, 38),
+                "1": compile_scenario_section_actions(s11_scenes, 2, 39),
+                "2": compile_scenario_section_actions(s11_scenes, 2, 40),
+            },
+            "victory": compile_scenario_section_actions(s11_scenes, 2, 51),
+            "genericDefeat": compile_scenario_section_actions(s11_scenes, 2, 52),
+            "postBattle": compile_scenario_section_actions(s11_scenes, 3, 1),
+        }
+        s11_flat = flatten_scenario_nodes(s11_scenes)
+        s11_transition_sections = sorted({
+            (2, row["section"])
+            for row in s11_flat
+            if row["scene"] == 2
+            and row["depth"] == 0
+            and row["commandId"] in {0x25, 0x26, 0x3F, 0x40, 0x41, 0x42, 0x43}
+        })
+        s11_transition_probe = probe_selected_scenario_sections(
+            s11_scenes,
+            s11_transition_sections,
+        )
+    r11_player_ids = extract_r11_departure_players(r11)
 
     s10_init_probe = {
         "found": s10 is not None,
