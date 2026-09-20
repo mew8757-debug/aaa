@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.11
+name: Build Native Android Battle v4.12
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.11 APK
+      - name: Build native v4.12 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.11.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.12.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.11 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.11 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.12 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.12 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.11 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.11" \
-              --notes "Native v4.11은 S08 승리 후 R09 Scene 1~17 + Scene18 출전 흐름을 실제 재생하고 battle9.json으로 S09에 진입합니다. R09 출전 0x06에서 8인 roster를 자동 추출하며, S09는 S00 전용 제외목록을 제거해 종료 Section 56/57/74/75 외 Scene2 전장 이벤트를 전부 재컴파일합니다. 조조 격퇴 Section51의 변수56을 승리 신호로 연결하고 유비(0)·도겸(145) 사망 및 20턴 초과를 원본 패배 흐름으로 처리합니다. 최신 main의 S08 판정이 S07 블록에 잘못 중첩된 회귀도 수정합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.12 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.12" \
+              --notes "Native v4.12는 v4.11의 R09→S09 연결을 유지하면서 R_09.eex의 0x3E 가입 장비 설정을 원본 시나리오 상대 인코딩 그대로 실행합니다. 인물별 무기코드/등급·방어구코드/등급·보조코드를 런타임 장비 상태에 보존하며, 아직 검증되지 않은 장비 능력치 보정은 피해 계산에 임의 적용하지 않습니다. 목표는 R09 story supported=true / unsupportedActionIds=[]를 CI에서 확인하는 것입니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.11 build status
+      - name: Record v4.12 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.11.0",
+              "version": "4.12.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -832,6 +832,13 @@ jobs:
                       ),
                       "nextBattle": battle9.get("r09Story", {}).get("nextBattle"),
                   },
+                  "r09EquipmentActions": [
+                      action
+                      for scene in battle9.get("r09Story", {}).get("scenes", [])
+                      for action in scene.get("actions", [])
+                      if isinstance(action, dict)
+                      and action.get("type") == "equipmentSet"
+                  ],
               }
 
           if "s07Battle" in status:
@@ -851,7 +858,7 @@ jobs:
                   "s08BattlePackaged": battle8_path.exists(),
               }
 
-          Path("native/build-status/v4.11.json").write_text(
+          Path("native/build-status/v4.12.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -859,11 +866,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.11.json
+          git add native/build-status/v4.12.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.11 build status"
+          git commit -m "Record native v4.12 build status"
           git push
