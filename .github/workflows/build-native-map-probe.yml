@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.43
+name: Build Native Android Battle v4.44
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.43 APK
+      - name: Build native v4.44 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.43.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.44.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.43 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.43 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.44 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.44 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.43 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.43" \
-              --notes "Native v4.43은 S17 원본 승리 후 R_18 Scene 1 스토리와 Scene 2 출전 흐름을 재생한 뒤 M018/battle18로 실제 진입합니다. S18은 9명 플레이어·적군20명, 전장 이벤트 종료 Section을 제외한 일반 이벤트를 전부 실행하며 여포(119) 또는 초선(158) 격퇴 승리 분기, 유비 사망·20턴 초과·일반 패배, Scene3 정리를 원본 Section 13/24/18/30/31에 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.44 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.44" \
+              --notes "Native v4.44는 v4.43의 S17→R18→S18 연속 플레이를 유지하면서 원본 R_19.eex/S_19.eex/M019를 자동 진단합니다. R19 Scene/Section/흐름 명령, S19 초기 배치·목표·맵·전장 이벤트 지원률·승패 후보 전체 트리를 compact status로 기록해 다음 버전에서 S18→R19→S19를 추측 없이 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.43 build status
+      - name: Record v4.44 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.43.0",
+              "version": "4.44.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.43.0",
+              "version": "4.44.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1999,10 +1999,50 @@ jobs:
                   "routeModel": battle18.get("routeModel", {}),
                   "r18PlayerIds": battle18.get("r18PlayerIds", []),
                   "skippedActors": battle18.get("skippedActors", []),
+                  "nextScenarioProbe": battle18.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
+                  "postS18Probe": battle18.get(
+                      "postS18Probe",
+                      {},
+                  ),
               }
               status["s18Battle"] = compact["s18Battle"]
 
-          Path("native/build-status/v4.43-summary.json").write_text(
+          s18_compact = compact.get("s18Battle", {})
+          post_s18 = s18_compact.get("postS18Probe", {})
+          next_19 = s18_compact.get("nextScenarioProbe", {})
+          r19_small = {
+              "version": "4.44.0",
+              "status": os.environ["BUILD_STATUS"],
+              "r19": next_19.get("R_19.eex", {}),
+              "s19": next_19.get("S_19.eex", {}),
+              "map19": post_s18.get("map19", {}),
+              "s19Init": post_s18.get("s19Init", {}),
+              "s19EventSummary": post_s18.get(
+                  "s19EventSummary",
+                  {},
+              ),
+              "s19OutcomeSections": post_s18.get(
+                  "s19OutcomeSections",
+                  [],
+              ),
+              "s19OutcomeProbe": post_s18.get(
+                  "s19OutcomeProbe",
+                  {},
+              ),
+          }
+          Path("native/build-status/v4.44-r19.json").write_text(
+              json.dumps(
+                  r19_small,
+                  ensure_ascii=False,
+                  indent=2,
+              ) + "\n",
+              encoding="utf-8",
+          )
+
+          Path("native/build-status/v4.44-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -2015,7 +2055,7 @@ jobs:
           post_s17 = s17_compact.get("postS17Probe", {})
           next_probe = s17_compact.get("nextScenarioProbe", {})
           r18_small = {
-              "version": "4.43.0",
+              "version": "4.44.0",
               "status": os.environ["BUILD_STATUS"],
               "r18": next_probe.get("R_18.eex", {}),
               "s18": next_probe.get("S_18.eex", {}),
@@ -2035,7 +2075,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.43-r18.json").write_text(
+          Path("native/build-status/v4.44-r18.json").write_text(
               json.dumps(
                   r18_small,
                   ensure_ascii=False,
@@ -2044,7 +2084,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.43.json").write_text(
+          Path("native/build-status/v4.44.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -2052,11 +2092,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.43.json native/build-status/v4.43-summary.json native/build-status/v4.43-r18.json
+          git add native/build-status/v4.44.json native/build-status/v4.44-summary.json native/build-status/v4.44-r18.json native/build-status/v4.44-r19.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.43 build status"
+          git commit -m "Record native v4.44 build status"
           git push
