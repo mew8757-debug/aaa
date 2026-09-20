@@ -6478,6 +6478,16 @@ public class MapView extends View {
                 finishS15Outcome();
                 return;
             }
+            if ("s16Victory".equals(outcomeStage)
+                    || "s16Defeat".equals(outcomeStage)) {
+                startS16PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s16PostBattle".equals(outcomeStage)) {
+                finishS16Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -6536,6 +6546,10 @@ public class MapView extends View {
             finishR15StoryScene();
             return;
         }
+        if (r16StoryActive) {
+            finishR16StoryScene();
+            return;
+        }
 
         if (currentBattleIndex == 10
                 && scriptedBattleFailure
@@ -6587,6 +6601,15 @@ public class MapView extends View {
                 && !outcomeFlowActive) {
             scriptedBattleFailure = false;
             startS15DefeatOutcome(
+                    -1,
+                    "원본 전장 이벤트 패배 조건");
+            return;
+        }
+        if (currentBattleIndex == 16
+                && scriptedBattleFailure
+                && !outcomeFlowActive) {
+            scriptedBattleFailure = false;
+            startS16DefeatOutcome(
                     -1,
                     "원본 전장 이벤트 패배 조건");
             return;
