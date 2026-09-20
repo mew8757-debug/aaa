@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.32
+name: Build Native Android Battle v4.33
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.32 APK
+      - name: Build native v4.33 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.32.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.33.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.32 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.32 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.33 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.33 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.32 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.32" \
-              --notes "Native v4.32는 S14의 마지막 미지원 중첩 0x3F 회합 조건을 공용 이벤트 엔진에 추가하고, Scene2 Section34/35/36과 Scene3 Section1 종료 트리를 전체 기록합니다. R14 17개 Scene 연결은 v4.31을 유지하며, 이 진단 결과를 기반으로 다음 커밋에서 battle14.json과 실제 S14 진입을 완성합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.33 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.33" \
+              --notes "Native v4.33은 S14 Scene2 이벤트 27개의 트리거·변수 게이트·액션을 compact eventRoutes로 build-status에 기록해 유비 탈출 좌표와 승리 플래그 연결을 확정합니다. v4.32의 27/27 이벤트 지원과 종료 Section34/35/36 진단을 유지하며, 다음 커밋에서 battle14.json과 실제 S14 진입을 구현합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.32 build status
+      - name: Record v4.33 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.32.0",
+              "version": "4.33.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.32.0",
+              "version": "4.33.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1495,7 +1495,7 @@ jobs:
                   "s14Probe": battle13_summary.get("s14Probe", {}),
               }
 
-          Path("native/build-status/v4.32-summary.json").write_text(
+          Path("native/build-status/v4.33-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1504,7 +1504,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.32.json").write_text(
+          Path("native/build-status/v4.33.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1512,11 +1512,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.32.json native/build-status/v4.32-summary.json
+          git add native/build-status/v4.33.json native/build-status/v4.33-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.32 build status"
+          git commit -m "Record native v4.33 build status"
           git push
