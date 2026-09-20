@@ -11380,6 +11380,11 @@ def main(argv):
         "battleEvents": s22_native_events,
         "outcomeEvents": s22_outcome_events,
         "outcomeProbe": s22_outcome_probe,
+        "nextScenarioProbe": {
+            "R_23.eex": r23_probe,
+            "S_23.eex": s23_probe,
+        },
+        "postS22Probe": post_s22_probe,
         "routeModel": {
             "targetCharacterId": yan_liang_id,
             "targetName": "안량",
