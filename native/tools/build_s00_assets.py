@@ -3323,6 +3323,16 @@ def main(argv):
     }
     s09_event_probe = extract_scene2_native_events(s09_scenes)
     s09_outcome_probe = probe_battle_outcome_candidates(s09_scenes)
+    s09_goal_probe = probe_selected_scenario_sections(
+        s09_scenes,
+        [
+            (2, 20),
+            (2, 21),
+            (2, 31),
+            (2, 33),
+            (2, 34),
+        ],
+    )
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -5223,6 +5233,7 @@ def main(argv):
         "s09InitProbe": s09_init_probe,
         "s09EventProbe": s09_event_probe,
         "s09OutcomeProbe": s09_outcome_probe,
+        "s09GoalProbe": s09_goal_probe,
         "battleEventSummary": {
             "candidateCount": len(s08_native_events),
             "coreSupportedCount": sum(
