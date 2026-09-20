@@ -6284,6 +6284,201 @@ def main(argv):
         encoding="utf-8",
     )
 
+
+    # S_11: ten selected player slots plus original ally/enemy deployment.
+    if not map11_probe.get("valid"):
+        raise SystemExit("S11 map probe is not valid: " + repr(map11_probe))
+
+    s11_units = []
+    s11_skipped_actors = []
+
+    def make_s11_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s11_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S11 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s11_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s11_slots = sorted(
+        s11_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(r11_player_ids) != 10:
+        raise SystemExit(
+            "R11 departure roster must contain 10 characters: "
+            + repr([(cid, name_of(cid)) for cid in r11_player_ids])
+        )
+    if len(s11_slots) < len(r11_player_ids):
+        raise SystemExit(
+            "S11 player slot count too small: " + repr(s11_slots)
+        )
+
+    for slot, cid in zip(s11_slots, r11_player_ids):
+        if not make_s11_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_11:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S11 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s11_init_probe.get("friendRecords", [])):
+        make_s11_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_11:0x46:{index}",
+        )
+
+    for index, row in enumerate(s11_init_probe.get("enemyRecords", [])):
+        make_s11_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_11:0x47:{index}",
+        )
+
+    s11_objective_texts = s11_init_probe.get("objectiveTexts", [])
+    s11_popup_texts = s11_init_probe.get("objectivePopups", [])
+    s11_objective_text = (
+        s11_objective_texts[0] if s11_objective_texts else ""
+    )
+    s11_popup_text = (
+        s11_popup_texts[0] if s11_popup_texts else ""
+    )
+
+    s11_battle = {
+        "version": 62,
+        "source": "RS/S_11.eex",
+        "battleMode": "s11-event-driven",
+        "mapId": 11,
+        "map": "m011.jpg",
+        "widthTiles": map11_probe["cols"],
+        "heightTiles": map11_probe["rows"],
+        "terrainFile": "terrain11.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s11_objective_text,
+                "popupText": s11_popup_text,
+                "turnLimit": 99,
+            },
+            "phase2": {
+                "objectiveText": s11_objective_text,
+                "popupText": s11_popup_text,
+                "turnLimit": 99,
+            },
+            "protectedCharacterIds": [0, 1, 2],
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in (0, 1, 2)
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s11_native_events,
+        "outcomeEvents": s11_outcome_events,
+        "outcomeProbe": s11_outcome_probe,
+        "transitionProbe": s11_transition_probe,
+        "r11PlayerIds": r11_player_ids,
+        "battleEventSummary": {
+            "candidateCount": len(s11_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s11_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s11_native_events
+            ],
+        },
+        "terrainIds": map11_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s11_skipped_actors,
+        "units": s11_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle11.json").write_text(
+        json.dumps(s11_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
@@ -6387,6 +6582,7 @@ def main(argv):
                 + s08_units
                 + s09_units
                 + s10_units
+                + s11_units
             )
         }
         | s09_special_sprite_ids
