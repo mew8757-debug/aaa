@@ -829,6 +829,8 @@ public class MapView extends View {
         r08StoryScenes = null;
         r09StoryScenes = null;
         r10StoryScenes = null;
+        r11StoryScenes = null;
+        s10AttackVictoryEvents = null;
 
         JSONObject s01Outcomes = battle.optJSONObject("outcomeEvents");
         if (s01Outcomes != null) {
@@ -4851,6 +4853,7 @@ public class MapView extends View {
         }
         if (victoryOutcomeActions == null
                 || victoryOutcomeActions.length() == 0) {
+            battleVictory = true;
             finishS10Outcome();
             return;
         }
