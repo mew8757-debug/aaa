@@ -4384,19 +4384,58 @@ def main(argv):
 
     r15_probe = build_next_scenario_probe("R_15.eex", r15)
     s15_probe = build_next_scenario_probe("S_15.eex", s15)
+    r15_story = compile_r15_story(r15)
+    r15_player_ids, r15_selectable_ids = extract_r15_departure_players(r15)
+
     s15_init_probe = {
         "found": s15 is not None,
         "validEex": bool(s15 and s15.startswith(b"EEX")),
         "map": map15_probe,
     }
     s15_event_probe = []
+    s15_native_events = []
     s15_outcome_probe = {}
+    s15_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s15 and s15.startswith(b"EEX"):
         s15_scenes = parse_scenario_tree(s15)
         s15_init_probe = probe_s01_initialization(s15)
         s15_init_probe["map"] = map15_probe
         s15_event_probe = extract_scene2_native_events(s15_scenes)
+        s15_native_events = [
+            event
+            for event in s15_event_probe
+            if event["section"] not in {15, 20, 21}
+        ]
         s15_outcome_probe = probe_battle_outcome_candidates(s15_scenes)
+        s15_outcome_events = {
+            "victory": compile_scenario_section_actions(
+                s15_scenes,
+                2,
+                20,
+            ),
+            "defeatByCharacter": {
+                "0": compile_scenario_section_actions(
+                    s15_scenes,
+                    2,
+                    15,
+                ),
+            },
+            "genericDefeat": compile_scenario_section_actions(
+                s15_scenes,
+                2,
+                21,
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s15_scenes,
+                3,
+                1,
+            ),
+        }
 
     s15_event_summary = {
         "candidateCount": len(s15_event_probe),
