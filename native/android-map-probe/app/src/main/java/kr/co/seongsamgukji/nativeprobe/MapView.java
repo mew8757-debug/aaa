@@ -5115,27 +5115,6 @@ public class MapView extends View {
         if (currentBattleIndex == 11) {
             return "S_11";
         }
-        if (currentBattleIndex == 11) {
-            for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS11DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-            if (!hasAnyAliveFriendly()) {
-                startS11DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-            // Victory remains event-driven until the original S11 trigger
-            // is bound from the transition probe.
-            return;
-        }
-
         if (currentBattleIndex == 10) {
             return "S_10";
         }
@@ -6083,6 +6062,35 @@ public class MapView extends View {
             if ("enemy-annihilation".equals(battleMode)
                     && !hasAnyAliveEnemy()) {
                 startS08VictoryOutcome();
+            }
+            return;
+        }
+
+        if (currentBattleIndex == 11) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS11DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS11DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            // Original S11 has two independent victory routes.
+            // Section 9 sets variable 9 after surviving until dawn.
+            // Section 10 sets variable 16 after occupying Guangling at (11,0).
+            boolean dawnVictory = scenarioVariables.getOrDefault(9, 0) != 0;
+            boolean guanglingVictory =
+                    scenarioVariables.getOrDefault(16, 0) != 0;
+            if (dawnVictory || guanglingVictory) {
+                startS11VictoryOutcome();
             }
             return;
         }
