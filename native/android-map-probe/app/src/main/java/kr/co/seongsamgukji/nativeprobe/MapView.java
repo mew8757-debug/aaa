@@ -1466,7 +1466,27 @@ public class MapView extends View {
         }
 
         String header;
-        if (r21StoryActive) {
+        if (r23StoryActive) {
+            header = "Native v4.55 | R_23 Scene "
+                    + Math.min(
+                    r23StorySceneIndex + 1,
+                    r23StoryScenes == null
+                            ? 1
+                            : r23StoryScenes.length())
+                    + (storyTitle.isEmpty()
+                    ? ""
+                    : " · " + storyTitle);
+        } else if (r22StoryActive) {
+            header = "Native v4.55 | R_22 Scene "
+                    + Math.min(
+                    r22StorySceneIndex + 1,
+                    r22StoryScenes == null
+                            ? 1
+                            : r22StoryScenes.length())
+                    + (storyTitle.isEmpty()
+                    ? ""
+                    : " · " + storyTitle);
+        } else if (r21StoryActive) {
             header = "Native v4.55 | R_21 Scene "
                     + Math.min(
                     r21StorySceneIndex + 1,
@@ -1710,7 +1730,9 @@ public class MapView extends View {
                 || r18StoryActive
                 || r19StoryActive
                 || r20StoryActive
-                || r21StoryActive) {
+                || r21StoryActive
+                || r22StoryActive
+                || r23StoryActive) {
             String status = "원본 " + currentStoryLabel()
                     + " 스토리 재생 중";
             if (!storyLocation.isEmpty()) {
