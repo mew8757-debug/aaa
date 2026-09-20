@@ -3728,6 +3728,8 @@ def main(argv):
         s17 = read_member_by_basename(game1, "S_17.eex")
         r18 = read_member_by_basename(game1, "R_18.eex")
         s18 = read_member_by_basename(game1, "S_18.eex")
+        r19 = read_member_by_basename(game1, "R_19.eex")
+        s19 = read_member_by_basename(game1, "S_19.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3746,6 +3748,7 @@ def main(argv):
         map16_bytes = read_member_by_basename(game2, "m016.jpg")
         map17_bytes = read_member_by_basename(game2, "m017.jpg")
         map18_bytes = read_member_by_basename(game2, "m018.jpg")
+        map19_bytes = read_member_by_basename(game2, "m019.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -3782,6 +3785,8 @@ def main(argv):
             map17_bytes = read_member_by_basename(game1, "m017.jpg")
         if map18_bytes is None:
             map18_bytes = read_member_by_basename(game1, "m018.jpg")
+        if map19_bytes is None:
+            map19_bytes = read_member_by_basename(game1, "m019.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -4310,6 +4315,45 @@ def main(argv):
             })
         except Exception as exc:
             map18_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
+    map19_probe = {
+        "filename": "m019.jpg",
+        "found": map19_bytes is not None,
+        "hexzmapEntry": 19,
+    }
+    if map19_bytes is not None:
+        try:
+            map19_width, map19_height = jpeg_dimensions(map19_bytes)
+            if map19_width % 48 != 0 or map19_height % 48 != 0:
+                raise ValueError(
+                    f"m019 dimensions not divisible by 48: "
+                    f"{map19_width}x{map19_height}"
+                )
+            map19_cols = map19_width // 48
+            map19_rows = map19_height // 48
+            terrain19_cells = extract_hexzmap_cells(
+                hexz,
+                19,
+                map19_cols,
+                map19_rows,
+            )
+            (map_dir / "m019.jpg").write_bytes(map19_bytes)
+            (battle_dir / "terrain19.bin").write_bytes(terrain19_cells)
+            map19_probe.update({
+                "valid": True,
+                "width": map19_width,
+                "height": map19_height,
+                "cols": map19_cols,
+                "rows": map19_rows,
+                "terrainCellCount": len(terrain19_cells),
+                "terrainIds": sorted(set(terrain19_cells)),
+            })
+        except Exception as exc:
+            map19_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -5028,6 +5072,22 @@ def main(argv):
                 s18_scenes, 3, 1
             ),
         }
+
+    r19_probe = build_next_scenario_probe("R_19.eex", r19)
+    s19_probe = build_next_scenario_probe("S_19.eex", s19)
+    s19_init_probe = {
+        "found": s19 is not None,
+        "validEex": bool(s19 and s19.startswith(b"EEX")),
+        "map": map19_probe,
+    }
+    s19_event_probe = []
+    s19_outcome_probe = {}
+    if s19 and s19.startswith(b"EEX"):
+        s19_scenes = parse_scenario_tree(s19)
+        s19_init_probe = probe_s01_initialization(s19)
+        s19_init_probe["map"] = map19_probe
+        s19_event_probe = extract_scene2_native_events(s19_scenes)
+        s19_outcome_probe = probe_battle_outcome_candidates(s19_scenes)
 
     s17_route_model = {
         "outerCityClearSection": 5,
@@ -9539,6 +9599,36 @@ def main(argv):
         "battleEvents": s18_native_events,
         "outcomeEvents": s18_outcome_events,
         "outcomeProbe": s18_outcome_probe,
+        "nextScenarioProbe": {
+            "R_19.eex": r19_probe,
+            "S_19.eex": s19_probe,
+        },
+        "postS18Probe": {
+            "map19": map19_probe,
+            "s19Init": s19_init_probe,
+            "s19EventSummary": {
+                "candidateCount": len(s19_event_probe),
+                "coreSupportedCount": sum(
+                    1 for event in s19_event_probe
+                    if event["coreSupported"]
+                ),
+                "unsupportedSections": [
+                    {
+                        "section": event["section"],
+                        "unsupportedTriggerIds": event[
+                            "unsupportedTriggerIds"
+                        ],
+                        "unsupportedActionIds": event[
+                            "unsupportedActionIds"
+                        ],
+                    }
+                    for event in s19_event_probe
+                    if not event["coreSupported"]
+                ],
+            },
+            "s19OutcomeSections": sorted(s19_outcome_probe.keys()),
+            "s19OutcomeProbe": s19_outcome_probe,
+        },
         "routeModel": {
             "primaryTargetCharacterId": 119,
             "alternateVictoryCharacterId": 158,
