@@ -8871,6 +8871,7 @@ def main(argv):
             "R_17.eex": r17_probe,
             "S_17.eex": s17_probe,
         },
+        "r17Story": r17_story,
         "s17InitProbe": s17_init_probe,
         "s17EventSummary": s17_event_summary,
         "s17OutcomeProbe": s17_outcome_probe,
@@ -8913,6 +8914,226 @@ def main(argv):
         json.dumps(s16_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+    # S17: R17 Scene 19 provides eight deployment slots. Preserve
+    # original source order for the default native roster until a dedicated
+    # deployment-selection UI is added.
+    s17_units = []
+    s17_skipped_actors = []
+
+    def make_s17_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s17_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S17 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s17_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    if not map17_probe.get("valid"):
+        raise SystemExit(
+            "M017 map probe invalid: " + repr(map17_probe)
+        )
+    if not r17_story.get("supported"):
+        raise SystemExit(
+            "R17 story unsupported: "
+            + repr(r17_story.get("unsupportedActionIds", []))
+        )
+    if len(r17_player_ids) != 8:
+        raise SystemExit(
+            "R17 default departure roster must contain 8 characters: "
+            + repr([(cid, name_of(cid)) for cid in r17_player_ids])
+        )
+
+    s17_slots = sorted(
+        s17_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(s17_slots) < len(r17_player_ids):
+        raise SystemExit(
+            "S17 player slot count too small: " + repr(s17_slots)
+        )
+
+    for slot, cid in zip(s17_slots, r17_player_ids):
+        if not make_s17_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_17:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S17 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s17_init_probe.get("friendRecords", [])):
+        make_s17_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_17:0x46:{index}",
+        )
+
+    for index, row in enumerate(s17_init_probe.get("enemyRecords", [])):
+        make_s17_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_17:0x47:{index}",
+        )
+
+    s17_objective_text = (
+        s17_init_probe.get("objectiveTexts", [""])[0]
+        if s17_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s17_popup_text = (
+        s17_init_probe.get("objectivePopups", [""])[0]
+        if s17_init_probe.get("objectivePopups")
+        else ""
+    )
+    s17_turn_limit = objective_turn_limit(
+        s17_objective_text,
+        30,
+    )
+    s17_protected_ids = [0, 36]
+
+    s17_battle = {
+        "version": 80,
+        "source": "RS/S_17.eex",
+        "battleMode": "s17-outer-city-event-driven",
+        "mapId": 17,
+        "map": "m017.jpg",
+        "widthTiles": map17_probe["cols"],
+        "heightTiles": map17_probe["rows"],
+        "terrainFile": "terrain17.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s17_objective_text,
+                "popupText": s17_popup_text,
+                "turnLimit": s17_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": s17_objective_text,
+                "popupText": s17_popup_text,
+                "turnLimit": s17_turn_limit,
+            },
+            "protectedCharacterIds": s17_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s17_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s17_native_events,
+        "outcomeEvents": s17_outcome_events,
+        "outcomeProbe": s17_outcome_probe,
+        "routeProbe": s17_route_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s17_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s17_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s17_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s17_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s17_native_events
+            ],
+        },
+        "terrainIds": map17_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s17_skipped_actors,
+        "r17PlayerIds": r17_player_ids,
+        "r17SelectableIds": r17_selectable_ids,
+        "r17SelectionMode": "fixed-plus-source-order-default",
+        "units": s17_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle17.json").write_text(
+        json.dumps(s17_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
 
     referenced_ids = sorted({
         e["characterId"]
@@ -9023,6 +9244,7 @@ def main(argv):
                 + s14_units
                 + s15_units
                 + s16_units
+                + s17_units
             )
         }
         | s09_special_sprite_ids
