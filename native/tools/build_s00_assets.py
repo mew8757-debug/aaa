@@ -4581,24 +4581,68 @@ def main(argv):
 
     r16_probe = build_next_scenario_probe("R_16.eex", r16)
     s16_probe = build_next_scenario_probe("S_16.eex", s16)
+    r16_story = compile_r16_story(r16)
+    r16_player_ids, r16_selectable_ids = extract_r16_departure_players(r16)
+
     s16_init_probe = {
         "found": s16 is not None,
         "validEex": bool(s16 and s16.startswith(b"EEX")),
         "map": map16_probe,
     }
     s16_event_probe = []
+    s16_native_events = []
     s16_outcome_probe = {}
+    s16_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s16 and s16.startswith(b"EEX"):
         s16_scenes = parse_scenario_tree(s16)
         s16_init_probe = probe_s01_initialization(s16)
         s16_init_probe["map"] = map16_probe
         s16_event_probe = extract_scene2_native_events(s16_scenes)
+        s16_native_events = [
+            event
+            for event in s16_event_probe
+            if event["section"] not in {9, 14, 15}
+        ]
         s16_outcome_probe = probe_battle_outcome_candidates(s16_scenes)
+        s16_outcome_events = {
+            "victory": compile_scenario_section_actions(
+                s16_scenes,
+                2,
+                14,
+            ),
+            "defeatByCharacter": {
+                "0": compile_scenario_section_actions(
+                    s16_scenes,
+                    2,
+                    9,
+                ),
+            },
+            "genericDefeat": compile_scenario_section_actions(
+                s16_scenes,
+                2,
+                15,
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s16_scenes,
+                3,
+                1,
+            ),
+        }
 
     s16_event_summary = {
         "candidateCount": len(s16_event_probe),
         "coreSupportedCount": sum(
             1 for event in s16_event_probe
+            if event["coreSupported"]
+        ),
+        "nativeCandidateCount": len(s16_native_events),
+        "nativeSupportedCount": sum(
+            1 for event in s16_native_events
             if event["coreSupported"]
         ),
         "unsupportedSections": [
