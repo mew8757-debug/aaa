@@ -11071,7 +11071,12 @@ def main(argv):
     if s22_init_probe.get("enemyRecords"):
         for row in s22_init_probe["enemyRecords"]:
             cid = int(row["person"])
-            if name_of(cid) == "안량":
+            char_off = 0x18C + cid * 0x20
+            if char_off < 0 or char_off + 13 > len(data):
+                continue
+            raw_name = data[char_off:char_off + 13].split(b"\\0", 1)[0]
+            char_name = raw_name.decode("cp949", "replace").strip()
+            if char_name == "안량":
                 yan_liang_id = cid
                 break
     if yan_liang_id < 0:

@@ -7542,43 +7542,6 @@ public class MapView extends View {
         if (currentBattleIndex == 22) {
             return "S_22";
         }
-        if (currentBattleIndex == 22) {
-            for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS22DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-            if (round > turnLimit) {
-                startS22DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-            if (!hasAnyAliveFriendly()) {
-                startS22DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-            if ("s22-target-defeat-event-driven".equals(battleMode)
-                    && killTargetCharacterId >= 0) {
-                BattleUnit target = findUnitByCharacterId(
-                        killTargetCharacterId);
-                if (target != null && !target.isAlive()) {
-                    if (killTargetSignalSection < 0
-                            || firedBattleSections.contains(
-                            killTargetSignalSection)) {
-                        startS22VictoryOutcome();
-                    }
-                }
-            }
-            return;
-        }
-
         if (currentBattleIndex == 21) {
             return "S_21";
         }
@@ -8634,6 +8597,43 @@ public class MapView extends View {
                 || r22StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
+            return;
+        }
+
+        if (currentBattleIndex == 22) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS22DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (round > turnLimit) {
+                startS22DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS22DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+            if ("s22-target-defeat-event-driven".equals(battleMode)
+                    && killTargetCharacterId >= 0) {
+                BattleUnit target = findUnitByCharacterId(
+                        killTargetCharacterId);
+                if (target != null && !target.isAlive()) {
+                    if (killTargetSignalSection < 0
+                            || firedBattleSections.contains(
+                            killTargetSignalSection)) {
+                        startS22VictoryOutcome();
+                    }
+                }
+            }
             return;
         }
 
