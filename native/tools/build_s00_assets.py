@@ -1738,6 +1738,87 @@ def extract_s09_outcome_events(scenes):
 
 
 
+
+def extract_s12_outcome_events(scenes):
+    return {
+        "victoryByRoute": {
+            "2": compile_scenario_section_actions(scenes, 2, 66),
+            "3": compile_scenario_section_actions(scenes, 2, 67),
+        },
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(scenes, 2, 42),
+            "1": compile_scenario_section_actions(scenes, 2, 53),
+            "2": compile_scenario_section_actions(scenes, 2, 54),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            68,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
+def extract_s12_route_model(scenes):
+    if len(scenes) < 2:
+        return {
+            "retreatVariable": 2,
+            "annihilationVariable": 3,
+            "retreatGoals": [],
+        }
+
+    retreat_goals = []
+    for section in scenes[1]["sections"]:
+        required_true = set()
+        for node in section["commands"]:
+            if node["commandId"] == 0x05 and len(node["params"]) >= 1:
+                first = node["params"][0]
+                if isinstance(first, list):
+                    required_true.update(
+                        int(v) for v in first
+                        if isinstance(v, int)
+                    )
+
+        if 2 not in required_true:
+            continue
+
+        for node in section["commands"]:
+            cid = node["commandId"]
+            params = node["params"]
+            if cid == 0x25 and len(params) >= 3:
+                person = int(params[0])
+                if person in (0, 1025):
+                    retreat_goals.append({
+                        "section": section["section"],
+                        "type": "position",
+                        "personCode": person,
+                        "x": int(params[1]),
+                        "y": int(params[2]),
+                    })
+            elif cid == 0x26 and len(params) >= 5:
+                person = int(params[0])
+                if person in (0, 1025):
+                    retreat_goals.append({
+                        "section": section["section"],
+                        "type": "area",
+                        "personCode": person,
+                        "x1": int(params[1]),
+                        "y1": int(params[2]),
+                        "x2": int(params[3]),
+                        "y2": int(params[4]),
+                    })
+
+    return {
+        "retreatVariable": 2,
+        "annihilationVariable": 3,
+        "retreatGoals": retreat_goals,
+    }
+
+
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
 
@@ -3837,13 +3918,31 @@ def main(argv):
         "map": map12_probe,
     }
     s12_event_probe = []
+    s12_native_events = []
     s12_outcome_probe = {}
     s12_transition_probe = {}
+    s12_outcome_events = {
+        "victoryByRoute": {},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
+    s12_route_model = {
+        "retreatVariable": 2,
+        "annihilationVariable": 3,
+        "retreatGoals": [],
+    }
     if s12 and s12.startswith(b"EEX"):
         s12_scenes = parse_scenario_tree(s12)
         s12_init_probe = probe_s01_initialization(s12)
         s12_init_probe["map"] = map12_probe
         s12_event_probe = extract_scene2_native_events(s12_scenes)
+        s12_native_events = [
+            event for event in s12_event_probe
+            if event["section"] not in {42, 53, 54, 66, 67, 68}
+        ]
+        s12_outcome_events = extract_s12_outcome_events(s12_scenes)
+        s12_route_model = extract_s12_route_model(s12_scenes)
         s12_outcome_probe = probe_battle_outcome_candidates(s12_scenes)
         s12_flat = flatten_scenario_nodes(s12_scenes)
         s12_transition_sections = sorted({
@@ -6613,6 +6712,225 @@ def main(argv):
         encoding="utf-8",
     )
 
+
+    # S_12: route-selected retreat-or-annihilation battle after R_12.
+    if not map12_probe.get("valid"):
+        raise SystemExit("S12 map probe is not valid: " + repr(map12_probe))
+
+    s12_units = []
+    s12_skipped_actors = []
+
+    def make_s12_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s12_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S12 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s12_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s12_slots = sorted(
+        s12_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(r12_player_ids) != 10:
+        raise SystemExit(
+            "R12 departure roster must contain 10 characters: "
+            + repr([(cid, name_of(cid)) for cid in r12_player_ids])
+        )
+    if len(s12_slots) < len(r12_player_ids):
+        raise SystemExit(
+            "S12 player slot count too small: " + repr(s12_slots)
+        )
+
+    for slot, cid in zip(s12_slots, r12_player_ids):
+        if not make_s12_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_12:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S12 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s12_init_probe.get("friendRecords", [])):
+        make_s12_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_12:0x46:{index}",
+        )
+
+    for index, row in enumerate(s12_init_probe.get("enemyRecords", [])):
+        make_s12_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_12:0x47:{index}",
+        )
+
+    s12_objective_texts = s12_init_probe.get("objectiveTexts", [])
+    s12_popup_texts = s12_init_probe.get("objectivePopups", [])
+    s12_route2_text = (
+        s12_objective_texts[0] if s12_objective_texts else ""
+    )
+    s12_route3_text = (
+        s12_objective_texts[1]
+        if len(s12_objective_texts) > 1
+        else s12_route2_text
+    )
+    s12_route2_popup = (
+        s12_popup_texts[0] if s12_popup_texts else ""
+    )
+    s12_route3_popup = (
+        s12_popup_texts[1]
+        if len(s12_popup_texts) > 1
+        else s12_route2_popup
+    )
+
+    def objective_turn_limit(text, fallback):
+        match = re.search(r"(\d+)턴", text or "")
+        return int(match.group(1)) if match else fallback
+
+    s12_route2_turn_limit = objective_turn_limit(
+        s12_route2_text,
+        20,
+    )
+    s12_route3_turn_limit = objective_turn_limit(
+        s12_route3_text,
+        25,
+    )
+
+    s12_battle = {
+        "version": 67,
+        "source": "RS/S_12.eex",
+        "battleMode": "s12-route-driven",
+        "mapId": 12,
+        "map": "m012.jpg",
+        "widthTiles": map12_probe["cols"],
+        "heightTiles": map12_probe["rows"],
+        "terrainFile": "terrain12.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s12_route2_text,
+                "popupText": s12_route2_popup,
+                "turnLimit": s12_route2_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": s12_route3_text,
+                "popupText": s12_route3_popup,
+                "turnLimit": s12_route3_turn_limit,
+            },
+            "protectedCharacterIds": [0, 1, 2],
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in (0, 1, 2)
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "routeModel": s12_route_model,
+        "battleEvents": s12_native_events,
+        "outcomeEvents": s12_outcome_events,
+        "outcomeProbe": s12_outcome_probe,
+        "transitionProbe": s12_transition_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s12_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s12_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s12_native_events
+            ],
+        },
+        "terrainIds": map12_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s12_skipped_actors,
+        "r12PlayerIds": r12_player_ids,
+        "units": s12_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle12.json").write_text(
+        json.dumps(s12_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
@@ -6717,6 +7035,7 @@ def main(argv):
                 + s09_units
                 + s10_units
                 + s11_units
+                + s12_units
             )
         }
         | s09_special_sprite_ids

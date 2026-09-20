@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.26
+name: Build Native Android Battle v4.27
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.26 APK
+      - name: Build native v4.27 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.26.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.27.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.26 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.26 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.27 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.27 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.26 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.26" \
-              --notes "Native v4.26은 S_11 원본 승리/Scene3 정리가 끝나면 battle11에 패키징된 R_12 22개 Scene을 실제 Android 스토리 엔진으로 재생합니다. Scene22 출전까지 끝나면 S_12 준비 완료 상태로 전환합니다. 동시에 S_12 종료 후보 Section 42/53/54/66/67/68과 Scene3의 루트 조건/핵심 본문 명령을 compact status에 기록해 다음 버전에서 두 목표 루트의 정확한 승패 상태기를 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.27 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.27" \
+              --notes "Native v4.27은 R_12 Scene22 출전 종료 뒤 battle12.json을 실제 로드해 S_12 전투에 진입합니다. 원본 변수2 퇴각 루트는 유비 보호·20턴·서쪽 퇴각 또는 적 전멸, 변수3 섬멸 루트는 유비/관우/장비 보호·25턴·적 전멸로 분리합니다. Section42/53/54 패배, Section66/67 승리, Section68 일반패배와 Scene3 정리를 원본 액션으로 실행합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.26 build status
+      - name: Record v4.27 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.26.0",
+              "version": "4.27.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.26.0",
+              "version": "4.27.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1280,7 +1280,58 @@ jobs:
                   ),
               }
 
-          Path("native/build-status/v4.26-summary.json").write_text(
+
+          battle12_summary_path = Path(
+              "native/android-map-probe/app/src/main/assets/battle/battle12.json"
+          )
+          if battle12_summary_path.exists():
+              battle12_summary = json.loads(
+                  battle12_summary_path.read_text(encoding="utf-8")
+              )
+              summary12 = battle12_summary.get("battleEventSummary", {})
+              compact["s12Battle"] = {
+                  "source": battle12_summary.get("source"),
+                  "battleMode": battle12_summary.get("battleMode"),
+                  "map": battle12_summary.get("map"),
+                  "widthTiles": battle12_summary.get("widthTiles"),
+                  "heightTiles": battle12_summary.get("heightTiles"),
+                  "playerCharacters": [
+                      {
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                      }
+                      for u in battle12_summary.get("units", [])
+                      if u.get("faction") == "player"
+                  ],
+                  "allyCount": sum(
+                      1 for u in battle12_summary.get("units", [])
+                      if u.get("faction") == "ally"
+                  ),
+                  "enemyCount": sum(
+                      1 for u in battle12_summary.get("units", [])
+                      if u.get("faction") == "enemy"
+                  ),
+                  "routeModel": battle12_summary.get("routeModel", {}),
+                  "battleObjectives": battle12_summary.get(
+                      "battleObjectives",
+                      {},
+                  ),
+                  "eventCandidateCount": summary12.get("candidateCount"),
+                  "eventSupportedCount": summary12.get("coreSupportedCount"),
+                  "unsupportedEvents": [
+                      row for row in summary12.get("sections", [])
+                      if not row.get("coreSupported")
+                  ],
+                  "outcomeKeys": sorted(
+                      battle12_summary.get("outcomeEvents", {}).keys()
+                  ),
+                  "skippedActors": battle12_summary.get(
+                      "skippedActors",
+                      [],
+                  ),
+              }
+
+          Path("native/build-status/v4.27-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1289,7 +1340,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.26.json").write_text(
+          Path("native/build-status/v4.27.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1297,11 +1348,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.26.json native/build-status/v4.26-summary.json
+          git add native/build-status/v4.27.json native/build-status/v4.27-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.26 build status"
+          git commit -m "Record native v4.27 build status"
           git push
