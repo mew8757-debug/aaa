@@ -597,12 +597,32 @@ def native_action_from_node(node):
             "targetId": int(params[3]),
         }
 
+    if cid == 0x3B and len(params) >= 3:
+        return {
+            "type": "joinCharacter",
+            "characterId": int(params[0]),
+            "joinMode": int(params[1]),
+            "levelAdjust": int(params[2]),
+        }
+
     if cid == 0x3A and len(params) >= 3:
         return {
             "type": "globalValueOp",
             "globalId": int(params[0]),
             "operation": int(params[1]),
             "value": int(params[2]),
+        }
+
+    if (
+        cid == 0x38
+        and len(params) >= 4
+        and int(params[1]) == 5
+    ):
+        return {
+            "type": "unitMaxHpChange",
+            "characterId": int(params[0]),
+            "operation": int(params[2]),
+            "value": int(params[3]),
         }
 
     if (
@@ -722,6 +742,8 @@ def native_action_from_node(node):
             "target": int(params[0]),
         }
 
+    if cid == 0x0C:
+        return {"type": "endSection"}
 
     if cid == 0x5C and params:
         return {
@@ -1094,6 +1116,25 @@ def compile_native_action_tree(node):
                     unsupported_actions,
                     total_nested,
                 )
+
+        # 0x37 global-value test. Legacy compare order is >=, <, =.
+        if (
+            cid == 0x37
+            and len(params) >= 3
+            and int(params[2]) in (0, 1, 2)
+        ):
+            return (
+                {
+                    "type": "conditionalGlobalCompare",
+                    "globalId": int(params[0]),
+                    "value": int(params[1]),
+                    "compare": int(params[2]),
+                    "actions": child_actions,
+                },
+                unsupported_ids,
+                unsupported_actions,
+                total_nested,
+            )
 
         # 0x79 variable test. S10 uses integer variable(a) vs constant.
         # kind 4 = integer variable(a), kind 0 = constant.
@@ -4008,12 +4049,23 @@ def main(argv):
     }
     s13_event_probe = []
     s13_outcome_probe = {}
+    s13_outcome_detail = {}
     if s13 and s13.startswith(b"EEX"):
         s13_scenes = parse_scenario_tree(s13)
         s13_init_probe = probe_s01_initialization(s13)
         s13_init_probe["map"] = map13_probe
         s13_event_probe = extract_scene2_native_events(s13_scenes)
         s13_outcome_probe = probe_battle_outcome_candidates(s13_scenes)
+        s13_outcome_detail = probe_selected_scenario_sections(
+            s13_scenes,
+            [
+                (2, 39),
+                (2, 50),
+                (2, 76),
+                (2, 77),
+                (3, 1),
+            ],
+        )
 
     s12_init_probe = {
         "found": s12 is not None,
@@ -7199,7 +7251,7 @@ def main(argv):
     s13_protected_ids = [0, 36]
 
     s13_battle = {
-        "version": 69,
+        "version": 70,
         "source": "RS/S_13.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 13,
@@ -7232,6 +7284,7 @@ def main(argv):
         },
         "battleEvents": s13_native_events,
         "outcomeProbe": s13_outcome_probe,
+        "outcomeDetail": s13_outcome_detail,
         "battleEventSummary": {
             "candidateCount": len(s13_native_events),
             "coreSupportedCount": sum(
