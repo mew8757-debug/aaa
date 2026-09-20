@@ -5410,40 +5410,6 @@ public class MapView extends View {
             return "S_12";
         }
 
-        if (currentBattleIndex == 12) {
-            for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS12DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-            if (round > turnLimit) {
-                startS12DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-            if (!hasAnyAliveFriendly()) {
-                startS12DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-
-            if (s12AnnihilationRoute) {
-                if (!hasAnyAliveEnemy()) {
-                    startS12VictoryOutcome();
-                }
-            } else if (s12RetreatGoalReached()
-                    || !hasAnyAliveEnemy()) {
-                startS12VictoryOutcome();
-            }
-            return;
-        }
-
         if (currentBattleIndex == 11) {
             return "S_11";
         }
@@ -6418,6 +6384,40 @@ public class MapView extends View {
             if ("enemy-annihilation".equals(battleMode)
                     && !hasAnyAliveEnemy()) {
                 startS08VictoryOutcome();
+            }
+            return;
+        }
+
+        if (currentBattleIndex == 12) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS12DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (round > turnLimit) {
+                startS12DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS12DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if (s12AnnihilationRoute) {
+                if (!hasAnyAliveEnemy()) {
+                    startS12VictoryOutcome();
+                }
+            } else if (s12RetreatGoalReached()
+                    || !hasAnyAliveEnemy()) {
+                startS12VictoryOutcome();
             }
             return;
         }
