@@ -2675,6 +2675,16 @@ def compile_r12_story(blob):
     )
 
 
+def compile_r13_story(blob):
+    return compile_r_story(
+        blob,
+        "R_13.eex",
+        26,
+        27,
+        "S_13.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -2795,6 +2805,37 @@ def extract_r12_departure_players(blob):
                     seen.add(int(value))
             stack.extend(node["children"])
     return ids[:10]
+
+
+def extract_r13_departure_players(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 27:
+        return []
+
+    ids = [0]
+    seen = {0}
+    departure = scenes[26]
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        for node in section["commands"]:
+            if node["commandId"] != 0x2D or not node["params"]:
+                continue
+            value = node["params"][0]
+            if (
+                isinstance(value, int)
+                and 0 <= value < 1024
+                and value not in seen
+            ):
+                ids.append(int(value))
+                seen.add(int(value))
+
+    # R13's deployment pool is seven members. Keep the original 0x2D
+    # section order, with Liu Bei as the mandatory first slot.
+    return ids[:7]
 
 
 def build_next_scenario_probe(filename, blob):
@@ -3958,6 +3999,8 @@ def main(argv):
 
     r13_probe = build_next_scenario_probe("R_13.eex", r13)
     s13_probe = build_next_scenario_probe("S_13.eex", s13)
+    r13_story = compile_r13_story(r13)
+    r13_player_ids = extract_r13_departure_players(r13)
     s13_init_probe = {
         "found": s13 is not None,
         "validEex": bool(s13 and s13.startswith(b"EEX")),
