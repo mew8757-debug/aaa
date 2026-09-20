@@ -212,6 +212,11 @@ public class MapView extends View {
     private boolean s11Ready = false;
     private boolean s12Ready = false;
     private boolean s10DefenseRoute = false;
+    private boolean s12AnnihilationRoute = false;
+    private int s12RetreatVariable = 2;
+    private int s12AnnihilationVariable = 3;
+    private JSONArray s12RetreatGoals;
+    private JSONObject s12VictoryByRouteEvents;
     private boolean scriptedBattleFailure = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
@@ -836,6 +841,11 @@ public class MapView extends View {
         r11StoryScenes = null;
         r12StoryScenes = null;
         s10AttackVictoryEvents = null;
+        s12VictoryByRouteEvents = null;
+        s12RetreatGoals = null;
+        s12RetreatVariable = 2;
+        s12AnnihilationVariable = 3;
+        s12AnnihilationRoute = false;
 
         JSONObject s01Outcomes = battle.optJSONObject("outcomeEvents");
         if (s01Outcomes != null) {
@@ -858,6 +868,56 @@ public class MapView extends View {
                     "defeatByCharacter");
             s10AttackVictoryEvents = s01Outcomes.optJSONObject(
                     "attackVictoryByCharacter");
+            s12VictoryByRouteEvents = s01Outcomes.optJSONObject(
+                    "victoryByRoute");
+        }
+
+        if (currentBattleIndex == 12) {
+            JSONObject routeModel = battle.optJSONObject("routeModel");
+            if (routeModel != null) {
+                s12RetreatVariable = routeModel.optInt(
+                        "retreatVariable",
+                        2);
+                s12AnnihilationVariable = routeModel.optInt(
+                        "annihilationVariable",
+                        3);
+                s12RetreatGoals = routeModel.optJSONArray(
+                        "retreatGoals");
+            }
+
+            s12AnnihilationRoute =
+                    scenarioVariables.getOrDefault(
+                            s12AnnihilationVariable,
+                            0) != 0;
+
+            if (s12AnnihilationRoute) {
+                battlePhase = 2;
+                if (phase2ObjectiveText != null
+                        && !phase2ObjectiveText.isEmpty()) {
+                    objectiveText = phase2ObjectiveText;
+                }
+                if (phase2PopupText != null
+                        && !phase2PopupText.isEmpty()) {
+                    objectivePopupText = phase2PopupText;
+                }
+                turnLimit = phase2TurnLimit;
+            } else {
+                protectedCharacterIds.clear();
+                protectedCharacterIds.add(0);
+            }
+
+            if (s12VictoryByRouteEvents != null) {
+                String key = s12AnnihilationRoute
+                        ? String.valueOf(s12AnnihilationVariable)
+                        : String.valueOf(s12RetreatVariable);
+                JSONObject routeVictory =
+                        s12VictoryByRouteEvents.optJSONObject(key);
+                if (routeVictory != null
+                        && routeVictory.optBoolean("supported", false)) {
+                    victoryOutcomeActions =
+                            routeVictory.optJSONArray("actions");
+                }
+            }
         }
 
         JSONObject r02Story = battle.optJSONObject("r02Story");
@@ -966,7 +1026,8 @@ public class MapView extends View {
         highlightedCharacterId = -1;
         highlightUntil = 0L;
 
-        battlePhase = 1;
+        battlePhase = currentBattleIndex == 12
+                && s12AnnihilationRoute ? 2 : 1;
         s10DefenseRoute = currentBattleIndex == 10
                 && scenarioVariables.getOrDefault(71, 0) != 0;
         scriptedBattleFailure = false;
@@ -1225,7 +1286,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v4.26 | R_01 Scene "
+            header = "Native v4.27 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1235,7 +1296,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.26 | R_02 Scene "
+            header = "Native v4.27 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1245,7 +1306,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.26 | R_03 Scene "
+            header = "Native v4.27 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1255,7 +1316,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r12StoryActive) {
-            header = "Native v4.26 | R_12 Scene "
+            header = "Native v4.27 | R_12 Scene "
                     + Math.min(
                     r12StorySceneIndex + 1,
                     r12StoryScenes == null
@@ -1265,7 +1326,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r11StoryActive) {
-            header = "Native v4.26 | R_11 Scene "
+            header = "Native v4.27 | R_11 Scene "
                     + Math.min(
                     r11StorySceneIndex + 1,
                     r11StoryScenes == null
@@ -1275,7 +1336,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r10StoryActive) {
-            header = "Native v4.26 | R_10 Scene "
+            header = "Native v4.27 | R_10 Scene "
                     + Math.min(
                     r10StorySceneIndex + 1,
                     r10StoryScenes == null
@@ -1285,7 +1346,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r09StoryActive) {
-            header = "Native v4.26 | R_09 Scene "
+            header = "Native v4.27 | R_09 Scene "
                     + Math.min(
                     r09StorySceneIndex + 1,
                     r09StoryScenes == null
@@ -1295,7 +1356,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r08StoryActive) {
-            header = "Native v4.26 | R_08 Scene "
+            header = "Native v4.27 | R_08 Scene "
                     + Math.min(
                     r08StorySceneIndex + 1,
                     r08StoryScenes == null
@@ -1305,7 +1366,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.26 | R_07 Scene "
+            header = "Native v4.27 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1315,7 +1376,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.26 | R_06 Scene "
+            header = "Native v4.27 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1325,7 +1386,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.26 | R_05 Scene "
+            header = "Native v4.27 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1335,7 +1396,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.26 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.27 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -5121,7 +5182,7 @@ public class MapView extends View {
         if (r12StorySceneIndex >= r12StoryScenes.length()) {
             r12StoryActive = false;
             s12Ready = true;
-            endBattle(true, "R_12 완료 · S_12 전투 준비 완료");
+            enterS12Battle();
             return;
         }
 
@@ -5197,7 +5258,192 @@ public class MapView extends View {
                 "terrain11.bin");
     }
 
+
+    private void enterS12Battle() {
+        try {
+            loadS12Battle(getContext());
+            lastCombatMessage = "R_12 완료 · S_12 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            endBattle(
+                    false,
+                    "S_12 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS12Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle12.json",
+                12,
+                "m012.jpg",
+                "terrain12.bin");
+    }
+
+    private boolean s12RetreatGoalReached() {
+        BattleUnit liuBei = findUnitByCharacterId(0);
+        if (liuBei == null
+                || !liuBei.visible
+                || !liuBei.isAlive()
+                || s12RetreatGoals == null) {
+            return false;
+        }
+
+        for (int i = 0; i < s12RetreatGoals.length(); i++) {
+            JSONObject goal = s12RetreatGoals.optJSONObject(i);
+            if (goal == null) {
+                continue;
+            }
+            String type = goal.optString("type", "");
+            if ("position".equals(type)) {
+                if (liuBei.x == goal.optInt("x", -1)
+                        && liuBei.y == goal.optInt("y", -1)) {
+                    return true;
+                }
+            } else if ("area".equals(type)) {
+                int left = Math.min(
+                        goal.optInt("x1", -1),
+                        goal.optInt("x2", -1));
+                int right = Math.max(
+                        goal.optInt("x1", -1),
+                        goal.optInt("x2", -1));
+                int top = Math.min(
+                        goal.optInt("y1", -1),
+                        goal.optInt("y2", -1));
+                int bottom = Math.max(
+                        goal.optInt("y1", -1),
+                        goal.optInt("y2", -1));
+                if (liuBei.x >= left
+                        && liuBei.x <= right
+                        && liuBei.y >= top
+                        && liuBei.y <= bottom) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void startS12VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "S_12 원본 승리 조건 달성");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s12Victory";
+        battleVictory = true;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_12 승리 후일담";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS12DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s12Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_12 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS12PostBattleCleanup() {
+        outcomeStage = "s12PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS12Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_12 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS12Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_12 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+        endBattle(true, "S_12 원본 승리 흐름 완료");
+    }
+
     private String currentBattleLabel() {
+        if (currentBattleIndex == 12) {
+            return "S_12";
+        }
+
+        if (currentBattleIndex == 12) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS12DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (round > turnLimit) {
+                startS12DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS12DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if (s12AnnihilationRoute) {
+                if (!hasAnyAliveEnemy()) {
+                    startS12VictoryOutcome();
+                }
+            } else if (s12RetreatGoalReached()
+                    || !hasAnyAliveEnemy()) {
+                startS12VictoryOutcome();
+            }
+            return;
+        }
+
         if (currentBattleIndex == 11) {
             return "S_11";
         }
@@ -5384,6 +5630,16 @@ public class MapView extends View {
                 finishS11Outcome();
                 return;
             }
+            if ("s12Victory".equals(outcomeStage)
+                    || "s12Defeat".equals(outcomeStage)) {
+                startS12PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s12PostBattle".equals(outcomeStage)) {
+                finishS12Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -5445,6 +5701,15 @@ public class MapView extends View {
                 && !outcomeFlowActive) {
             scriptedBattleFailure = false;
             startS11DefeatOutcome(
+                    -1,
+                    "원본 전장 이벤트 패배 조건");
+            return;
+        }
+        if (currentBattleIndex == 12
+                && scriptedBattleFailure
+                && !outcomeFlowActive) {
+            scriptedBattleFailure = false;
+            startS12DefeatOutcome(
                     -1,
                     "원본 전장 이벤트 패배 조건");
             return;
