@@ -1,7 +1,7 @@
 {
   "version": "4.22.0",
-  "sourceCommit": "e6c870cc2db6929773996a1d93a1aefb09ff2186",
-  "status": "failure",
+  "sourceCommit": "4ef2be7b16e94f180676d981001eeafdda53c013",
+  "status": "success",
   "r10Story": {
     "supported": true,
     "sceneCount": 26,
