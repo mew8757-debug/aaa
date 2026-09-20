@@ -605,6 +605,15 @@ def native_action_from_node(node):
             "value": int(params[2]),
         }
 
+    if cid == 0x3B and len(params) >= 3:
+        return {
+            "type": "joinCharacter",
+            "characterId": int(params[0]),
+            "joinMode": int(params[1]),
+            "levelAdjust": int(params[2]),
+        }
+
+
     if (
         cid == 0x38
         and len(params) >= 4
@@ -612,6 +621,30 @@ def native_action_from_node(node):
     ):
         return {
             "type": "unitHpChange",
+            "characterId": int(params[0]),
+            "operation": int(params[2]),
+            "value": int(params[3]),
+        }
+
+    if (
+        cid == 0x38
+        and len(params) >= 4
+        and int(params[1]) == 5
+    ):
+        return {
+            "type": "unitMaxHpChange",
+            "characterId": int(params[0]),
+            "operation": int(params[2]),
+            "value": int(params[3]),
+        }
+
+    if (
+        cid == 0x38
+        and len(params) >= 4
+        and int(params[1]) == 6
+    ):
+        return {
+            "type": "unitMaxMpChange",
             "characterId": int(params[0]),
             "operation": int(params[2]),
             "value": int(params[3]),
@@ -863,6 +896,9 @@ def native_action_from_node(node):
     if cid == 0x49:
         return {"type": "battleEndMarker"}
 
+    if cid == 0x0C:
+        return {"type": "sectionEnd"}
+
     if cid == 0x0D:
         return {"type": "sceneEnd"}
 
@@ -1094,6 +1130,22 @@ def compile_native_action_tree(node):
                     unsupported_actions,
                     total_nested,
                 )
+
+        # 0x37 tests money/chapter/alignment/global values.
+        # Params: global value kind, comparison value, compare operator.
+        if cid == 0x37 and len(params) >= 3:
+            return (
+                {
+                    "type": "conditionalGlobalValue",
+                    "globalId": int(params[0]),
+                    "value": int(params[1]),
+                    "compare": int(params[2]),
+                    "actions": child_actions,
+                },
+                unsupported_ids,
+                unsupported_actions,
+                total_nested,
+            )
 
         # 0x79 variable test. S10 uses integer variable(a) vs constant.
         # kind 4 = integer variable(a), kind 0 = constant.
