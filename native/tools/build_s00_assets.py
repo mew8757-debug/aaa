@@ -2675,6 +2675,16 @@ def compile_r12_story(blob):
     )
 
 
+def compile_r13_story(blob):
+    return compile_r_story(
+        blob,
+        "R_13.eex",
+        26,
+        27,
+        "S_13.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -2795,6 +2805,37 @@ def extract_r12_departure_players(blob):
                     seen.add(int(value))
             stack.extend(node["children"])
     return ids[:10]
+
+
+def extract_r13_departure_players(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 27:
+        return []
+
+    ids = [0]
+    seen = {0}
+    departure = scenes[26]
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        for node in section["commands"]:
+            if node["commandId"] != 0x2D or not node["params"]:
+                continue
+            value = node["params"][0]
+            if (
+                isinstance(value, int)
+                and 0 <= value < 1024
+                and value not in seen
+            ):
+                ids.append(int(value))
+                seen.add(int(value))
+
+    # R13's deployment pool is seven members. Keep the original 0x2D
+    # section order, with Liu Bei as the mandatory first slot.
+    return ids[:7]
 
 
 def build_next_scenario_probe(filename, blob):
@@ -3958,6 +3999,8 @@ def main(argv):
 
     r13_probe = build_next_scenario_probe("R_13.eex", r13)
     s13_probe = build_next_scenario_probe("S_13.eex", s13)
+    r13_story = compile_r13_story(r13)
+    r13_player_ids = extract_r13_departure_players(r13)
     s13_init_probe = {
         "found": s13 is not None,
         "validEex": bool(s13 and s13.startswith(b"EEX")),
@@ -6958,6 +7001,8 @@ def main(argv):
         "outcomeEvents": s12_outcome_events,
         "outcomeProbe": s12_outcome_probe,
         "transitionProbe": s12_transition_probe,
+        "r13Story": r13_story,
+        "r13PlayerIds": r13_player_ids,
         "nextScenarioProbe": {
             "R_13.eex": r13_probe,
             "S_13.eex": s13_probe,
@@ -7010,6 +7055,228 @@ def main(argv):
     }
     (battle_dir / "battle12.json").write_text(
         json.dumps(s12_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+    s13_native_events = [
+        event
+        for event in s13_event_probe
+        if event["section"] not in {39, 50, 76, 77}
+    ]
+    s13_units = []
+    s13_skipped_actors = []
+
+    def make_s13_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s13_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S13 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s13_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s13_slots = sorted(
+        s13_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if not r13_story.get("supported"):
+        raise SystemExit(
+            "R13 story unsupported: "
+            + repr(r13_story.get("unsupportedActionIds", []))
+        )
+    if len(r13_player_ids) != 7:
+        raise SystemExit(
+            "R13 departure roster must contain 7 characters: "
+            + repr([(cid, name_of(cid)) for cid in r13_player_ids])
+        )
+    if len(s13_slots) < len(r13_player_ids):
+        raise SystemExit(
+            "S13 player slot count too small: " + repr(s13_slots)
+        )
+
+    for slot, cid in zip(s13_slots, r13_player_ids):
+        if not make_s13_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_13:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S13 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s13_init_probe.get("friendRecords", [])):
+        make_s13_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_13:0x46:{index}",
+        )
+
+    for index, row in enumerate(s13_init_probe.get("enemyRecords", [])):
+        make_s13_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_13:0x47:{index}",
+        )
+
+    s13_objective_text = (
+        s13_init_probe.get("objectiveTexts", [""])[0]
+        if s13_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s13_popup_text = (
+        s13_init_probe.get("objectivePopups", [""])[0]
+        if s13_init_probe.get("objectivePopups")
+        else ""
+    )
+    s13_turn_limit = objective_turn_limit(
+        s13_objective_text,
+        25,
+    )
+    s13_protected_ids = [0, 36]
+
+    s13_battle = {
+        "version": 69,
+        "source": "RS/S_13.eex",
+        "battleMode": "enemy-annihilation",
+        "mapId": 13,
+        "map": "m013.jpg",
+        "widthTiles": map13_probe["cols"],
+        "heightTiles": map13_probe["rows"],
+        "terrainFile": "terrain13.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s13_objective_text,
+                "popupText": s13_popup_text,
+                "turnLimit": s13_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": s13_objective_text,
+                "popupText": s13_popup_text,
+                "turnLimit": s13_turn_limit,
+            },
+            "protectedCharacterIds": s13_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s13_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s13_native_events,
+        "outcomeProbe": s13_outcome_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s13_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s13_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s13_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s13_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s13_native_events
+            ],
+            "unsupportedRawSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                }
+                for event in s13_event_probe
+                if not event["coreSupported"]
+            ],
+        },
+        "terrainIds": map13_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s13_skipped_actors,
+        "r13PlayerIds": r13_player_ids,
+        "units": s13_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle13.json").write_text(
+        json.dumps(s13_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -7118,6 +7385,7 @@ def main(argv):
                 + s10_units
                 + s11_units
                 + s12_units
+                + s13_units
             )
         }
         | s09_special_sprite_ids
@@ -7174,6 +7442,34 @@ def main(argv):
                 "outcomes": sorted(s13_outcome_probe.keys()),
             },
         },
+    )
+    print(
+        "r13 story supported=",
+        r13_story["supported"],
+        "scenes=",
+        r13_story["sceneCount"],
+        "unsupported=",
+        r13_story["unsupportedActionIds"],
+        "players=",
+        [(cid, name_of(cid)) for cid in r13_player_ids],
+    )
+    print(
+        "s13 battle units=",
+        len(s13_units),
+        "players=",
+        [(u["characterId"], u["name"]) for u in s13_units if u["faction"] == PLAYER],
+        "allies=",
+        sum(1 for u in s13_units if u["faction"] == ALLY),
+        "enemies=",
+        sum(1 for u in s13_units if u["faction"] == ENEMY),
+        "native-events=",
+        len(s13_native_events),
+        "core-supported=",
+        sum(1 for e in s13_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s13_turn_limit,
+        "protected=",
+        [(cid, name_of(cid)) for cid in s13_protected_ids],
     )
     print(
         "s01 map=",
