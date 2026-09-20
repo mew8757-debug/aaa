@@ -3119,6 +3119,8 @@ def main(argv):
         s10 = read_member_by_basename(game1, "S_10.eex")
         r11 = read_member_by_basename(game1, "R_11.eex")
         s11 = read_member_by_basename(game1, "S_11.eex")
+        r12 = read_member_by_basename(game1, "R_12.eex")
+        s12 = read_member_by_basename(game1, "S_12.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3130,6 +3132,7 @@ def main(argv):
         map9_bytes = read_member_by_basename(game2, "m009.jpg")
         map10_bytes = read_member_by_basename(game2, "m010.jpg")
         map11_bytes = read_member_by_basename(game2, "m011.jpg")
+        map12_bytes = read_member_by_basename(game2, "m012.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -3152,6 +3155,8 @@ def main(argv):
             map10_bytes = read_member_by_basename(game1, "m010.jpg")
         if map11_bytes is None:
             map11_bytes = read_member_by_basename(game1, "m011.jpg")
+        if map12_bytes is None:
+            map12_bytes = read_member_by_basename(game1, "m012.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -3409,6 +3414,44 @@ def main(argv):
             })
         except Exception as exc:
             map11_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    map12_probe = {
+        "filename": "m012.jpg",
+        "found": map12_bytes is not None,
+        "hexzmapEntry": 12,
+    }
+    if map12_bytes is not None:
+        try:
+            map12_width, map12_height = jpeg_dimensions(map12_bytes)
+            if map12_width % 48 != 0 or map12_height % 48 != 0:
+                raise ValueError(
+                    f"m012 dimensions not divisible by 48: "
+                    f"{map12_width}x{map12_height}"
+                )
+            map12_cols = map12_width // 48
+            map12_rows = map12_height // 48
+            terrain12_cells = extract_hexzmap_cells(
+                hexz,
+                12,
+                map12_cols,
+                map12_rows,
+            )
+            (map_dir / "m012.jpg").write_bytes(map12_bytes)
+            (battle_dir / "terrain12.bin").write_bytes(terrain12_cells)
+            map12_probe.update({
+                "valid": True,
+                "width": map12_width,
+                "height": map12_height,
+                "cols": map12_cols,
+                "rows": map12_rows,
+                "terrainCellCount": len(terrain12_cells),
+                "terrainIds": sorted(set(terrain12_cells)),
+            })
+        except Exception as exc:
+            map12_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -3683,6 +3726,8 @@ def main(argv):
     s10_probe = build_next_scenario_probe("S_10.eex", s10)
     r11_probe = build_next_scenario_probe("R_11.eex", r11)
     s11_probe = build_next_scenario_probe("S_11.eex", s11)
+    r12_probe = build_next_scenario_probe("R_12.eex", r12)
+    s12_probe = build_next_scenario_probe("S_12.eex", s12)
     r10_story = compile_r10_story(r10)
     r11_story = compile_r11_story(r11)
     r10_player_ids = extract_r10_departure_players(r10)
@@ -6446,6 +6491,11 @@ def main(argv):
         "outcomeEvents": s11_outcome_events,
         "outcomeProbe": s11_outcome_probe,
         "transitionProbe": s11_transition_probe,
+        "nextScenarioProbe": {
+            "R_12.eex": r12_probe,
+            "S_12.eex": s12_probe,
+        },
+        "s12MapProbe": map12_probe,
         "r11PlayerIds": r11_player_ids,
         "battleEventSummary": {
             "candidateCount": len(s11_native_events),
