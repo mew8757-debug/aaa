@@ -3939,6 +3939,8 @@ def main(argv):
         s20 = read_member_by_basename(game1, "S_20.eex")
         r21 = read_member_by_basename(game1, "R_21.eex")
         s21 = read_member_by_basename(game1, "S_21.eex")
+        r22 = read_member_by_basename(game1, "R_22.eex")
+        s22 = read_member_by_basename(game1, "S_22.eex")
 
         rs_inventory = []
         for member in game1.namelist():
@@ -3999,6 +4001,7 @@ def main(argv):
         map19_bytes = read_member_by_basename(game2, "m019.jpg")
         map20_bytes = read_member_by_basename(game2, "m020.jpg")
         map21_bytes = read_member_by_basename(game2, "m021.jpg")
+        map22_bytes = read_member_by_basename(game2, "m022.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -4041,6 +4044,8 @@ def main(argv):
             map20_bytes = read_member_by_basename(game1, "m020.jpg")
         if map21_bytes is None:
             map21_bytes = read_member_by_basename(game1, "m021.jpg")
+        if map22_bytes is None:
+            map22_bytes = read_member_by_basename(game1, "m022.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -4687,6 +4692,45 @@ def main(argv):
             })
         except Exception as exc:
             map21_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
+    map22_probe = {
+        "filename": "m022.jpg",
+        "found": map22_bytes is not None,
+        "hexzmapEntry": 22,
+    }
+    if map22_bytes is not None:
+        try:
+            map22_width, map22_height = jpeg_dimensions(map22_bytes)
+            if map22_width % 48 != 0 or map22_height % 48 != 0:
+                raise ValueError(
+                    f"m022 dimensions not divisible by 48: "
+                    f"{map22_width}x{map22_height}"
+                )
+            map22_cols = map22_width // 48
+            map22_rows = map22_height // 48
+            terrain22_cells = extract_hexzmap_cells(
+                hexz,
+                22,
+                map22_cols,
+                map22_rows,
+            )
+            (map_dir / "m022.jpg").write_bytes(map22_bytes)
+            (battle_dir / "terrain22.bin").write_bytes(terrain22_cells)
+            map22_probe.update({
+                "valid": True,
+                "width": map22_width,
+                "height": map22_height,
+                "cols": map22_cols,
+                "rows": map22_rows,
+                "terrainCellCount": len(terrain22_cells),
+                "terrainIds": sorted(set(terrain22_cells)),
+            })
+        except Exception as exc:
+            map22_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -5546,6 +5590,23 @@ def main(argv):
 
     r21_story = compile_r21_story(r21)
     s21_player_ids, r21_selectable_ids = extract_r21_departure_players(r21)
+
+    r22_probe = build_next_scenario_probe("R_22.eex", r22)
+    s22_probe = build_next_scenario_probe("S_22.eex", s22)
+    s22_init_probe = {
+        "found": s22 is not None,
+        "validEex": bool(s22 and s22.startswith(b"EEX")),
+        "map": map22_probe,
+    }
+    s22_event_probe = []
+    s22_outcome_probe = {}
+    if s22 and s22.startswith(b"EEX"):
+        s22_scenes = parse_scenario_tree(s22)
+        s22_init_probe = probe_s01_initialization(s22)
+        s22_init_probe["map"] = map22_probe
+        s22_event_probe = extract_scene2_native_events(s22_scenes)
+        s22_outcome_probe = probe_battle_outcome_candidates(s22_scenes)
+
     s21_native_events = []
     s21_outcome_events = {
         "defeatByCharacter": {},
@@ -10876,6 +10937,37 @@ def main(argv):
         "battleEvents": s21_native_events,
         "outcomeEvents": s21_outcome_events,
         "outcomeProbe": s21_outcome_probe,
+        "nextScenarioProbe": {
+            "R_22.eex": r22_probe,
+            "S_22.eex": s22_probe,
+        },
+        "postS21Probe": {
+            "map22": map22_probe,
+            "s22Init": s22_init_probe,
+            "s22EventSummary": {
+                "candidateCount": len(s22_event_probe),
+                "coreSupportedCount": sum(
+                    1 for event in s22_event_probe
+                    if event["coreSupported"]
+                ),
+                "unsupportedSections": [
+                    {
+                        "section": event["section"],
+                        "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                        "unsupportedActionIds": event["unsupportedActionIds"],
+                        "nestedBranchCount": event["nestedBranchCount"],
+                    }
+                    for event in s22_event_probe
+                    if not event["coreSupported"]
+                ],
+            },
+            "s22OutcomeSections": sorted(
+                int(key)
+                for key in s22_outcome_probe.keys()
+                if str(key).isdigit()
+            ) if isinstance(s22_outcome_probe, dict) else [],
+            "s22OutcomeProbe": s22_outcome_probe,
+        },
         "routeModel": {
             "phase2TransitionSection": 2,
             "escapeVictorySection": 4,
