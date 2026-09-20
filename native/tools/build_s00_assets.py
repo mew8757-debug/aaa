@@ -4710,12 +4710,26 @@ def main(argv):
     }
     s17_event_probe = []
     s17_outcome_probe = {}
+    s17_detail_probe = {}
     if s17 and s17.startswith(b"EEX"):
         s17_scenes = parse_scenario_tree(s17)
         s17_init_probe = probe_s01_initialization(s17)
         s17_init_probe["map"] = map17_probe
         s17_event_probe = extract_scene2_native_events(s17_scenes)
         s17_outcome_probe = probe_battle_outcome_candidates(s17_scenes)
+        s17_detail_probe = probe_selected_scenario_sections(
+            s17_scenes,
+            [
+                (2, 3),
+                (2, 4),
+                (2, 6),
+                (2, 49),
+                (2, 54),
+                (2, 58),
+                (2, 59),
+                (3, 1),
+            ],
+        )
 
     s17_event_summary = {
         "candidateCount": len(s17_event_probe),
@@ -8713,6 +8727,7 @@ def main(argv):
         "s17InitProbe": s17_init_probe,
         "s17EventSummary": s17_event_summary,
         "s17OutcomeProbe": s17_outcome_probe,
+        "s17DetailProbe": s17_detail_probe,
         "battleEventSummary": {
             "candidateCount": len(s16_native_events),
             "coreSupportedCount": sum(
