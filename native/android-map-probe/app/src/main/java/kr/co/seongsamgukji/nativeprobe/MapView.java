@@ -6052,41 +6052,6 @@ public class MapView extends View {
         if (currentBattleIndex == 15) {
             return "S_15";
         }
-        if (currentBattleIndex == 15) {
-            for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS15DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-            if (!hasAnyAliveAlly()) {
-                startS15DefeatOutcome(
-                        -1,
-                        "우군 전멸 · 원본 패배 조건");
-                return;
-            }
-            if (round > turnLimit) {
-                startS15DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-            if (!hasAnyAliveFriendly()) {
-                startS15DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-            if ("s15-annihilation-with-ally-survival".equals(battleMode)
-                    && !hasAnyAliveEnemy()) {
-                startS15VictoryOutcome();
-            }
-            return;
-        }
-
         if (currentBattleIndex == 14) {
             return "S_14";
         }
@@ -6971,6 +6936,41 @@ public class MapView extends View {
                 || r15StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
+            return;
+        }
+
+        if (currentBattleIndex == 15) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS15DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (!hasAnyAliveAlly()) {
+                startS15DefeatOutcome(
+                        -1,
+                        "우군 전멸 · 원본 패배 조건");
+                return;
+            }
+            if (round > turnLimit) {
+                startS15DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS15DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+            if ("s15-annihilation-with-ally-survival".equals(battleMode)
+                    && !hasAnyAliveEnemy()) {
+                startS15VictoryOutcome();
+            }
             return;
         }
 
