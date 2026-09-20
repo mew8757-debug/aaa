@@ -3716,6 +3716,8 @@ def main(argv):
         s16 = read_member_by_basename(game1, "S_16.eex")
         r17 = read_member_by_basename(game1, "R_17.eex")
         s17 = read_member_by_basename(game1, "S_17.eex")
+        r18 = read_member_by_basename(game1, "R_18.eex")
+        s18 = read_member_by_basename(game1, "S_18.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3733,6 +3735,7 @@ def main(argv):
         map15_bytes = read_member_by_basename(game2, "m015.jpg")
         map16_bytes = read_member_by_basename(game2, "m016.jpg")
         map17_bytes = read_member_by_basename(game2, "m017.jpg")
+        map18_bytes = read_member_by_basename(game2, "m018.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -3767,6 +3770,8 @@ def main(argv):
             map16_bytes = read_member_by_basename(game1, "m016.jpg")
         if map17_bytes is None:
             map17_bytes = read_member_by_basename(game1, "m017.jpg")
+        if map18_bytes is None:
+            map18_bytes = read_member_by_basename(game1, "m018.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -4256,6 +4261,45 @@ def main(argv):
             })
         except Exception as exc:
             map17_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
+    map18_probe = {
+        "filename": "m018.jpg",
+        "found": map18_bytes is not None,
+        "hexzmapEntry": 18,
+    }
+    if map18_bytes is not None:
+        try:
+            map18_width, map18_height = jpeg_dimensions(map18_bytes)
+            if map18_width % 48 != 0 or map18_height % 48 != 0:
+                raise ValueError(
+                    f"m018 dimensions not divisible by 48: "
+                    f"{map18_width}x{map18_height}"
+                )
+            map18_cols = map18_width // 48
+            map18_rows = map18_height // 48
+            terrain18_cells = extract_hexzmap_cells(
+                hexz,
+                18,
+                map18_cols,
+                map18_rows,
+            )
+            (map_dir / "m018.jpg").write_bytes(map18_bytes)
+            (battle_dir / "terrain18.bin").write_bytes(terrain18_cells)
+            map18_probe.update({
+                "valid": True,
+                "width": map18_width,
+                "height": map18_height,
+                "cols": map18_cols,
+                "rows": map18_rows,
+                "terrainCellCount": len(terrain18_cells),
+                "terrainIds": sorted(set(terrain18_cells)),
+            })
+        except Exception as exc:
+            map18_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -4872,6 +4916,41 @@ def main(argv):
             s17_scenes,
             [(2, section) for section in s17_route_sections],
         )
+
+    r18_probe = build_next_scenario_probe("R_18.eex", r18)
+    s18_probe = build_next_scenario_probe("S_18.eex", s18)
+    s18_init_probe = {
+        "found": s18 is not None,
+        "validEex": bool(s18 and s18.startswith(b"EEX")),
+        "map": map18_probe,
+    }
+    s18_event_probe = []
+    s18_outcome_probe = {}
+    if s18 and s18.startswith(b"EEX"):
+        s18_scenes = parse_scenario_tree(s18)
+        s18_init_probe = probe_s01_initialization(s18)
+        s18_init_probe["map"] = map18_probe
+        s18_event_probe = extract_scene2_native_events(s18_scenes)
+        s18_outcome_probe = probe_battle_outcome_candidates(s18_scenes)
+
+    s17_route_model = {
+        "outerCityClearSection": 5,
+        "outerCityClearVariable": 7,
+        "victorySignalSection": 16,
+        "originalVictoryTestSection": 58,
+        "originalVictoryTestCommand": "0x42",
+        "outerCityEnemyRegions": [
+            {"x1": 0, "y1": 0, "x2": 25, "y2": 7},
+            {"x1": 0, "y1": 8, "x2": 19, "y2": 29},
+            {"x1": 20, "y1": 20, "x2": 25, "y2": 29},
+        ],
+        "interpretation": (
+            "Section 5 sets var7 after all three outer-city enemy "
+            "regions are empty; Section 16 consumes var7 and completes "
+            "the original victory transition. Section 58 is the final "
+            "0x42 battle-victory settlement test."
+        ),
+    }
 
     s17_event_summary = {
         "candidateCount": len(s17_event_probe),
@@ -9059,7 +9138,7 @@ def main(argv):
     s17_protected_ids = [0, 36]
 
     s17_battle = {
-        "version": 80,
+        "version": 81,
         "source": "RS/S_17.eex",
         "battleMode": "s17-outer-city-event-driven",
         "mapId": 17,
@@ -9094,6 +9173,36 @@ def main(argv):
         "outcomeEvents": s17_outcome_events,
         "outcomeProbe": s17_outcome_probe,
         "routeProbe": s17_route_probe,
+        "routeModel": s17_route_model,
+        "nextScenarioProbe": {
+            "R_18.eex": r18_probe,
+            "S_18.eex": s18_probe,
+        },
+        "postS17Probe": {
+            "map18": map18_probe,
+            "s18Init": s18_init_probe,
+            "s18EventSummary": {
+                "candidateCount": len(s18_event_probe),
+                "coreSupportedCount": sum(
+                    1 for event in s18_event_probe
+                    if event["coreSupported"]
+                ),
+                "unsupportedSections": [
+                    {
+                        "section": event["section"],
+                        "unsupportedTriggerIds": event[
+                            "unsupportedTriggerIds"
+                        ],
+                        "unsupportedActionIds": event[
+                            "unsupportedActionIds"
+                        ],
+                    }
+                    for event in s18_event_probe
+                    if not event["coreSupported"]
+                ],
+            },
+            "s18OutcomeSections": sorted(s18_outcome_probe.keys()),
+        },
         "battleEventSummary": {
             "candidateCount": len(s17_native_events),
             "coreSupportedCount": sum(
