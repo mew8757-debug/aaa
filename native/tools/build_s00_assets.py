@@ -2584,6 +2584,16 @@ def compile_r11_story(blob):
     )
 
 
+def compile_r12_story(blob):
+    return compile_r_story(
+        blob,
+        "R_12.eex",
+        21,
+        22,
+        "S_12.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -2665,6 +2675,43 @@ def extract_r11_departure_players(blob):
                         ):
                             ids.append(int(value))
                             seen.add(int(value))
+            stack.extend(node["children"])
+    return ids[:10]
+
+
+def extract_r12_departure_players(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 22:
+        return []
+
+    ids = [0]
+    seen = {0}
+    for section in scenes[21]["sections"]:
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in seen
+                    ):
+                        ids.append(int(value))
+                        seen.add(int(value))
+            elif cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in seen
+                ):
+                    ids.append(int(value))
+                    seen.add(int(value))
             stack.extend(node["children"])
     return ids[:10]
 
@@ -3730,6 +3777,7 @@ def main(argv):
     s12_probe = build_next_scenario_probe("S_12.eex", s12)
     r10_story = compile_r10_story(r10)
     r11_story = compile_r11_story(r11)
+    r12_story = compile_r12_story(r12)
     r10_player_ids = extract_r10_departure_players(r10)
 
     s11_init_probe = {
@@ -3781,6 +3829,36 @@ def main(argv):
             s11_transition_sections,
         )
     r11_player_ids = extract_r11_departure_players(r11)
+    r12_player_ids = extract_r12_departure_players(r12)
+
+    s12_init_probe = {
+        "found": s12 is not None,
+        "validEex": bool(s12 and s12.startswith(b"EEX")),
+        "map": map12_probe,
+    }
+    s12_event_probe = []
+    s12_outcome_probe = {}
+    s12_transition_probe = {}
+    if s12 and s12.startswith(b"EEX"):
+        s12_scenes = parse_scenario_tree(s12)
+        s12_init_probe = probe_s01_initialization(s12)
+        s12_init_probe["map"] = map12_probe
+        s12_event_probe = extract_scene2_native_events(s12_scenes)
+        s12_outcome_probe = probe_battle_outcome_candidates(s12_scenes)
+        s12_flat = flatten_scenario_nodes(s12_scenes)
+        s12_transition_sections = sorted({
+            (2, row["section"])
+            for row in s12_flat
+            if row["scene"] == 2
+            and row["depth"] == 0
+            and row["commandId"] in {
+                0x25, 0x26, 0x36, 0x3F, 0x40, 0x41, 0x42, 0x43
+            }
+        })
+        s12_transition_probe = probe_selected_scenario_sections(
+            s12_scenes,
+            s12_transition_sections,
+        )
 
     s10_init_probe = {
         "found": s10 is not None,
@@ -6496,6 +6574,12 @@ def main(argv):
             "S_12.eex": s12_probe,
         },
         "s12MapProbe": map12_probe,
+        "r12Story": r12_story,
+        "r12PlayerIds": r12_player_ids,
+        "s12InitProbe": s12_init_probe,
+        "s12EventProbe": s12_event_probe,
+        "s12OutcomeProbe": s12_outcome_probe,
+        "s12TransitionProbe": s12_transition_probe,
         "r11PlayerIds": r11_player_ids,
         "battleEventSummary": {
             "candidateCount": len(s11_native_events),
