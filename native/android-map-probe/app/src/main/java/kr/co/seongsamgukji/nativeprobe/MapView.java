@@ -69,6 +69,7 @@ public class MapView extends View {
     private final Set<Integer> joinedCharacterIds = new HashSet<>();
     private final Map<Integer, Integer> integerVariables = new HashMap<>();
     private final Map<Integer, Integer> rImageOverrides = new HashMap<>();
+    private final Map<Integer, Integer> portraitOverrides = new HashMap<>();
     private final Map<Integer, Integer> globalValues = new HashMap<>();
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
     private int pendingScenarioJump = -1;
@@ -2157,6 +2158,17 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
 
+                    case "unitPanelChange":
+                        applyUnitPanelChangeAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 120L;
+                        return true;
+
+                    case "aiAreaLimit":
+                        applyAiAreaLimitAction(action);
+                        activeBattleActionIndex++;
+                        break;
+
                     case "intVariableOp":
                         applyIntegerVariableAction(action);
                         activeBattleActionIndex++;
@@ -2516,6 +2528,78 @@ public class MapView extends View {
         }
     }
 
+
+    private void applyUnitPanelChangeAction(JSONObject action) {
+        BattleUnit unit = findUnitByCharacterId(
+                action.optInt("characterId", -1));
+        if (unit == null) {
+            return;
+        }
+
+        int panel = action.optInt("panel", -1);
+        int operation = action.optInt("operation", 0);
+        int value = action.optInt("value", 0);
+
+        // S08 currently uses panel 2 (Spirit) + 10.
+        if (panel == 2) {
+            int current = unit.spiritBonus;
+            if (operation == 0) {
+                unit.spiritBonus = value;
+            } else if (operation == 1) {
+                unit.spiritBonus = current + value;
+            } else if (operation == 2) {
+                unit.spiritBonus = current - value;
+            }
+            lastCombatMessage = unit.name
+                    + " 정신력 보정 "
+                    + (unit.spiritBonus >= 0 ? "+" : "")
+                    + unit.spiritBonus;
+            combatMessageUntil = SystemClock.uptimeMillis() + 1000L;
+        }
+    }
+
+    private void applyAiAreaLimitAction(JSONObject action) {
+        JSONArray ids = action.optJSONArray("characterIds");
+        if (ids == null) {
+            return;
+        }
+
+        boolean enabled = action.optBoolean("enabled", true);
+        int left = Math.min(
+                action.optInt("x1", 0),
+                action.optInt("x2", 255));
+        int right = Math.max(
+                action.optInt("x1", 0),
+                action.optInt("x2", 255));
+        int top = Math.min(
+                action.optInt("y1", 0),
+                action.optInt("y2", 255));
+        int bottom = Math.max(
+                action.optInt("y1", 0),
+                action.optInt("y2", 255));
+
+        for (int i = 0; i < ids.length(); i++) {
+            BattleUnit unit = findUnitByCharacterId(ids.optInt(i, -1));
+            if (unit == null) {
+                continue;
+            }
+            unit.aiAreaEnabled = enabled;
+            unit.aiAreaLeft = left;
+            unit.aiAreaTop = top;
+            unit.aiAreaRight = right;
+            unit.aiAreaBottom = bottom;
+        }
+    }
+
+    private boolean insideAiArea(BattleUnit unit, int x, int y) {
+        return unit == null
+                || !unit.aiAreaEnabled
+                || (x >= unit.aiAreaLeft
+                && x <= unit.aiAreaRight
+                && y >= unit.aiAreaTop
+                && y <= unit.aiAreaBottom);
+    }
+
     private void applyUnitAttributeTransferAction(JSONObject action) {
         int variableId = action.optInt("variableId", -1);
         int direction = action.optInt("direction", 0);
@@ -2536,6 +2620,23 @@ public class MapView extends View {
                 int value = integerVariables.getOrDefault(variableId, 0);
                 rImageOverrides.put(characterId, value);
                 lastCombatMessage = "R형상 변경 · 인물 "
+                        + characterId + " → " + value;
+                combatMessageUntil = SystemClock.uptimeMillis() + 900L;
+            }
+            return;
+        }
+
+        // AllCondition[1] = portrait. R08 changes Cao Cao's portrait and
+        // R image together from the same integer variable.
+        if (attribute == 1) {
+            if (direction == 0) {
+                integerVariables.put(
+                        variableId,
+                        portraitOverrides.getOrDefault(characterId, 0));
+            } else if (direction == 1) {
+                int value = integerVariables.getOrDefault(variableId, 0);
+                portraitOverrides.put(characterId, value);
+                lastCombatMessage = "초상 변경 · 인물 "
                         + characterId + " → " + value;
                 combatMessageUntil = SystemClock.uptimeMillis() + 900L;
             }
@@ -5209,6 +5310,10 @@ public class MapView extends View {
                 int nx = cx + dx[d];
                 int ny = cy + dy[d];
                 if (!inBounds(nx, ny)) {
+                    continue;
+                }
+
+                if (!insideAiArea(unit, nx, ny)) {
                     continue;
                 }
 
