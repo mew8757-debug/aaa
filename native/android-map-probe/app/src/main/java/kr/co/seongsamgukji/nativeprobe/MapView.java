@@ -392,12 +392,14 @@ public class MapView extends View {
                     u.getInt("x"),
                     u.getInt("y"),
                     u.optInt("direction", 2));
+            unit.maxMp = Math.max(0, u.optInt("mpMax", 0));
+            unit.mp = unit.maxMp;
             unit.aiPolicy = u.optInt("aiPolicy", unit.aiPolicy);
             units.add(unit);
             if (u.optBoolean("reinforcement", false)) {
                 reinforcementCharacterIds.add(unit.characterId);
             }
-            ensureSprite(context, unit.spriteId);
+            ensureSprite(context, unit.activeSpriteId);
         }
 
         JSONArray eventList = battle.optJSONArray("openingEvents");
@@ -697,6 +699,8 @@ public class MapView extends View {
                     u.getInt("x"),
                     u.getInt("y"),
                     u.optInt("direction", 2));
+            unit.maxMp = Math.max(0, u.optInt("mpMax", 0));
+            unit.mp = unit.maxMp;
             unit.aiPolicy = u.optInt(
                     "aiPolicy",
                     unit.aiPolicy);
@@ -704,7 +708,7 @@ public class MapView extends View {
             if (u.optBoolean("reinforcement", false)) {
                 reinforcementCharacterIds.add(unit.characterId);
             }
-            ensureSprite(context, unit.spriteId);
+            ensureSprite(context, unit.activeSpriteId);
         }
 
         objectiveText = "";
@@ -1329,8 +1333,8 @@ public class MapView extends View {
             }
 
             String rangeInfo = supportsAttackRange(selectedUnit)
-                    ? String.valueOf(selectedUnit.attackRangeId)
-                    : selectedUnit.attackRangeId + "(미지원)";
+                    ? String.valueOf(selectedUnit.activeAttackRangeId)
+                    : selectedUnit.activeAttackRangeId + "(미지원)";
 
             canvas.drawText(
                     "선택: " + selectedUnit.name
@@ -1382,6 +1386,8 @@ public class MapView extends View {
                 || r05StoryActive
                 || r06StoryActive
                 || r07StoryActive
+                || r08StoryActive
+                || r09StoryActive
                 || activeChoiceAction != null
                 || !playerTurn
                 || hasActiveAttackAnimation(now)
@@ -1437,7 +1443,7 @@ public class MapView extends View {
                 continue;
             }
             int cost = reachableBest[index];
-            if (cost < 0 || cost > selectedUnit.movePoints) {
+            if (cost < 0 || cost > selectedUnit.activeMovePoints) {
                 continue;
             }
 
@@ -1491,7 +1497,7 @@ public class MapView extends View {
         float top = unit.y * TILE;
 
         if (now < unit.attackUntil) {
-            source = attackSprites.get(unit.spriteId);
+            source = attackSprites.get(unit.activeSpriteId);
             int group = attackFrameGroup(unit.direction);
             int local = (int) Math.min(
                     3L,
@@ -1503,14 +1509,14 @@ public class MapView extends View {
             left -= 8f;
             top -= 8f;
         } else if (now < unit.actionUntil) {
-            source = idleSprites.get(unit.spriteId);
+            source = idleSprites.get(unit.activeSpriteId);
             frameIndex = source == null || source.length == 0
                     ? 0
                     : Math.floorMod(
                             unit.actionFrame,
                             source.length);
         } else if (unit.isMoving()) {
-            source = moveSprites.get(unit.spriteId);
+            source = moveSprites.get(unit.activeSpriteId);
             frameIndex = source == null || source.length == 0
                     ? 0
                     : Math.max(
@@ -1519,7 +1525,7 @@ public class MapView extends View {
                                     unit.moveFrame,
                                     source.length - 1));
         } else {
-            source = idleSprites.get(unit.spriteId);
+            source = idleSprites.get(unit.activeSpriteId);
             frameIndex = 0;
         }
 
@@ -1632,7 +1638,7 @@ public class MapView extends View {
                 unit.direction = 0;
             }
 
-            Bitmap[] frames = moveSprites.get(unit.spriteId);
+            Bitmap[] frames = moveSprites.get(unit.activeSpriteId);
             int count = frames == null || frames.length == 0
                     ? 1
                     : frames.length;
@@ -2234,6 +2240,17 @@ public class MapView extends View {
                         battleEventWaitUntil = now + 520L;
                         return true;
 
+                    case "jobChange":
+                        applyJobChangeAction(action);
+                        activeBattleActionIndex++;
+                        break;
+
+                    case "specialSprite":
+                        applySpecialSpriteAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 120L;
+                        return true;
+
                     case "statusChange":
                         applyStatusChangeAction(action);
                         activeBattleActionIndex++;
@@ -2700,10 +2717,14 @@ public class MapView extends View {
             int value;
             if (attribute == 7) {
                 value = unit.maxHp;
+            } else if (attribute == 8) {
+                value = unit.maxMp;
             } else if (attribute == 32) {
                 value = unit.direction;
             } else if (attribute == 33) {
                 value = unit.hp;
+            } else if (attribute == 34) {
+                value = unit.mp;
             } else {
                 return;
             }
@@ -2722,8 +2743,54 @@ public class MapView extends View {
                 if (unit.hp > 0) {
                     unit.visible = true;
                 }
+                return;
+            }
+            if (attribute == 34) {
+                unit.mp = Math.max(0, Math.min(unit.maxMp, value));
             }
         }
+    }
+
+    private void applyJobChangeAction(JSONObject action) {
+        BattleUnit unit = findUnitByCharacterId(
+                action.optInt("characterId", -1));
+        if (unit == null) {
+            return;
+        }
+        unit.activeJobId = action.optInt("jobId", unit.activeJobId);
+        unit.activeJobFamily = action.optInt(
+                "jobFamily",
+                unit.activeJobFamily);
+        unit.activeMovePoints = Math.max(
+                0,
+                action.optInt("movePoints", unit.activeMovePoints));
+        unit.activeAttackRangeId = action.optInt(
+                "attackRangeId",
+                unit.activeAttackRangeId);
+        if (unit == selectedUnit && unit.isPlayer()) {
+            refreshReachable();
+        }
+        lastCombatMessage = unit.name
+                + " 병종 변경 · " + unit.activeJobId;
+        combatMessageUntil = SystemClock.uptimeMillis() + 900L;
+    }
+
+    private void applySpecialSpriteAction(JSONObject action) {
+        BattleUnit unit = findUnitByCharacterId(
+                action.optInt("characterId", -1));
+        if (unit == null) {
+            return;
+        }
+        int spriteId = action.optInt("spriteId", unit.activeSpriteId);
+        try {
+            ensureSprite(getContext(), spriteId);
+            unit.activeSpriteId = spriteId;
+            lastCombatMessage = unit.name
+                    + " S형상 변경 · " + spriteId;
+        } catch (IOException e) {
+            lastCombatMessage = "S형상 로드 실패 · " + spriteId;
+        }
+        combatMessageUntil = SystemClock.uptimeMillis() + 900L;
     }
 
     private void applyGlobalValueAction(JSONObject action) {
@@ -4516,37 +4583,866 @@ public class MapView extends View {
             return "S_08";
         }
         if (currentBattleIndex == 7) {
-            for (int characterId : protectedCharacterIds) {
+            return "S_07";
+        }
+        if (currentBattleIndex == 6) {
+            return "S_06";
+        }
+        if (currentBattleIndex == 5) {
+            return "S_05";
+        }
+        if (currentBattleIndex == 4) {
+            return "S_04";
+        }
+        if (currentBattleIndex == 3) {
+            return "S_03";
+        }
+        if (currentBattleIndex == 2) {
+            return "S_02";
+        }
+        if (currentBattleIndex == 1) {
+            return "S_01";
+        }
+        return "S_00";
+    }
+
+    private void startBattleScriptEvent(JSONObject event) {
+        activeBattleEvent = event;
+        prepareScriptActionSequence(event.optJSONArray("actions"));
+
+        int section = event.optInt("section", -1);
+        if (section >= 0) {
+            firedBattleSections.add(section);
+        }
+
+        clearReachable();
+        lastCombatMessage = currentBattleLabel()
+                + " Section " + section + " 이벤트 발동";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+        invalidate();
+    }
+
+    private void finishBattleScriptEvent() {
+        activeBattleEvent = null;
+        activeBattleActions = null;
+        activeBattleActionIndex = 0;
+        battleActionStack.clear();
+        battleActionIndexStack.clear();
+        battleConditionalStack.clear();
+        lastBattleConditionalTaken = false;
+        duelFirstUnit = null;
+        duelSecondUnit = null;
+        battleEventMovingUnit = null;
+        battleEventWaitUntil = 0L;
+        scriptEventActive = false;
+
+        if (outcomeFlowActive) {
+            if ("victory".equals(outcomeStage)) {
+                startPostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("postBattle".equals(outcomeStage)) {
+                finishS00Outcome();
+                return;
+            }
+            if ("s01Victory".equals(outcomeStage)
+                    || "s01Defeat".equals(outcomeStage)) {
+                startS01PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s01PostBattle".equals(outcomeStage)) {
+                finishS01Outcome();
+                return;
+            }
+            if ("s02Victory".equals(outcomeStage)
+                    || "s02Defeat".equals(outcomeStage)) {
+                startS02PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s02PostBattle".equals(outcomeStage)) {
+                finishS02Outcome();
+                return;
+            }
+            if ("s03Victory".equals(outcomeStage)
+                    || "s03Defeat".equals(outcomeStage)) {
+                startS03PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s03PostBattle".equals(outcomeStage)) {
+                finishS03Outcome();
+                return;
+            }
+            if ("s04Victory".equals(outcomeStage)
+                    || "s04Defeat".equals(outcomeStage)) {
+                startS04PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s04PostBattle".equals(outcomeStage)) {
+                finishS04Outcome();
+                return;
+            }
+            if ("s05Victory".equals(outcomeStage)
+                    || "s05Defeat".equals(outcomeStage)) {
+                startS05PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s05PostBattle".equals(outcomeStage)) {
+                finishS05Outcome();
+                return;
+            }
+            if ("s06Victory".equals(outcomeStage)
+                    || "s06Defeat".equals(outcomeStage)) {
+                startS06PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s06PostBattle".equals(outcomeStage)) {
+                finishS06Outcome();
+                return;
+            }
+            if ("s07Victory".equals(outcomeStage)
+                    || "s07Defeat".equals(outcomeStage)) {
+                startS07PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s07PostBattle".equals(outcomeStage)) {
+                finishS07Outcome();
+                return;
+            }
+            if ("s08Victory".equals(outcomeStage)
+                    || "s08Defeat".equals(outcomeStage)) {
+                startS08PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s08PostBattle".equals(outcomeStage)) {
+                finishS08Outcome();
+                return;
+            }
+            if ("s09Victory".equals(outcomeStage)
+                    || "s09Defeat".equals(outcomeStage)) {
+                startS09PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s09PostBattle".equals(outcomeStage)) {
+                finishS09Outcome();
+                return;
+            }
+        }
+
+        if (r01StoryActive) {
+            finishR01StoryScene();
+            return;
+        }
+        if (r02StoryActive) {
+            finishR02StoryScene();
+            return;
+        }
+        if (r03StoryActive) {
+            finishR03StoryScene();
+            return;
+        }
+        if (r05StoryActive) {
+            finishR05StoryScene();
+            return;
+        }
+        if (r06StoryActive) {
+            finishR06StoryScene();
+            return;
+        }
+        if (r07StoryActive) {
+            finishR07StoryScene();
+            return;
+        }
+        if (r08StoryActive) {
+            finishR08StoryScene();
+            return;
+        }
+        if (r09StoryActive) {
+            finishR09StoryScene();
+            return;
+        }
+
+        checkBattleState();
+        if (!battleEnded
+                && !phaseTransitionActive
+                && playerTurn) {
+            if (selectedUnit == null
+                    || !selectedUnit.visible
+                    || !selectedUnit.isAlive()) {
+                selectFirstPlayer();
+            }
+            refreshReachable();
+        }
+        invalidate();
+    }
+
+    private boolean battleEventConditionsSatisfied(JSONObject event) {
+        JSONArray trueVariables = event.optJSONArray(
+                "requireTrueVariables");
+        if (trueVariables != null) {
+            for (int i = 0; i < trueVariables.length(); i++) {
+                int id = trueVariables.optInt(i, -1);
+                if (id >= 0
+                        && scenarioVariables.getOrDefault(id, 0) == 0) {
+                    return false;
+                }
+            }
+        }
+
+        JSONArray falseVariables = event.optJSONArray(
+                "requireFalseVariables");
+        if (falseVariables != null) {
+            for (int i = 0; i < falseVariables.length(); i++) {
+                int id = falseVariables.optInt(i, -1);
+                if (id >= 0
+                        && scenarioVariables.getOrDefault(id, 0) != 0) {
+                    return false;
+                }
+            }
+        }
+
+        JSONArray triggers = event.optJSONArray("triggers");
+        if (triggers == null || triggers.length() == 0) {
+            return false;
+        }
+
+        for (int i = 0; i < triggers.length(); i++) {
+            JSONObject trigger = triggers.optJSONObject(i);
+            if (trigger == null || !battleTriggerSatisfied(trigger)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean battleTriggerSatisfied(JSONObject trigger) {
+        String type = trigger.optString("type", "");
+
+        switch (type) {
+            case "position":
+                return anyMatchingUnitAt(
+                        trigger.optInt("personCode", -1),
+                        trigger.optInt("x", -1),
+                        trigger.optInt("y", -1));
+
+            case "area":
+                return anyMatchingUnitInArea(
+                        trigger.optInt("personCode", -1),
+                        trigger.optInt("x1", -1),
+                        trigger.optInt("y1", -1),
+                        trigger.optInt("x2", -1),
+                        trigger.optInt("y2", -1));
+
+            case "unitHpEqualsZero": {
+                BattleUnit unit = findUnitByCharacterId(
+                        trigger.optInt("characterId", -1));
+                return unit != null && unit.hp <= 0;
+            }
+
+            case "unitHpCompare": {
+                BattleUnit unit = findUnitByCharacterId(
+                        trigger.optInt("characterId", -1));
+                if (unit == null) {
+                    return false;
+                }
+                return compareScenarioInt(
+                        unit.hp,
+                        trigger.optInt("value", 0),
+                        trigger.optInt("compare", 2));
+            }
+
+            case "roundCompare":
+                return compareScenarioInt(
+                        round,
+                        trigger.optInt("value", 0),
+                        trigger.optInt("compare", 2));
+
+            case "side": {
+                int side = trigger.optInt("side", -1);
+                if (side == 0) {
+                    return playerTurn;
+                }
+                if (side == 1) {
+                    return false;
+                }
+                return !playerTurn;
+            }
+
+            case "campCount": {
+                int count = countCampUnits(
+                        trigger.optInt("camp", 6),
+                        trigger.optBoolean("area", false),
+                        trigger.optInt("x1", 0),
+                        trigger.optInt("y1", 0),
+                        trigger.optInt("x2", mapCols - 1),
+                        trigger.optInt("y2", mapRows - 1));
+                return compareScenarioInt(
+                        count,
+                        trigger.optInt("value", 0),
+                        trigger.optInt("compare", 2));
+            }
+
+            case "adjacent": {
+                BattleUnit first = findUnitByCharacterId(
+                        trigger.optInt("firstCharacterId", -1));
+                BattleUnit second = findUnitByCharacterId(
+                        trigger.optInt("secondCharacterId", -1));
+                if (first == null
+                        || second == null
+                        || !first.visible
+                        || !second.visible
+                        || !first.isAlive()
+                        || !second.isAlive()) {
+                    return false;
+                }
+
+                int distance = Math.abs(first.x - second.x)
+                        + Math.abs(first.y - second.y);
+                if (distance != 1) {
+                    return false;
+                }
+
+                if (trigger.optBoolean("requireAttackable", false)) {
+                    return supportsAttackRange(first)
+                            && isInAttackRange(first, second);
+                }
+                return true;
+            }
+
+            default:
+                return false;
+        }
+    }
+
+    private boolean compareScenarioInt(
+            int actual,
+            int expected,
+            int compare) {
+        if (compare == 0) {
+            return actual >= expected;
+        }
+        if (compare == 1) {
+            return actual < expected;
+        }
+        return actual == expected;
+    }
+
+    private boolean anyMatchingUnitAt(
+            int personCode,
+            int x,
+            int y) {
+        for (BattleUnit unit : units) {
+            if (unit.visible
+                    && unit.isAlive()
+                    && unit.x == x
+                    && unit.y == y
+                    && matchesPersonCode(unit, personCode)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean anyMatchingUnitInArea(
+            int personCode,
+            int x1,
+            int y1,
+            int x2,
+            int y2) {
+        int left = Math.min(x1, x2);
+        int right = Math.max(x1, x2);
+        int top = Math.min(y1, y2);
+        int bottom = Math.max(y1, y2);
+
+        for (BattleUnit unit : units) {
+            if (unit.visible
+                    && unit.isAlive()
+                    && unit.x >= left
+                    && unit.x <= right
+                    && unit.y >= top
+                    && unit.y <= bottom
+                    && matchesPersonCode(unit, personCode)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesPersonCode(
+            BattleUnit unit,
+            int personCode) {
+        if (personCode == 1024) {
+            return true;
+        }
+        if (personCode == 1025) {
+            return !unit.isEnemy();
+        }
+        if (personCode == 1026) {
+            return unit.isEnemy();
+        }
+        if (personCode == 1027) {
+            return unit == selectedUnit && unit.isPlayer();
+        }
+        return unit.characterId == personCode;
+    }
+
+    private int countCampUnits(
+            int camp,
+            boolean area,
+            int x1,
+            int y1,
+            int x2,
+            int y2) {
+        int left = Math.min(x1, x2);
+        int right = Math.max(x1, x2);
+        int top = Math.min(y1, y2);
+        int bottom = Math.max(y1, y2);
+        int count = 0;
+
+        for (BattleUnit unit : units) {
+            if (!unit.visible || !unit.isAlive()) {
+                continue;
+            }
+            if (area
+                    && (unit.x < left
+                    || unit.x > right
+                    || unit.y < top
+                    || unit.y > bottom)) {
+                continue;
+            }
+            if (matchesCamp(unit, camp)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean matchesCamp(BattleUnit unit, int camp) {
+        boolean reinforcement = reinforcementCharacterIds.contains(
+                unit.characterId);
+
+        switch (camp) {
+            case 0:
+                return unit.isPlayer();
+            case 1:
+                return "ally".equals(unit.faction);
+            case 2:
+                return unit.isEnemy() && !reinforcement;
+            case 3:
+                return unit.isEnemy() && reinforcement;
+            case 4:
+                return !unit.isEnemy();
+            case 5:
+                return unit.isEnemy();
+            case 6:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private boolean anyUnitMoving() {
+        for (BattleUnit unit : units) {
+            if (unit.visible
+                    && unit.isAlive()
+                    && unit.isMoving()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean pumpPhaseTransitionEvents() {
+        if (!phaseTransitionActive || battleEnded) {
+            return false;
+        }
+        if (dialogueText != null) {
+            return true;
+        }
+
+        long now = SystemClock.uptimeMillis();
+
+        if (phaseMovingUnit != null) {
+            if (!phaseMovingUnit.isMoving()) {
+                phaseMovingUnit = null;
+                phaseEventIndex++;
+                phaseEventWaitUntil = now + 90L;
+            } else {
+                return true;
+            }
+        }
+
+        if (now < phaseEventWaitUntil) {
+            return true;
+        }
+
+        while (phaseEventIndex < phaseTransitionEvents.size()) {
+            OpeningEvent event = phaseTransitionEvents.get(phaseEventIndex);
+
+            switch (event.type) {
+                case "dialogue":
+                    dialogueSpeaker = event.speaker;
+                    dialogueText = event.text;
+                    return true;
+
+                case "delay":
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now
+                            + Math.max(100L, event.value * 80L);
+                    return true;
+
+                case "move": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit == null) {
+                        phaseEventIndex++;
+                        break;
+                    }
+                    unit.visible = true;
+                    unit.clearMovePath();
+                    if (event.x != Integer.MIN_VALUE) {
+                        unit.targetX = event.x;
+                    }
+                    if (event.y != Integer.MIN_VALUE) {
+                        unit.targetY = event.y;
+                    }
+                    if (event.direction >= 0) {
+                        unit.direction = event.direction;
+                    }
+                    unit.lastMoveStepAt = 0L;
+                    if (unit.isMoving()) {
+                        phaseMovingUnit = unit;
+                        return true;
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 90L;
+                    return true;
+                }
+
+                case "reveal": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit != null) {
+                        unit.visible = true;
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 120L;
+                    return true;
+                }
+
+                case "hide":
+                case "retreat": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit != null) {
+                        unit.visible = false;
+                        unit.clearMovePath();
+                        unit.targetX = unit.x;
+                        unit.targetY = unit.y;
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 140L;
+                    return true;
+                }
+
+                case "turn": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit != null) {
+                        int direction = event.direction;
+                        if (direction < 0 && event.targetId >= 0) {
+                            BattleUnit target = findUnitByCharacterId(
+                                    event.targetId);
+                            if (target != null) {
+                                direction = directionToward(unit, target);
+                            }
+                        }
+                        if (direction >= 0) {
+                            unit.direction = direction;
+                        }
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 130L;
+                    return true;
+                }
+
+                case "action": {
+                    BattleUnit unit = findUnitByCharacterId(
+                            event.characterId);
+                    if (unit != null) {
+                        unit.actionFrame = event.value;
+                        unit.actionUntil = now + 420L;
+                    }
+                    phaseEventIndex++;
+                    phaseEventWaitUntil = now + 420L;
+                    return true;
+                }
+
+                case "music":
+                    musicTrack = event.value;
+                    phaseEventIndex++;
+                    break;
+
+                case "sound":
+                    lastSound = event.value;
+                    phaseEventIndex++;
+                    break;
+
+                case "reward":
+                    lastCombatMessage = "원본 보상 이벤트 · 아이템 "
+                            + event.value + " → 인물 " + event.targetId;
+                    combatMessageUntil = now + 1800L;
+                    phaseEventIndex++;
+                    break;
+
+                case "setVariable":
+                    if (event.variableId >= 0) {
+                        scenarioVariables.put(event.variableId, event.value);
+                    }
+                    phaseEventIndex++;
+                    break;
+
+                case "turnLimit":
+                    turnLimit = Math.max(1, event.value);
+                    phaseEventIndex++;
+                    break;
+
+                case "objective":
+                    objectiveText = event.text;
+                    phaseEventIndex++;
+                    break;
+
+                case "objectivePopup":
+                    objectivePopupText = event.text;
+                    phaseEventIndex++;
+                    break;
+
+                case "phaseComplete":
+                    battlePhase = Math.max(2, event.value);
+                    turnLimit = phase2TurnLimit;
+                    if (phase2ObjectiveText != null
+                            && !phase2ObjectiveText.isEmpty()) {
+                        objectiveText = phase2ObjectiveText;
+                    }
+                    if (phase2PopupText != null
+                            && !phase2PopupText.isEmpty()) {
+                        objectivePopupText = phase2PopupText;
+                    }
+                    phaseEventIndex++;
+                    finishPhaseTransition();
+                    return false;
+
+                default:
+                    phaseEventIndex++;
+                    break;
+            }
+        }
+
+        finishPhaseTransition();
+        return false;
+    }
+
+    private void startPhaseTransition() {
+        if (battleEnded || phaseTransitionActive || battlePhase != 1) {
+            return;
+        }
+        phaseTransitionActive = true;
+        phaseEventIndex = 0;
+        phaseEventWaitUntil = SystemClock.uptimeMillis() + 120L;
+        phaseMovingUnit = null;
+        pendingCounterAttacker = null;
+        pendingCounterTarget = null;
+        pendingCounterAt = 0L;
+        clearReachable();
+        lastCombatMessage = "마을 도착 · 원본 목표 전환 이벤트";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void finishPhaseTransition() {
+        phaseTransitionActive = false;
+        phaseMovingUnit = null;
+        battlePhase = 2;
+        turnLimit = phase2TurnLimit;
+        lastCombatMessage = "2단계 · "
+                + (phase2PopupText == null
+                || phase2PopupText.isEmpty()
+                ? "적군을 전멸시켜라!"
+                : phase2PopupText);
+        combatMessageUntil = SystemClock.uptimeMillis() + 2200L;
+        if (playerTurn && !battleEnded) {
+            selectFirstPlayer();
+            refreshReachable();
+        }
+        invalidate();
+    }
+
+    private void checkBattleState() {
+        if (!openingFinished
+                || battleEnded
+                || r01StoryActive
+                || r02StoryActive
+                || r03StoryActive
+                || r05StoryActive
+                || r06StoryActive
+                || r07StoryActive
+                || r08StoryActive
+                || r09StoryActive
+                || phaseTransitionActive
+                || scriptEventActive) {
+            return;
+        }
+
+        if (currentBattleIndex == 1) {
+            int[] criticalIds = {118, 0, 36};
+            for (int characterId : criticalIds) {
                 BattleUnit unit = findUnitByCharacterId(characterId);
                 if (unit != null && !unit.isAlive()) {
-                    startS07DefeatOutcome(
+                    startS01DefeatOutcome(
                             characterId,
                             unit.name + " 사망 · 원본 패배 조건");
                     return;
                 }
             }
-
             if (round > turnLimit) {
-                startS07DefeatOutcome(
-                        -1,
+                startS01DefeatOutcome(-1,
                         turnLimit + "턴 초과 · 원본 패배 조건");
                 return;
             }
-
             if (!hasAnyAliveFriendly()) {
-                startS07DefeatOutcome(
-                        -1,
+                startS01DefeatOutcome(-1,
                         "아군 전멸 · 원본 패배 조건");
                 return;
             }
+            if ("enemy-annihilation".equals(battleMode)
+                    && !hasAnyAliveEnemy()) {
+                startS01VictoryOutcome();
+            }
+            return;
+        }
 
+        if (currentBattleIndex == 2) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS02DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (round > turnLimit) {
+                startS02DefeatOutcome(-1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS02DefeatOutcome(-1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+            if ("enemy-annihilation".equals(battleMode)
+                    && !hasAnyAliveEnemy()) {
+                startS02VictoryOutcome();
+            }
+            return;
+        }
+
+        if (currentBattleIndex == 3) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS03DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (round > turnLimit) {
+                startS03DefeatOutcome(-1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS03DefeatOutcome(-1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+            if ("rescue-character".equals(battleMode)
+                    && rescueCharacterId >= 0
+                    && rescueGoalX >= 0
+                    && rescueGoalY >= 0) {
+                BattleUnit rescue = findUnitByCharacterId(
+                        rescueCharacterId);
+                if (rescue != null
+                        && rescue.visible
+                        && rescue.isAlive()
+                        && rescue.x == rescueGoalX
+                        && rescue.y == rescueGoalY) {
+                    startS03VictoryOutcome();
+                }
+            }
+            return;
+        }
+
+        if (currentBattleIndex >= 4 && currentBattleIndex <= 7) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    if (currentBattleIndex == 4) {
+                        startS04DefeatOutcome(characterId,
+                                unit.name + " 사망 · 원본 패배 조건");
+                    } else if (currentBattleIndex == 5) {
+                        startS05DefeatOutcome(characterId,
+                                unit.name + " 사망 · 원본 패배 조건");
+                    } else if (currentBattleIndex == 6) {
+                        startS06DefeatOutcome(characterId,
+                                unit.name + " 사망 · 원본 패배 조건");
+                    } else {
+                        startS07DefeatOutcome(characterId,
+                                unit.name + " 사망 · 원본 패배 조건");
+                    }
+                    return;
+                }
+            }
+            if (round > turnLimit || !hasAnyAliveFriendly()) {
+                String reason = round > turnLimit
+                        ? turnLimit + "턴 초과 · 원본 패배 조건"
+                        : "아군 전멸 · 원본 패배 조건";
+                if (currentBattleIndex == 4) {
+                    startS04DefeatOutcome(-1, reason);
+                } else if (currentBattleIndex == 5) {
+                    startS05DefeatOutcome(-1, reason);
+                } else if (currentBattleIndex == 6) {
+                    startS06DefeatOutcome(-1, reason);
+                } else {
+                    startS07DefeatOutcome(-1, reason);
+                }
+                return;
+            }
             if ("kill-character".equals(battleMode)
                     && killTargetCharacterId >= 0) {
                 BattleUnit target = findUnitByCharacterId(
                         killTargetCharacterId);
                 if (target == null || !target.isAlive()) {
-                    startS07VictoryOutcome();
-                    return;
+                    if (currentBattleIndex == 4) {
+                        startS04VictoryOutcome();
+                    } else if (currentBattleIndex == 5) {
+                        startS05VictoryOutcome();
+                    } else if (currentBattleIndex == 6) {
+                        startS06VictoryOutcome();
+                    } else {
+                        startS07VictoryOutcome();
+                    }
                 }
             }
             return;
@@ -4562,25 +5458,19 @@ public class MapView extends View {
                     return;
                 }
             }
-
             if (round > turnLimit) {
-                startS08DefeatOutcome(
-                        -1,
+                startS08DefeatOutcome(-1,
                         turnLimit + "턴 초과 · 원본 패배 조건");
                 return;
             }
-
             if (!hasAnyAliveFriendly()) {
-                startS08DefeatOutcome(
-                        -1,
+                startS08DefeatOutcome(-1,
                         "아군 전멸 · 원본 패배 조건");
                 return;
             }
-
             if ("enemy-annihilation".equals(battleMode)
                     && !hasAnyAliveEnemy()) {
                 startS08VictoryOutcome();
-                return;
             }
             return;
         }
@@ -4595,61 +5485,33 @@ public class MapView extends View {
                     return;
                 }
             }
-
             if (round > turnLimit) {
-                startS09DefeatOutcome(
-                        -1,
+                startS09DefeatOutcome(-1,
                         turnLimit + "턴 초과 · 원본 패배 조건");
                 return;
             }
-
             if (!hasAnyAliveFriendly()) {
-                startS09DefeatOutcome(
-                        -1,
+                startS09DefeatOutcome(-1,
                         "아군 전멸 · 원본 패배 조건");
                 return;
             }
+
+            boolean caoCaoDefeated =
+                    scenarioVariables.getOrDefault(56, 0) != 0;
+            BattleUnit liuBei = findUnitByCharacterId(0);
+            BattleUnit taoQian = findUnitByCharacterId(145);
+            boolean taoQianTalkReady = liuBei != null
+                    && taoQian != null
+                    && liuBei.visible
+                    && taoQian.visible
+                    && liuBei.isAlive()
+                    && taoQian.isAlive()
+                    && Math.abs(liuBei.x - taoQian.x)
+                    + Math.abs(liuBei.y - taoQian.y) <= 1;
 
             if ("s09-xuzhou-rescue".equals(battleMode)
-                    && scenarioVariables.getOrDefault(56, 0) != 0) {
+                    && (caoCaoDefeated || taoQianTalkReady)) {
                 startS09VictoryOutcome();
-                return;
-            }
-            return;
-        }
-
-        for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS07DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-
-            if (round > turnLimit) {
-                startS07DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-
-            if (!hasAnyAliveFriendly()) {
-                startS07DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-
-            if ("kill-character".equals(battleMode)
-                    && killTargetCharacterId >= 0) {
-                BattleUnit target = findUnitByCharacterId(
-                        killTargetCharacterId);
-                if (target == null || !target.isAlive()) {
-                    startS07VictoryOutcome();
-                    return;
-                }
             }
             return;
         }
@@ -4657,24 +5519,19 @@ public class MapView extends View {
         for (int characterId : protectedCharacterIds) {
             BattleUnit unit = findUnitByCharacterId(characterId);
             if (unit != null && !unit.isAlive()) {
-                endBattle(
-                        false,
+                endBattle(false,
                         unit.name + " 사망 · 원본 패배 조건");
                 return;
             }
         }
-
         if (round > turnLimit) {
-            endBattle(
-                    false,
+            endBattle(false,
                     turnLimit + "턴 초과 · 원본 패배 조건");
             return;
         }
-
         if ("enemy-annihilation".equals(battleMode)) {
             if (!hasAnyAliveEnemy()) {
-                endBattle(
-                        true,
+                endBattle(true,
                         currentBattleLabel()
                                 + " 적군 전멸 · 원본 승리 조건");
             }
@@ -4692,15 +5549,13 @@ public class MapView extends View {
                     return;
                 }
             }
-
             for (BattleUnit unit : units) {
                 if (unit.visible
                         && unit.isAlive()
                         && unit.isEnemy()
                         && unit.x == villageFailX
                         && unit.y == villageFailY) {
-                    endBattle(
-                            false,
+                    endBattle(false,
                             "마을이 점령당했다 · 원본 좌표 이벤트");
                     return;
                 }
@@ -4845,7 +5700,7 @@ public class MapView extends View {
                 || selectedUnit.moved
                 || selectedUnit.acted
                 || selectedUnit.isMoving()
-                || selectedUnit.movePoints <= 0) {
+                || selectedUnit.activeMovePoints <= 0) {
             return;
         }
 
@@ -4900,7 +5755,7 @@ public class MapView extends View {
                 }
 
                 int nextCost = current.cost + stepCost;
-                if (nextCost > unit.movePoints) {
+                if (nextCost > unit.activeMovePoints) {
                     continue;
                 }
 
@@ -4933,7 +5788,7 @@ public class MapView extends View {
 
         int target = tileIndex(tx, ty);
         if (reachableBest[target] >= IMPASSABLE
-                || reachableBest[target] > selectedUnit.movePoints
+                || reachableBest[target] > selectedUnit.activeMovePoints
                 || occupied(tx, ty, selectedUnit)) {
             return false;
         }
@@ -4983,8 +5838,8 @@ public class MapView extends View {
     }
 
     private boolean supportsAttackRange(BattleUnit unit) {
-        return unit.attackRangeId == 0
-                || unit.attackRangeId == 1;
+        return unit.activeAttackRangeId == 0
+                || unit.activeAttackRangeId == 1;
     }
 
     private boolean isInAttackRange(
@@ -4993,10 +5848,10 @@ public class MapView extends View {
         int dx = Math.abs(target.x - attacker.x);
         int dy = Math.abs(target.y - attacker.y);
 
-        if (attacker.attackRangeId == 0) {
+        if (attacker.activeAttackRangeId == 0) {
             return dx + dy == 1;
         }
-        if (attacker.attackRangeId == 1) {
+        if (attacker.activeAttackRangeId == 1) {
             return Math.max(dx, dy) == 1
                     && (dx + dy) > 0;
         }
@@ -5536,7 +6391,7 @@ public class MapView extends View {
                 || unit.moved
                 || unit.acted
                 || unit.isMoving()
-                || unit.movePoints <= 0
+                || unit.activeMovePoints <= 0
                 || !inBounds(goalX, goalY)) {
             return false;
         }
@@ -5553,7 +6408,7 @@ public class MapView extends View {
              index++) {
             int cost = search.best[index];
             if (cost >= IMPASSABLE
-                    || cost > unit.movePoints) {
+                    || cost > unit.activeMovePoints) {
                 continue;
             }
 
@@ -5613,13 +6468,13 @@ public class MapView extends View {
         int terrainId = terrainAt(x, y);
         if (terrainId < 0
                 || terrainId >= terrainTypeCount
-                || unit.jobFamily < 0
-                || unit.jobFamily
+                || unit.activeJobFamily < 0
+                || unit.activeJobFamily
                 >= movementCostFamilyCount) {
             return IMPASSABLE;
         }
 
-        int index = unit.jobFamily
+        int index = unit.activeJobFamily
                 * terrainTypeCount
                 + terrainId;
         int raw = movementCosts[index] & 0xff;
