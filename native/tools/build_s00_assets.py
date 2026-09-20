@@ -2640,6 +2640,39 @@ def extract_r10_departure_players(blob):
     return ids[:8]
 
 
+def extract_r11_departure_players(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 10:
+        return []
+
+    ids = [0]
+    seen = {0}
+
+    def walk(nodes):
+        for node in nodes:
+            yield node
+            yield from walk(node["children"])
+
+    for section in scenes[9]["sections"]:
+        for node in walk(section["commands"]):
+            if node["commandId"] != 0x06:
+                continue
+            params = node["params"]
+            if len(params) < 3 or int(params[0]) != 1:
+                continue
+            for value in params[2:]:
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in seen
+                ):
+                    ids.append(int(value))
+                    seen.add(int(value))
+    return ids[:10]
+
+
 def build_next_scenario_probe(filename, blob):
     if blob is None:
         return {
@@ -3100,6 +3133,7 @@ def main(argv):
         map8_bytes = read_member_by_basename(game2, "m008.jpg")
         map9_bytes = read_member_by_basename(game2, "m009.jpg")
         map10_bytes = read_member_by_basename(game2, "m010.jpg")
+        map11_bytes = read_member_by_basename(game2, "m011.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -3120,6 +3154,8 @@ def main(argv):
             map9_bytes = read_member_by_basename(game1, "m009.jpg")
         if map10_bytes is None:
             map10_bytes = read_member_by_basename(game1, "m010.jpg")
+        if map11_bytes is None:
+            map11_bytes = read_member_by_basename(game1, "m011.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -3339,6 +3375,45 @@ def main(argv):
             })
         except Exception as exc:
             map10_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
+    map11_probe = {
+        "filename": "m011.jpg",
+        "found": map11_bytes is not None,
+        "hexzmapEntry": 11,
+    }
+    if map11_bytes is not None:
+        try:
+            map11_width, map11_height = jpeg_dimensions(map11_bytes)
+            if map11_width % 48 != 0 or map11_height % 48 != 0:
+                raise ValueError(
+                    f"m011 dimensions not divisible by 48: "
+                    f"{map11_width}x{map11_height}"
+                )
+            map11_cols = map11_width // 48
+            map11_rows = map11_height // 48
+            terrain11_cells = extract_hexzmap_cells(
+                hexz,
+                11,
+                map11_cols,
+                map11_rows,
+            )
+            (map_dir / "m011.jpg").write_bytes(map11_bytes)
+            (battle_dir / "terrain11.bin").write_bytes(terrain11_cells)
+            map11_probe.update({
+                "valid": True,
+                "width": map11_width,
+                "height": map11_height,
+                "cols": map11_cols,
+                "rows": map11_rows,
+                "terrainCellCount": len(terrain11_cells),
+                "terrainIds": sorted(set(terrain11_cells)),
+            })
+        except Exception as exc:
+            map11_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -3711,6 +3786,31 @@ def main(argv):
             "objectiveSectionIds": [],
         }
     s10_init_probe["map"] = map10_probe
+
+    r11_player_ids = extract_r11_departure_players(r11)
+    s11_init_probe = {
+        "found": s11 is not None,
+        "validEex": bool(s11 and s11.startswith(b"EEX")),
+        "map": map11_probe,
+    }
+    s11_event_probe = []
+    s11_native_events = []
+    s11_outcome_probe = {}
+    if s11 and s11.startswith(b"EEX"):
+        s11_scenes = parse_scenario_tree(s11)
+        s11_init_probe = probe_s01_initialization(s11)
+        s11_init_probe["map"] = map11_probe
+        s11_outcome_probe = probe_battle_outcome_candidates(s11_scenes)
+        s11_outcome_sections = {
+            int(key.split("SEC")[1])
+            for key in s11_outcome_probe
+            if key.startswith("S02-SEC")
+        }
+        s11_event_probe = extract_scene2_native_events(s11_scenes)
+        s11_native_events = extract_scene2_native_events(
+            s11_scenes,
+            excluded_sections=s11_outcome_sections,
+        )
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -6082,7 +6182,7 @@ def main(argv):
         )
 
     s10_battle = {
-        "version": 60,
+        "version": 61,
         "source": "RS/S_10.eex",
         "battleMode": "s10-event-driven",
         "mapId": 10,
