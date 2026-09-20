@@ -2547,6 +2547,12 @@ public class MapView extends View {
                         battleEventWaitUntil = now + 160L;
                         return true;
 
+                    case "battlefieldObjectAdd":
+                        applyBattlefieldObjectAddAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 160L;
+                        return true;
+
                     case "unitAttributeTransfer":
                         applyUnitAttributeTransferAction(action);
                         activeBattleActionIndex++;
@@ -2909,6 +2915,21 @@ public class MapView extends View {
             unit.clearMovePath();
             unit.targetX = unit.x;
             unit.targetY = unit.y;
+        }
+    }
+
+    private void applyBattlefieldObjectAddAction(JSONObject action) {
+        // 0x21 is an S-scene visual object action. The original editor
+        // stores a packed coordinate/action/type plus viewpoint/sound flags.
+        // Keep the event observable without inventing an unverified terrain
+        // mutation; 0x58 remains the command that changes terrain state.
+        lastCombatMessage = "전장 물체 연출 · 좌표 "
+                + action.optInt("coordinate", -1)
+                + " · 동작 " + action.optInt("action", -1)
+                + " · 유형 " + action.optInt("objectType", -1);
+        combatMessageUntil = SystemClock.uptimeMillis() + 900L;
+        if (action.optBoolean("sound", false)) {
+            lastSound = action.optInt("objectType", lastSound);
         }
     }
 
