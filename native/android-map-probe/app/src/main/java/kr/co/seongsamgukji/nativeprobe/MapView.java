@@ -171,6 +171,7 @@ public class MapView extends View {
     private JSONArray r06StoryScenes;
     private JSONArray r07StoryScenes;
     private JSONArray r08StoryScenes;
+    private JSONArray r09StoryScenes;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
     private BattleUnit battleEventMovingUnit;
@@ -190,6 +191,7 @@ public class MapView extends View {
     private boolean r06StoryActive = false;
     private boolean r07StoryActive = false;
     private boolean r08StoryActive = false;
+    private boolean r09StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
@@ -197,6 +199,7 @@ public class MapView extends View {
     private boolean s06Ready = false;
     private boolean s07Ready = false;
     private boolean s08Ready = false;
+    private boolean s09Ready = false;
     private int currentBattleIndex = 0;
     private String battleMode = "s00-two-phase";
     private int rescueCharacterId = -1;
@@ -211,6 +214,7 @@ public class MapView extends View {
     private int r06StorySceneIndex = 0;
     private int r07StorySceneIndex = 0;
     private int r08StorySceneIndex = 0;
+    private int r09StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -789,6 +793,7 @@ public class MapView extends View {
         r06StoryScenes = null;
         r07StoryScenes = null;
         r08StoryScenes = null;
+        r09StoryScenes = null;
 
         JSONObject s01Outcomes = battle.optJSONObject("outcomeEvents");
         if (s01Outcomes != null) {
@@ -841,6 +846,11 @@ public class MapView extends View {
                 && r08Story.optBoolean("supported", false)) {
             r08StoryScenes = r08Story.optJSONArray("scenes");
         }
+        JSONObject r09Story = battle.optJSONObject("r09Story");
+        if (r09Story != null
+                && r09Story.optBoolean("supported", false)) {
+            r09StoryScenes = r09Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -851,6 +861,7 @@ public class MapView extends View {
         r06StoryActive = false;
         r07StoryActive = false;
         r08StoryActive = false;
+        r09StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
@@ -858,6 +869,7 @@ public class MapView extends View {
         s06Ready = false;
         s07Ready = false;
         s08Ready = false;
+        s09Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
@@ -865,6 +877,7 @@ public class MapView extends View {
         r06StorySceneIndex = 0;
         r07StorySceneIndex = 0;
         r08StorySceneIndex = 0;
+        r09StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
