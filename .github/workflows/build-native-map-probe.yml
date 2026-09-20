@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.41
+name: Build Native Android Battle v4.42
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.41 APK
+      - name: Build native v4.42 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.41.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.42.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.41 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.41 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.42 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.42 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.41 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.41" \
-              --notes "Native v4.41은 S17 원본 외성 섬멸 승리 루트를 정확히 고정합니다. Section5가 외성 3개 적군 구역의 인원수 0을 확인해 변수7을 설정하고, Section16이 변수7을 소비해 조조/유비 전환과 원본 전투 종료를 수행하므로 전체 맵 적군 전멸이 아니라 Section16 완료를 승리 신호로 사용합니다. 동시에 R_18.eex/S_18.eex와 M018/Hexzmap entry18을 probe해 다음 연속 플레이 확장 근거를 기록합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.42 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.42" \
+              --notes "Native v4.42는 S17 원본 외성 섬멸 종료 뒤 R_18.eex 2개 Scene을 재생하고 S_18 전투로 실제 진입합니다. R18 Scene1은 스토리, Scene2는 마지막 춤/출전 종료 흐름으로 컴파일합니다. S18은 M018 22x18, 0x4A 강제 출전 9명(유비+8명), 적군 20명, 여포(119) 격퇴/유비 사망/20턴 초과 목표를 원본 데이터로 패키징하며 전장 이벤트 25/25를 재사용합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.41 build status
+      - name: Record v4.42 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.41.0",
+              "version": "4.42.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.41.0",
+              "version": "4.42.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1917,7 +1917,69 @@ jobs:
               }
               status["s17Battle"] = compact["s17Battle"]
 
-          Path("native/build-status/v4.41-summary.json").write_text(
+          battle18_summary_path = Path(
+              "native/android-map-probe/app/src/main/assets/battle/battle18.json"
+          )
+          if battle18_summary_path.exists():
+              battle18_summary = json.loads(
+                  battle18_summary_path.read_text(encoding="utf-8")
+              )
+              summary18 = battle18_summary.get("battleEventSummary", {})
+              compact["s18Battle"] = {
+                  "source": battle18_summary.get("source"),
+                  "battleMode": battle18_summary.get("battleMode"),
+                  "map": battle18_summary.get("map"),
+                  "widthTiles": battle18_summary.get("widthTiles"),
+                  "heightTiles": battle18_summary.get("heightTiles"),
+                  "r18PlayerIds": battle18_summary.get("r18PlayerIds", []),
+                  "playerCharacters": [
+                      {
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                      }
+                      for u in battle18_summary.get("units", [])
+                      if u.get("faction") == "player"
+                  ],
+                  "allyCount": sum(
+                      1 for u in battle18_summary.get("units", [])
+                      if u.get("faction") == "ally"
+                  ),
+                  "enemyCount": sum(
+                      1 for u in battle18_summary.get("units", [])
+                      if u.get("faction") == "enemy"
+                  ),
+                  "battleObjectives": battle18_summary.get(
+                      "battleObjectives",
+                      {},
+                  ),
+                  "eventCandidateCount": summary18.get("candidateCount"),
+                  "eventSupportedCount": summary18.get("coreSupportedCount"),
+                  "rawEventCandidateCount": summary18.get(
+                      "rawCandidateCount"
+                  ),
+                  "rawEventSupportedCount": summary18.get(
+                      "rawCoreSupportedCount"
+                  ),
+                  "unsupportedEvents": [
+                      row for row in summary18.get("sections", [])
+                      if not row.get("coreSupported")
+                  ],
+                  "outcomeEvents": battle18_summary.get(
+                      "outcomeEvents",
+                      {},
+                  ),
+                  "outcomeProbe": battle18_summary.get(
+                      "outcomeProbe",
+                      {},
+                  ),
+                  "skippedActors": battle18_summary.get(
+                      "skippedActors",
+                      [],
+                  ),
+              }
+              status["s18Battle"] = compact["s18Battle"]
+
+          Path("native/build-status/v4.42-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1926,7 +1988,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.41.json").write_text(
+          Path("native/build-status/v4.42.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1934,11 +1996,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.41.json native/build-status/v4.41-summary.json
+          git add native/build-status/v4.42.json native/build-status/v4.42-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.41 build status"
+          git commit -m "Record native v4.42 build status"
           git push
