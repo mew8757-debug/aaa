@@ -6433,6 +6433,39 @@ public class MapView extends View {
         if (currentBattleIndex == 17) {
             return "S_17";
         }
+        if (currentBattleIndex == 17) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS17DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (round > turnLimit) {
+                startS17DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS17DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            // v4.40 first connects the verified R17/S17 flow. The exact
+            // outer-city completion route is finalized from routeProbe
+            // after CI; full enemy annihilation is a safe fallback.
+            if ("s17-outer-city-event-driven".equals(battleMode)
+                    && !hasAnyAliveEnemy()) {
+                startS17VictoryOutcome();
+            }
+            return;
+        }
+
         if (currentBattleIndex == 16) {
             return "S_16";
         }
@@ -7344,6 +7377,8 @@ public class MapView extends View {
                 || r13StoryActive
                 || r14StoryActive
                 || r15StoryActive
+                || r16StoryActive
+                || r17StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
             return;
