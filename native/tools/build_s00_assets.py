@@ -1095,6 +1095,29 @@ def compile_native_action_tree(node):
                     total_nested,
                 )
 
+        # 0x79 variable test. S10 uses integer variable(a) vs constant.
+        # kind 4 = integer variable(a), kind 0 = constant.
+        # compare 0 ==, 1 >=, 2 <.
+        if (
+            cid == 0x79
+            and len(params) >= 5
+            and int(params[0]) == 4
+            and int(params[3]) == 0
+            and int(params[2]) in (0, 1, 2)
+        ):
+            return (
+                {
+                    "type": "conditionalIntegerCompare",
+                    "variableId": int(params[1]),
+                    "compare": int(params[2]),
+                    "value": int(params[4]),
+                    "actions": child_actions,
+                },
+                unsupported_ids,
+                unsupported_actions,
+                total_nested,
+            )
+
         if cid == 0x03:
             return (
                 {
@@ -2233,7 +2256,7 @@ def compile_r_story_leaf(node):
             "params": params,
         }
 
-    if cid == 0x78:
+    if cid in (0x6F, 0x78):
         action = native_action_from_node(node)
         if action is not None:
             return action
@@ -2541,6 +2564,16 @@ def compile_r09_story(blob):
     )
 
 
+def compile_r10_story(blob):
+    return compile_r_story(
+        blob,
+        "R_10.eex",
+        25,
+        26,
+        "S_10.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -2593,7 +2626,7 @@ def build_next_scenario_probe(filename, blob):
         0x19, 0x1A,
         0x3A, 0x3D,
         0x44, 0x4A, 0x4B, 0x5A,
-        0x77, 0x78,
+        0x04, 0x2D, 0x6F, 0x77, 0x78,
     }
     text_ids = {
         0x14, 0x15, 0x16, 0x17, 0x18,
@@ -3495,6 +3528,7 @@ def main(argv):
 
     r10_probe = build_next_scenario_probe("R_10.eex", r10)
     s10_probe = build_next_scenario_probe("S_10.eex", s10)
+    r10_story = compile_r10_story(r10)
     s10_init_probe = {
         "found": s10 is not None,
         "validEex": bool(s10 and s10.startswith(b"EEX")),
@@ -5616,7 +5650,7 @@ def main(argv):
             enrich_s09_action_list(outcome.get("actions", []))
 
     s09_battle = {
-        "version": 53,
+        "version": 54,
         "source": "RS/S_09.eex",
         "battleMode": "s09-xuzhou-rescue",
         "mapId": 9,
@@ -5665,6 +5699,7 @@ def main(argv):
             "R_10.eex": r10_probe,
             "S_10.eex": s10_probe,
         },
+        "r10Story": r10_story,
         "s10InitProbe": s10_init_probe,
         "s10EventProbe": s10_event_probe,
         "s10OutcomeProbe": s10_outcome_probe,
