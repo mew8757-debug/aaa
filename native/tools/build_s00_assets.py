@@ -473,6 +473,21 @@ def native_action_from_node(node):
     if cid == 0x24 and params:
         return {"type": "music", "value": int(params[0])}
 
+    # 0x21: battlefield-object add. The legacy editor stores
+    # coordinate/action/type/viewpoint/sound in five integer slots.
+    # Preserve all fields as a visual battlefield action; exact object
+    # art is not yet rendered, but the original event flow remains intact.
+    if cid == 0x21 and len(params) >= 5:
+        return {
+            "type": "battlefieldObjectAdd",
+            "coordinate": int(params[0]),
+            "action": int(params[1]),
+            "objectType": int(params[2]),
+            "focus": int(params[3]) != 0,
+            "sound": int(params[4]) != 0,
+        }
+
+
     # 0x6B is a scripted spell visual at an absolute battlefield tile.
     if cid == 0x6B and len(params) >= 4:
         return {
@@ -1103,7 +1118,7 @@ def compile_native_action_tree(node):
                 total_nested,
             )
 
-        if cid in (0x36, 0x3F, 0x41):
+        if cid in (0x25, 0x26, 0x2E, 0x36, 0x3F, 0x40, 0x41):
             trigger = native_trigger_from_node(node)
             if trigger is not None:
                 return (
