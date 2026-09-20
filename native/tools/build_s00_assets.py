@@ -2863,6 +2863,8 @@ def main(argv):
         s07 = read_member_by_basename(game1, "S_07.eex")
         r08 = read_member_by_basename(game1, "R_08.eex")
         s08 = read_member_by_basename(game1, "S_08.eex")
+        r09 = read_member_by_basename(game1, "R_09.eex")
+        s09 = read_member_by_basename(game1, "S_09.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -2871,6 +2873,7 @@ def main(argv):
         map6_bytes = read_member_by_basename(game2, "m006.jpg")
         map7_bytes = read_member_by_basename(game2, "m007.jpg")
         map8_bytes = read_member_by_basename(game2, "m008.jpg")
+        map9_bytes = read_member_by_basename(game2, "m009.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -2887,6 +2890,8 @@ def main(argv):
             map7_bytes = read_member_by_basename(game1, "m007.jpg")
         if map8_bytes is None:
             map8_bytes = read_member_by_basename(game1, "m008.jpg")
+        if map9_bytes is None:
+            map9_bytes = read_member_by_basename(game1, "m009.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -2910,6 +2915,8 @@ def main(argv):
         raise SystemExit("m007.jpg not found in game1/game2")
     if map8_bytes is None:
         raise SystemExit("m008.jpg not found in game1/game2")
+    if map9_bytes is None:
+        raise SystemExit("m009.jpg not found in game1/game2")
 
     if len(s00) != 31318 or not s00.startswith(b"EEX"):
         raise SystemExit("Unexpected S_00.eex revision")
@@ -3052,6 +3059,23 @@ def main(argv):
     )
     (map_dir / "m008.jpg").write_bytes(map8_bytes)
     (battle_dir / "terrain8.bin").write_bytes(terrain8_cells)
+
+    map9_width, map9_height = jpeg_dimensions(map9_bytes)
+    if map9_width % 48 != 0 or map9_height % 48 != 0:
+        raise SystemExit(
+            f"m009 dimensions not divisible by 48: "
+            f"{map9_width}x{map9_height}"
+        )
+    map9_cols = map9_width // 48
+    map9_rows = map9_height // 48
+    terrain9_cells = extract_hexzmap_cells(
+        hexz,
+        9,
+        map9_cols,
+        map9_rows,
+    )
+    (map_dir / "m009.jpg").write_bytes(map9_bytes)
+    (battle_dir / "terrain9.bin").write_bytes(terrain9_cells)
 
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
@@ -3282,6 +3306,23 @@ def main(argv):
         excluded_sections={36, 37, 52, 53},
     )
     s08_outcome_events = extract_s08_outcome_events(s08_scenes)
+    r09_probe = build_next_scenario_probe("R_09.eex", r09)
+    s09_probe = build_next_scenario_probe("S_09.eex", s09)
+
+    s09_scenes = parse_scenario_tree(s09)
+    s09_init_probe = probe_s01_initialization(s09)
+    s09_init_probe["map"] = {
+        "filename": "m009.jpg",
+        "width": map9_width,
+        "height": map9_height,
+        "cols": map9_cols,
+        "rows": map9_rows,
+        "terrainCellCount": len(terrain9_cells),
+        "terrainIds": sorted(set(terrain9_cells)),
+        "hexzmapEntry": 9,
+    }
+    s09_event_probe = extract_scene2_native_events(s09_scenes)
+    s09_outcome_probe = probe_battle_outcome_candidates(s09_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
@@ -5175,6 +5216,13 @@ def main(argv):
         "battleEvents": s08_native_events,
         "outcomeEvents": s08_outcome_events,
         "outcomeProbe": s08_outcome_probe,
+        "nextScenarioProbe": {
+            "R_09.eex": r09_probe,
+            "S_09.eex": s09_probe,
+        },
+        "s09InitProbe": s09_init_probe,
+        "s09EventProbe": s09_event_probe,
+        "s09OutcomeProbe": s09_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s08_native_events),
             "coreSupportedCount": sum(
