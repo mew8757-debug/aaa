@@ -2401,6 +2401,12 @@ def compile_r_story_leaf(node):
             "value": int(params[1]),
         }
 
+    if cid == 0x11 and params:
+        return {
+            "type": "scenarioJump",
+            "target": int(params[0]),
+        }
+
     if cid == 0x06:
         return {
             "type": "deploymentLimit",
