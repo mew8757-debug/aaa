@@ -2822,6 +2822,16 @@ def compile_r15_story(blob):
     )
 
 
+def compile_r16_story(blob):
+    return compile_r_story(
+        blob,
+        "R_16.eex",
+        1,
+        2,
+        "S_16.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -3086,6 +3096,68 @@ def extract_r15_departure_players(blob):
             seen.add(cid)
 
     # 0x2D also repeats fixed members in their own deployment sections.
+    for cid in selectable_from_sections:
+        if cid not in seen:
+            selectable.append(cid)
+
+    roster = (fixed + selectable)[:5]
+    return roster, selectable
+
+
+def extract_r16_departure_players(blob):
+    # R16 uses the same five-slot deployment pattern as R15:
+    # Liu Bei is mandatory, fixed members come from 0x06, and
+    # selectable members are exposed as 0x2D sections in Scene 2.
+    fixed = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return fixed, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 2:
+        return fixed, selectable
+
+    departure = scenes[1]
+    fixed_from_limit = []
+    selectable_from_sections = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed_from_limit
+                    ):
+                        fixed_from_limit.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in selectable_from_sections
+                ):
+                    selectable_from_sections.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed_from_limit:
+        if cid not in seen:
+            fixed.append(cid)
+            seen.add(cid)
+
     for cid in selectable_from_sections:
         if cid not in seen:
             selectable.append(cid)
@@ -4509,24 +4581,68 @@ def main(argv):
 
     r16_probe = build_next_scenario_probe("R_16.eex", r16)
     s16_probe = build_next_scenario_probe("S_16.eex", s16)
+    r16_story = compile_r16_story(r16)
+    r16_player_ids, r16_selectable_ids = extract_r16_departure_players(r16)
+
     s16_init_probe = {
         "found": s16 is not None,
         "validEex": bool(s16 and s16.startswith(b"EEX")),
         "map": map16_probe,
     }
     s16_event_probe = []
+    s16_native_events = []
     s16_outcome_probe = {}
+    s16_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s16 and s16.startswith(b"EEX"):
         s16_scenes = parse_scenario_tree(s16)
         s16_init_probe = probe_s01_initialization(s16)
         s16_init_probe["map"] = map16_probe
         s16_event_probe = extract_scene2_native_events(s16_scenes)
+        s16_native_events = [
+            event
+            for event in s16_event_probe
+            if event["section"] not in {9, 14, 15}
+        ]
         s16_outcome_probe = probe_battle_outcome_candidates(s16_scenes)
+        s16_outcome_events = {
+            "victory": compile_scenario_section_actions(
+                s16_scenes,
+                2,
+                14,
+            ),
+            "defeatByCharacter": {
+                "0": compile_scenario_section_actions(
+                    s16_scenes,
+                    2,
+                    9,
+                ),
+            },
+            "genericDefeat": compile_scenario_section_actions(
+                s16_scenes,
+                2,
+                15,
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s16_scenes,
+                3,
+                1,
+            ),
+        }
 
     s16_event_summary = {
         "candidateCount": len(s16_event_probe),
         "coreSupportedCount": sum(
             1 for event in s16_event_probe
+            if event["coreSupported"]
+        ),
+        "nativeCandidateCount": len(s16_native_events),
+        "nativeSupportedCount": sum(
+            1 for event in s16_native_events
             if event["coreSupported"]
         ),
         "unsupportedSections": [
@@ -8288,6 +8404,10 @@ def main(argv):
             "R_16.eex": r16_probe,
             "S_16.eex": s16_probe,
         },
+        "r16Story": r16_story,
+        "r16PlayerIds": r16_player_ids,
+        "r16SelectableIds": r16_selectable_ids,
+        "r16SelectionMode": "fixed-plus-source-order-default",
         "s16InitProbe": s16_init_probe,
         "s16EventSummary": s16_event_summary,
         "s16OutcomeProbe": s16_outcome_probe,
@@ -8328,6 +8448,223 @@ def main(argv):
     }
     (battle_dir / "battle15.json").write_text(
         json.dumps(s15_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+    # S16: R16 Scene 2 uses the same five-slot fixed/selectable pattern.
+    s16_units = []
+    s16_skipped_actors = []
+
+    def make_s16_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s16_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S16 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s16_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    if not map16_probe.get("valid"):
+        raise SystemExit(
+            "M016 map probe invalid: " + repr(map16_probe)
+        )
+    if not r16_story.get("supported"):
+        raise SystemExit(
+            "R16 story unsupported: "
+            + repr(r16_story.get("unsupportedActionIds", []))
+        )
+    if len(r16_player_ids) != 5:
+        raise SystemExit(
+            "R16 default departure roster must contain 5 characters: "
+            + repr([(cid, name_of(cid)) for cid in r16_player_ids])
+        )
+
+    s16_slots = sorted(
+        s16_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(s16_slots) < len(r16_player_ids):
+        raise SystemExit(
+            "S16 player slot count too small: " + repr(s16_slots)
+        )
+
+    for slot, cid in zip(s16_slots, r16_player_ids):
+        if not make_s16_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_16:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S16 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s16_init_probe.get("friendRecords", [])):
+        make_s16_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_16:0x46:{index}",
+        )
+
+    for index, row in enumerate(s16_init_probe.get("enemyRecords", [])):
+        make_s16_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_16:0x47:{index}",
+        )
+
+    s16_objective_text = (
+        s16_init_probe.get("objectiveTexts", [""])[0]
+        if s16_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s16_popup_text = (
+        s16_init_probe.get("objectivePopups", [""])[0]
+        if s16_init_probe.get("objectivePopups")
+        else ""
+    )
+    s16_turn_limit = objective_turn_limit(
+        s16_objective_text,
+        15,
+    )
+    s16_protected_ids = [0]
+
+    s16_battle = {
+        "version": 78,
+        "source": "RS/S_16.eex",
+        "battleMode": "s16-annihilation-with-ally-survival",
+        "mapId": 16,
+        "map": "m016.jpg",
+        "widthTiles": map16_probe["cols"],
+        "heightTiles": map16_probe["rows"],
+        "terrainFile": "terrain16.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s16_objective_text,
+                "popupText": s16_popup_text,
+                "turnLimit": s16_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": s16_objective_text,
+                "popupText": s16_popup_text,
+                "turnLimit": s16_turn_limit,
+            },
+            "protectedCharacterIds": s16_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s16_protected_ids
+            ],
+            "requireAllySurvival": True,
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s16_native_events,
+        "outcomeEvents": s16_outcome_events,
+        "outcomeProbe": s16_outcome_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s16_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s16_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s16_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s16_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s16_native_events
+            ],
+        },
+        "terrainIds": map16_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s16_skipped_actors,
+        "r16PlayerIds": r16_player_ids,
+        "r16SelectableIds": r16_selectable_ids,
+        "r16SelectionMode": "fixed-plus-source-order-default",
+        "units": s16_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle16.json").write_text(
+        json.dumps(s16_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -8439,6 +8776,7 @@ def main(argv):
                 + s13_units
                 + s14_units
                 + s15_units
+                + s16_units
             )
         }
         | s09_special_sprite_ids
