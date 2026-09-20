@@ -4919,6 +4919,55 @@ def main(argv):
 
     r18_probe = build_next_scenario_probe("R_18.eex", r18)
     s18_probe = build_next_scenario_probe("S_18.eex", s18)
+    r18_departure_probe = {
+        "sceneNumber": None,
+        "sectionCount": 0,
+        "deploymentCommands": [],
+        "candidateIds": [],
+    }
+    if r18 and r18.startswith(b"EEX"):
+        r18_scenes = parse_scenario_tree(r18)
+        if r18_scenes:
+            departure_scene = r18_scenes[-1]
+            r18_departure_probe["sceneNumber"] = departure_scene["scene"]
+            r18_departure_probe["sectionCount"] = len(
+                departure_scene["sections"]
+            )
+            candidate_ids = []
+            seen_candidate_ids = set()
+            for section in sorted(
+                departure_scene["sections"],
+                key=lambda row: row["section"],
+            ):
+                stack = list(section["commands"])
+                while stack:
+                    node = stack.pop()
+                    cid = node["commandId"]
+                    params = node["params"]
+                    if cid in (0x06, 0x2D):
+                        r18_departure_probe["deploymentCommands"].append({
+                            "section": section["section"],
+                            "commandId": cid,
+                            "commandHex": f"0x{cid:02X}",
+                            "params": params,
+                        })
+                    if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                        values = params[2:]
+                    elif cid == 0x2D and params:
+                        values = params[:1]
+                    else:
+                        values = []
+                    for value in values:
+                        if (
+                            isinstance(value, int)
+                            and 0 <= value < 1024
+                            and value not in seen_candidate_ids
+                        ):
+                            candidate_ids.append(int(value))
+                            seen_candidate_ids.add(int(value))
+                    stack.extend(node["children"])
+            r18_departure_probe["candidateIds"] = candidate_ids
+
     s18_init_probe = {
         "found": s18 is not None,
         "validEex": bool(s18 and s18.startswith(b"EEX")),
@@ -9202,6 +9251,8 @@ def main(argv):
                 ],
             },
             "s18OutcomeSections": sorted(s18_outcome_probe.keys()),
+            "s18OutcomeProbe": s18_outcome_probe,
+            "r18DepartureProbe": r18_departure_probe,
         },
         "battleEventSummary": {
             "candidateCount": len(s17_native_events),
