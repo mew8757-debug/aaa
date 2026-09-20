@@ -11766,9 +11766,10 @@ def main(argv):
                 "popupText": s23_popup_text,
                 "turnLimit": s23_turn_limit,
                 "goal": {
-                    "type": "kill-character-or-annihilation",
+                    "type": "kill-character",
                     "characterId": 36,
                     "name": name_of(36),
+                    "alternative": "enemy-annihilation",
                 },
             },
             "phase2": {
