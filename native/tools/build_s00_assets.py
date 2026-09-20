@@ -1103,7 +1103,7 @@ def compile_native_action_tree(node):
                 total_nested,
             )
 
-        if cid in (0x36, 0x41):
+        if cid in (0x36, 0x3F, 0x41):
             trigger = native_trigger_from_node(node)
             if trigger is not None:
                 return (
@@ -4149,12 +4149,22 @@ def main(argv):
     }
     s14_event_probe = []
     s14_outcome_probe = {}
+    s14_outcome_detail = {}
     if s14 and s14.startswith(b"EEX"):
         s14_scenes = parse_scenario_tree(s14)
         s14_init_probe = probe_s01_initialization(s14)
         s14_init_probe["map"] = map14_probe
         s14_event_probe = extract_scene2_native_events(s14_scenes)
         s14_outcome_probe = probe_battle_outcome_candidates(s14_scenes)
+        s14_outcome_detail = probe_selected_scenario_sections(
+            s14_scenes,
+            [
+                (2, 34),
+                (2, 35),
+                (2, 36),
+                (3, 1),
+            ],
+        )
 
     s13_init_probe = {
         "found": s13 is not None,
@@ -7429,6 +7439,7 @@ def main(argv):
                 if not event["coreSupported"]
             ],
             "outcomeCandidates": sorted(s14_outcome_probe.keys()),
+            "outcomeDetail": s14_outcome_detail,
         },
         "battleEventSummary": {
             "candidateCount": len(s13_native_events),
