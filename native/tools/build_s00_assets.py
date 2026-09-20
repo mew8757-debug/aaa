@@ -2857,6 +2857,52 @@ def compile_r17_story(blob):
     )
 
 
+def compile_r18_story(blob):
+    return compile_r_story(
+        blob,
+        "R_18.eex",
+        1,
+        2,
+        "S_18.eex",
+    )
+
+
+def extract_s_forced_player_ids(blob, mandatory_character_id=0):
+    ids = [int(mandatory_character_id)]
+    seen = set(ids)
+    required_count = 0
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return ids, required_count
+
+    scenes = parse_scenario_tree(blob)
+    if not scenes or not scenes[0]["sections"]:
+        return ids, required_count
+
+    for node in scenes[0]["sections"][0]["commands"]:
+        stack = [node]
+        while stack:
+            current = stack.pop()
+            if current["commandId"] == 0x4A and current["params"]:
+                params = current["params"]
+                first = params[0]
+                if isinstance(first, int) and first > 0:
+                    required_count = max(required_count, int(first))
+                for value in params[1:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in seen
+                    ):
+                        ids.append(int(value))
+                        seen.add(int(value))
+            stack.extend(current["children"])
+
+    if required_count > 0:
+        ids = ids[:required_count]
+    return ids, required_count
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -4919,19 +4965,82 @@ def main(argv):
 
     r18_probe = build_next_scenario_probe("R_18.eex", r18)
     s18_probe = build_next_scenario_probe("S_18.eex", s18)
+    r18_story = compile_r18_story(r18)
+    s18_player_ids, s18_forced_count = extract_s_forced_player_ids(
+        s18,
+        0,
+    )
     s18_init_probe = {
         "found": s18 is not None,
         "validEex": bool(s18 and s18.startswith(b"EEX")),
         "map": map18_probe,
     }
     s18_event_probe = []
+    s18_native_events = []
     s18_outcome_probe = {}
+    s18_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s18 and s18.startswith(b"EEX"):
         s18_scenes = parse_scenario_tree(s18)
         s18_init_probe = probe_s01_initialization(s18)
         s18_init_probe["map"] = map18_probe
         s18_event_probe = extract_scene2_native_events(s18_scenes)
         s18_outcome_probe = probe_battle_outcome_candidates(s18_scenes)
+        s18_outcome_sections = {
+            int(key.split("SEC", 1)[1])
+            for key in s18_outcome_probe
+            if key.startswith("S02-SEC")
+        }
+        s18_native_events = [
+            event
+            for event in s18_event_probe
+            if event["section"] not in s18_outcome_sections
+        ]
+
+        # S18's player-visible objective is defeat Lu Bu. The final
+        # 0x42/0x43 sections are the canonical settlement branches.
+        victory_sections = [
+            section["section"]
+            for section in s18_scenes[1]["sections"]
+            if any(
+                node["commandId"] == 0x42
+                for node in section["commands"]
+            )
+        ]
+        defeat_sections = [
+            section["section"]
+            for section in s18_scenes[1]["sections"]
+            if any(
+                node["commandId"] == 0x43
+                for node in section["commands"]
+            )
+        ]
+        if victory_sections:
+            s18_outcome_events["victory"] = (
+                compile_scenario_section_actions(
+                    s18_scenes,
+                    2,
+                    victory_sections[0],
+                )
+            )
+        if defeat_sections:
+            s18_outcome_events["genericDefeat"] = (
+                compile_scenario_section_actions(
+                    s18_scenes,
+                    2,
+                    defeat_sections[0],
+                )
+            )
+        s18_outcome_events["postBattle"] = (
+            compile_scenario_section_actions(
+                s18_scenes,
+                3,
+                1,
+            )
+        )
 
     s17_route_model = {
         "outerCityClearSection": 5,
@@ -9178,6 +9287,8 @@ def main(argv):
             "R_18.eex": r18_probe,
             "S_18.eex": s18_probe,
         },
+        "r18Story": r18_story,
+        "s18PlayerIds": s18_player_ids,
         "postS17Probe": {
             "map18": map18_probe,
             "s18Init": s18_init_probe,
@@ -9240,6 +9351,230 @@ def main(argv):
     }
     (battle_dir / "battle17.json").write_text(
         json.dumps(s17_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+
+    # S18: R18 is story-only; S18's 0x4A carries a forced count of nine.
+    # The count is followed by eight explicit Data IDs; Liu Bei (0) is the
+    # mandatory protagonist, yielding the nine-unit player roster.
+    s18_units = []
+    s18_skipped_actors = []
+
+    def make_s18_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s18_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S18 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s18_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    if not map18_probe.get("valid"):
+        raise SystemExit(
+            "M018 map probe invalid: " + repr(map18_probe)
+        )
+    if not r18_story.get("supported"):
+        raise SystemExit(
+            "R18 story unsupported: "
+            + repr(r18_story.get("unsupportedActionIds", []))
+        )
+    if s18_forced_count != 9 or len(s18_player_ids) != 9:
+        raise SystemExit(
+            "S18 forced roster must contain 9 characters: "
+            + repr({
+                "forcedCount": s18_forced_count,
+                "ids": s18_player_ids,
+            })
+        )
+
+    s18_slots = sorted(
+        s18_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(s18_slots) < len(s18_player_ids):
+        raise SystemExit(
+            "S18 player slot count too small: " + repr(s18_slots)
+        )
+
+    for slot, cid in zip(s18_slots, s18_player_ids):
+        if not make_s18_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_18:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S18 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s18_init_probe.get("friendRecords", [])):
+        make_s18_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_18:0x46:{index}",
+        )
+
+    for index, row in enumerate(s18_init_probe.get("enemyRecords", [])):
+        make_s18_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_18:0x47:{index}",
+        )
+
+    s18_objective_text = (
+        s18_init_probe.get("objectiveTexts", [""])[0]
+        if s18_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s18_popup_text = (
+        s18_init_probe.get("objectivePopups", [""])[0]
+        if s18_init_probe.get("objectivePopups")
+        else ""
+    )
+    s18_turn_limit = objective_turn_limit(
+        s18_objective_text,
+        20,
+    )
+
+    s18_battle = {
+        "version": 82,
+        "source": "RS/S_18.eex",
+        "battleMode": "s18-defeat-lubu",
+        "mapId": 18,
+        "map": "m018.jpg",
+        "widthTiles": map18_probe["cols"],
+        "heightTiles": map18_probe["rows"],
+        "terrainFile": "terrain18.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s18_objective_text,
+                "popupText": s18_popup_text,
+                "turnLimit": s18_turn_limit,
+                "goal": {
+                    "type": "kill-character",
+                    "characterId": 119,
+                    "name": name_of(119),
+                },
+            },
+            "phase2": {
+                "objectiveText": s18_objective_text,
+                "popupText": s18_popup_text,
+                "turnLimit": s18_turn_limit,
+            },
+            "protectedCharacterIds": [0],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)}
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s18_native_events,
+        "outcomeEvents": s18_outcome_events,
+        "outcomeProbe": s18_outcome_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s18_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s18_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s18_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s18_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s18_native_events
+            ],
+        },
+        "terrainIds": map18_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s18_skipped_actors,
+        "r18PlayerIds": s18_player_ids,
+        "r18SelectionMode": "s18-forced-0x4A",
+        "units": s18_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle18.json").write_text(
+        json.dumps(s18_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -9354,6 +9689,7 @@ def main(argv):
                 + s15_units
                 + s16_units
                 + s17_units
+                + s18_units
             )
         }
         | s09_special_sprite_ids
