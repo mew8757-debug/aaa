@@ -11067,32 +11067,34 @@ def main(argv):
 
 
 
-    yan_liang_id = -1
-    if s22_init_probe.get("enemyRecords"):
-        for row in s22_init_probe["enemyRecords"]:
-            cid = int(row["person"])
-            char_off = 0x18C + cid * 0x20
-            if char_off < 0 or char_off + 13 > len(data):
-                continue
-            raw_name = data[char_off:char_off + 13].split(b"\\0", 1)[0]
-            char_name = raw_name.decode("cp949", "replace").strip()
-            if char_name == "안량":
-                yan_liang_id = cid
-                break
-    if yan_liang_id < 0:
-        raise SystemExit("S22 Yan Liang character ID not found by Data.e5 name")
-
-    s22_victory_signal_section = -1
+    # S22's victory target is encoded by the only non-protected
+    # unit-HP-zero battlefield trigger. Derive it from the original event
+    # tree instead of depending on a localized Data.e5 display name.
+    s22_target_candidates = []
     for event in s22_event_probe:
         for trigger in event.get("triggers", []):
-            if (
-                trigger.get("type") == "unitHpEqualsZero"
-                and int(trigger.get("characterId", -1)) == yan_liang_id
-            ):
-                s22_victory_signal_section = int(event["section"])
-                break
-        if s22_victory_signal_section >= 0:
-            break
+            if trigger.get("type") != "unitHpEqualsZero":
+                continue
+            cid = int(trigger.get("characterId", -1))
+            if cid < 0 or cid in {1, 36}:
+                continue
+            s22_target_candidates.append((int(event["section"]), cid))
+
+    unique_s22_targets = sorted({
+        cid for _section, cid in s22_target_candidates
+    })
+    if len(unique_s22_targets) != 1:
+        raise SystemExit(
+            "S22 target HP-zero trigger is ambiguous: "
+            + repr(s22_target_candidates)
+        )
+
+    yan_liang_id = unique_s22_targets[0]
+    s22_victory_signal_section = next(
+        section
+        for section, cid in s22_target_candidates
+        if cid == yan_liang_id
+    )
 
     s22_units = []
     s22_skipped_actors = []
