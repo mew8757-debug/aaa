@@ -7440,6 +7440,22 @@ def main(argv):
             ],
             "outcomeCandidates": sorted(s14_outcome_probe.keys()),
             "outcomeDetail": s14_outcome_detail,
+            "eventRoutes": [
+                {
+                    "section": event["section"],
+                    "requireTrueVariables": event["requireTrueVariables"],
+                    "requireFalseVariables": event["requireFalseVariables"],
+                    "triggers": event["triggers"],
+                    "actionTypes": [
+                        action.get("type")
+                        for action in event.get("actions", [])
+                        if isinstance(action, dict)
+                    ],
+                    "actions": event.get("actions", []),
+                    "coreSupported": event["coreSupported"],
+                }
+                for event in s14_event_probe
+            ],
         },
         "battleEventSummary": {
             "candidateCount": len(s13_native_events),
