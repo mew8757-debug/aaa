@@ -1129,7 +1129,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v4.7 | R_01 Scene "
+            header = "Native v4.8 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1139,7 +1139,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.7 | R_02 Scene "
+            header = "Native v4.8 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1149,7 +1149,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.7 | R_03 Scene "
+            header = "Native v4.8 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1158,8 +1158,18 @@ public class MapView extends View {
                     + (storyTitle.isEmpty()
                     ? ""
                     : " · " + storyTitle);
+        } else if (r08StoryActive) {
+            header = "Native v4.8 | R_08 Scene "
+                    + Math.min(
+                    r08StorySceneIndex + 1,
+                    r08StoryScenes == null
+                            ? 1
+                            : r08StoryScenes.length())
+                    + (storyTitle.isEmpty()
+                    ? ""
+                    : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.7 | R_07 Scene "
+            header = "Native v4.8 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1169,7 +1179,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.7 | R_06 Scene "
+            header = "Native v4.8 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1179,7 +1189,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.7 | R_05 Scene "
+            header = "Native v4.8 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1189,7 +1199,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.7 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.8 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -1218,7 +1228,8 @@ public class MapView extends View {
                 || r03StoryActive
                 || r05StoryActive
                 || r06StoryActive
-                || r07StoryActive) {
+                || r07StoryActive
+                || r08StoryActive) {
             String status = "원본 " + currentStoryLabel()
                     + " 스토리 재생 중";
             if (!storyLocation.isEmpty()) {
@@ -3215,6 +3226,9 @@ public class MapView extends View {
 
 
     private String currentStoryLabel() {
+        if (r08StoryActive) {
+            return "R_08";
+        }
         if (r07StoryActive) {
             return "R_07";
         }
@@ -5236,7 +5250,40 @@ public class MapView extends View {
         }
 
         if (currentBattleIndex == 7) {
+            if (currentBattleIndex == 8) {
             for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS08DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+
+            if (round > turnLimit) {
+                startS08DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+
+            if (!hasAnyAliveFriendly()) {
+                startS08DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if ("enemy-annihilation".equals(battleMode)
+                    && !hasAnyAliveEnemy()) {
+                startS08VictoryOutcome();
+                return;
+            }
+            return;
+        }
+
+        for (int characterId : protectedCharacterIds) {
                 BattleUnit unit = findUnitByCharacterId(characterId);
                 if (unit != null && !unit.isAlive()) {
                     startS07DefeatOutcome(
