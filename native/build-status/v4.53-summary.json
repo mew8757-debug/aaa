@@ -1,7 +1,7 @@
 {
   "version": "4.53.0",
-  "sourceCommit": "508a58d04b22dfe3d8fbb0b1becf7b1e2547fb7d",
-  "status": "failure",
+  "sourceCommit": "6558219b3d2890b50ef44731169d6274614be0f2",
+  "status": "success",
   "r10Story": {
     "supported": true,
     "sceneCount": 26,
@@ -93036,5 +93036,92 @@
         ]
       }
     }
+  },
+  "s22Battle": {
+    "source": "RS/S_22.eex",
+    "battleMode": "s22-target-defeat-event-driven",
+    "map": "m022.jpg",
+    "widthTiles": 22,
+    "heightTiles": 24,
+    "playerCharacters": [
+      {
+        "characterId": 1,
+        "name": "관우"
+      }
+    ],
+    "allyCount": 11,
+    "enemyCount": 35,
+    "battleObjectives": {
+      "phase1": {
+        "objectiveText": "승리 조건\n★·안량 격퇴.\n\n패배 조건\n☆·관우 사망.\n☆·조조 사망.\n☆·20턴 초과.",
+        "popupText": "",
+        "turnLimit": 20,
+        "goal": {
+          "type": "kill-character",
+          "characterId": 108,
+          "name": "안량"
+        }
+      },
+      "phase2": {
+        "objectiveText": "",
+        "popupText": "",
+        "turnLimit": 20
+      },
+      "protectedCharacterIds": [
+        1,
+        36
+      ],
+      "protectedCharacters": [
+        {
+          "characterId": 1,
+          "name": "관우"
+        },
+        {
+          "characterId": 36,
+          "name": "조조"
+        }
+      ],
+      "phase1TransitionEvents": []
+    },
+    "eventCandidateCount": 22,
+    "eventSupportedCount": 22,
+    "rawEventCandidateCount": 24,
+    "rawEventSupportedCount": 24,
+    "unsupportedEvents": [],
+    "outcomeSupport": {
+      "victory": true,
+      "genericDefeat": true,
+      "postBattle": true,
+      "defeatByCharacter": {
+        "36": true,
+        "1": true
+      }
+    },
+    "routeModel": {
+      "targetCharacterId": 108,
+      "targetName": "안량",
+      "targetDefeatSignalSection": 27,
+      "victorySettlementSection": 28,
+      "defeatByCharacterSections": {
+        "36": 15,
+        "1": 16
+      },
+      "genericDefeatSection": 29,
+      "postBattleScene": "S03-SEC01"
+    },
+    "yanLiangId": 108,
+    "yanLiangSignalSection": 27,
+    "r22PlayerIds": [
+      1
+    ],
+    "skippedActors": [
+      {
+        "characterId": 250,
+        "name": "여상",
+        "faction": "enemy",
+        "source": "S_22:0x47:2",
+        "spriteId": 265
+      }
+    ]
   }
 }
