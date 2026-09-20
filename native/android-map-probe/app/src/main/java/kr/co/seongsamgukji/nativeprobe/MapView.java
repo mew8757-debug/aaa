@@ -178,6 +178,7 @@ public class MapView extends View {
     private JSONArray r12StoryScenes;
     private JSONArray r13StoryScenes;
     private JSONArray r14StoryScenes;
+    private JSONArray r15StoryScenes;
     private JSONObject s10AttackVictoryEvents;
     private int activeBattleActionIndex = 0;
     private long battleEventWaitUntil = 0L;
@@ -204,6 +205,7 @@ public class MapView extends View {
     private boolean r12StoryActive = false;
     private boolean r13StoryActive = false;
     private boolean r14StoryActive = false;
+    private boolean r15StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
@@ -217,6 +219,7 @@ public class MapView extends View {
     private boolean s12Ready = false;
     private boolean s13Ready = false;
     private boolean s14Ready = false;
+    private boolean s15Ready = false;
     private boolean s10DefenseRoute = false;
     private boolean s12AnnihilationRoute = false;
     private int s12RetreatVariable = 2;
@@ -247,6 +250,7 @@ public class MapView extends View {
     private int r12StorySceneIndex = 0;
     private int r13StorySceneIndex = 0;
     private int r14StorySceneIndex = 0;
+    private int r15StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -990,6 +994,11 @@ public class MapView extends View {
                 && r14Story.optBoolean("supported", false)) {
             r14StoryScenes = r14Story.optJSONArray("scenes");
         }
+        JSONObject r15Story = battle.optJSONObject("r15Story");
+        if (r15Story != null
+                && r15Story.optBoolean("supported", false)) {
+            r15StoryScenes = r15Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -1006,6 +1015,7 @@ public class MapView extends View {
         r12StoryActive = false;
         r13StoryActive = false;
         r14StoryActive = false;
+        r15StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
@@ -1019,6 +1029,7 @@ public class MapView extends View {
         s12Ready = false;
         s13Ready = false;
         s14Ready = false;
+        s15Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
@@ -1032,6 +1043,7 @@ public class MapView extends View {
         r12StorySceneIndex = 0;
         r13StorySceneIndex = 0;
         r14StorySceneIndex = 0;
+        r15StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
