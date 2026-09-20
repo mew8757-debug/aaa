@@ -2857,6 +2857,16 @@ def compile_r17_story(blob):
     )
 
 
+def compile_r18_story(blob):
+    return compile_r_story(
+        blob,
+        "R_18.eex",
+        1,
+        2,
+        "S_18.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -4968,19 +4978,56 @@ def main(argv):
                     stack.extend(node["children"])
             r18_departure_probe["candidateIds"] = candidate_ids
 
+    r18_story = compile_r18_story(r18)
     s18_init_probe = {
         "found": s18 is not None,
         "validEex": bool(s18 and s18.startswith(b"EEX")),
         "map": map18_probe,
     }
     s18_event_probe = []
+    s18_native_events = []
     s18_outcome_probe = {}
+    s18_outcome_events = {
+        "victoryByCharacter": {},
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s18 and s18.startswith(b"EEX"):
         s18_scenes = parse_scenario_tree(s18)
         s18_init_probe = probe_s01_initialization(s18)
         s18_init_probe["map"] = map18_probe
         s18_event_probe = extract_scene2_native_events(s18_scenes)
+        s18_native_events = [
+            event for event in s18_event_probe
+            if event["section"] not in {13, 18, 24, 30, 31}
+        ]
         s18_outcome_probe = probe_battle_outcome_candidates(s18_scenes)
+        s18_outcome_events = {
+            "victoryByCharacter": {
+                "119": compile_scenario_section_actions(
+                    s18_scenes, 2, 13
+                ),
+                "158": compile_scenario_section_actions(
+                    s18_scenes, 2, 24
+                ),
+            },
+            "defeatByCharacter": {
+                "0": compile_scenario_section_actions(
+                    s18_scenes, 2, 18
+                ),
+            },
+            "victory": compile_scenario_section_actions(
+                s18_scenes, 2, 30
+            ),
+            "genericDefeat": compile_scenario_section_actions(
+                s18_scenes, 2, 31
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s18_scenes, 3, 1
+            ),
+        }
 
     s17_route_model = {
         "outerCityClearSection": 5,
@@ -9223,6 +9270,7 @@ def main(argv):
         "outcomeProbe": s17_outcome_probe,
         "routeProbe": s17_route_probe,
         "routeModel": s17_route_model,
+        "r18Story": r18_story,
         "nextScenarioProbe": {
             "R_18.eex": r18_probe,
             "S_18.eex": s18_probe,
@@ -9291,6 +9339,254 @@ def main(argv):
     }
     (battle_dir / "battle17.json").write_text(
         json.dumps(s17_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # S18: R18 has no selectable departure pool. The S18 init block fixes
+    # nine player slots through 0x4A; preserve the original source order,
+    # with Liu Bei as the mandatory first player.
+    s18_units = []
+    s18_skipped_actors = []
+
+    def make_s18_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s18_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S18 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s18_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s18_player_ids = [0]
+    s18_seen_players = {0}
+    for row in s18_init_probe.get("scene1Section1InitCommands", []):
+        if row.get("commandId") != 0x4A:
+            continue
+        params = row.get("params", [])
+        for value in params[1:]:
+            if (
+                isinstance(value, int)
+                and 0 <= value < 1024
+                and value not in s18_seen_players
+            ):
+                s18_player_ids.append(int(value))
+                s18_seen_players.add(int(value))
+
+    s18_slots = sorted(
+        s18_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    s18_player_ids = s18_player_ids[:len(s18_slots)]
+
+    if not map18_probe.get("valid"):
+        raise SystemExit(
+            "M018 map probe invalid: " + repr(map18_probe)
+        )
+    if not r18_story.get("supported"):
+        raise SystemExit(
+            "R18 story unsupported: "
+            + repr(r18_story.get("unsupportedActionIds", []))
+        )
+    if len(s18_player_ids) != len(s18_slots):
+        raise SystemExit(
+            "S18 player roster/slot mismatch: "
+            + repr({
+                "players": s18_player_ids,
+                "slots": s18_slots,
+            })
+        )
+
+    for slot, cid in zip(s18_slots, s18_player_ids):
+        if not make_s18_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_18:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S18 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s18_init_probe.get("friendRecords", [])):
+        make_s18_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_18:0x46:{index}",
+        )
+
+    for index, row in enumerate(s18_init_probe.get("enemyRecords", [])):
+        make_s18_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_18:0x47:{index}",
+        )
+
+    s18_objective_text = (
+        s18_init_probe.get("objectiveTexts", [""])[0]
+        if s18_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s18_popup_text = (
+        s18_init_probe.get("objectivePopups", [""])[0]
+        if s18_init_probe.get("objectivePopups")
+        else ""
+    )
+    s18_turn_limit = objective_turn_limit(
+        s18_objective_text,
+        20,
+    )
+    s18_protected_ids = [0]
+
+    s18_battle = {
+        "version": 83,
+        "source": "RS/S_18.eex",
+        "battleMode": "s18-lubu-event-driven",
+        "mapId": 18,
+        "map": "m018.jpg",
+        "widthTiles": map18_probe["cols"],
+        "heightTiles": map18_probe["rows"],
+        "terrainFile": "terrain18.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s18_objective_text,
+                "popupText": s18_popup_text,
+                "turnLimit": s18_turn_limit,
+                "goal": {
+                    "type": "kill-character",
+                    "characterId": 119,
+                    "name": name_of(119),
+                },
+            },
+            "phase2": {
+                "objectiveText": s18_objective_text,
+                "popupText": s18_popup_text,
+                "turnLimit": s18_turn_limit,
+            },
+            "protectedCharacterIds": s18_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s18_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s18_native_events,
+        "outcomeEvents": s18_outcome_events,
+        "outcomeProbe": s18_outcome_probe,
+        "routeModel": {
+            "primaryTargetCharacterId": 119,
+            "alternateVictoryCharacterId": 158,
+            "victoryByCharacterSections": {
+                "119": 13,
+                "158": 24,
+            },
+            "genericVictorySection": 30,
+            "defeatByCharacterSections": {"0": 18},
+            "genericDefeatSection": 31,
+            "postBattleScene": "S03-SEC01",
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s18_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s18_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s18_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s18_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s18_native_events
+            ],
+        },
+        "terrainIds": map18_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s18_skipped_actors,
+        "r18PlayerIds": s18_player_ids,
+        "r18SelectionMode": "s18-0x4A-fixed-source-order",
+        "units": s18_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle18.json").write_text(
+        json.dumps(s18_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -9405,6 +9701,7 @@ def main(argv):
                 + s15_units
                 + s16_units
                 + s17_units
+                + s18_units
             )
         }
         | s09_special_sprite_ids

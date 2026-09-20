@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.42
+name: Build Native Android Battle v4.43
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.42 APK
+      - name: Build native v4.43 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.42.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.43.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.42 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.42 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.43 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.43 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.42 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.42" \
-              --notes "Native v4.42는 v4.41의 S17 외성 섬멸 승리 루트를 유지하면서 R_18.eex/S_18.eex/M018 probe 결과를 작은 compact 파일로 분리합니다. R18 마지막 Scene의 0x06/0x2D 출전 명령과 후보 인물, S18 초기 배치/맵/이벤트 지원률/승패 후보 전체 트리를 기록해 다음 버전에서 S17→R18→S18을 추측 없이 실제 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.43 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.43" \
+              --notes "Native v4.43은 S17 원본 승리 후 R_18 Scene 1 스토리와 Scene 2 출전 흐름을 재생한 뒤 M018/battle18로 실제 진입합니다. S18은 9명 플레이어·적군20명, 전장 이벤트 종료 Section을 제외한 일반 이벤트를 전부 실행하며 여포(119) 또는 초선(158) 격퇴 승리 분기, 유비 사망·20턴 초과·일반 패배, Scene3 정리를 원본 Section 13/24/18/30/31에 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.42 build status
+      - name: Record v4.43 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.42.0",
+              "version": "4.43.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.42.0",
+              "version": "4.43.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1917,7 +1917,92 @@ jobs:
               }
               status["s17Battle"] = compact["s17Battle"]
 
-          Path("native/build-status/v4.42-summary.json").write_text(
+          battle18_path = Path(
+              "native/android-map-probe/app/src/main/assets/battle/battle18.json"
+          )
+          if battle18_path.exists():
+              battle18 = json.loads(
+                  battle18_path.read_text(encoding="utf-8")
+              )
+              summary18 = battle18.get("battleEventSummary", {})
+              outcome18 = battle18.get("outcomeEvents", {})
+              compact["s18Battle"] = {
+                  "source": battle18.get("source"),
+                  "battleMode": battle18.get("battleMode"),
+                  "map": battle18.get("map"),
+                  "widthTiles": battle18.get("widthTiles"),
+                  "heightTiles": battle18.get("heightTiles"),
+                  "playerCharacters": [
+                      {
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                      }
+                      for u in battle18.get("units", [])
+                      if u.get("faction") == "player"
+                  ],
+                  "allyCount": sum(
+                      1 for u in battle18.get("units", [])
+                      if u.get("faction") == "ally"
+                  ),
+                  "enemyCount": sum(
+                      1 for u in battle18.get("units", [])
+                      if u.get("faction") == "enemy"
+                  ),
+                  "battleObjectives": battle18.get(
+                      "battleObjectives",
+                      {},
+                  ),
+                  "eventCandidateCount": summary18.get(
+                      "candidateCount"
+                  ),
+                  "eventSupportedCount": summary18.get(
+                      "coreSupportedCount"
+                  ),
+                  "rawEventCandidateCount": summary18.get(
+                      "rawCandidateCount"
+                  ),
+                  "rawEventSupportedCount": summary18.get(
+                      "rawCoreSupportedCount"
+                  ),
+                  "unsupportedEvents": [
+                      row for row in summary18.get("sections", [])
+                      if not row.get("coreSupported")
+                  ],
+                  "outcomeSupport": {
+                      "victory": outcome18.get(
+                          "victory",
+                          {},
+                      ).get("supported"),
+                      "genericDefeat": outcome18.get(
+                          "genericDefeat",
+                          {},
+                      ).get("supported"),
+                      "postBattle": outcome18.get(
+                          "postBattle",
+                          {},
+                      ).get("supported"),
+                      "victoryByCharacter": {
+                          key: value.get("supported")
+                          for key, value in outcome18.get(
+                              "victoryByCharacter",
+                              {},
+                          ).items()
+                      },
+                      "defeatByCharacter": {
+                          key: value.get("supported")
+                          for key, value in outcome18.get(
+                              "defeatByCharacter",
+                              {},
+                          ).items()
+                      },
+                  },
+                  "routeModel": battle18.get("routeModel", {}),
+                  "r18PlayerIds": battle18.get("r18PlayerIds", []),
+                  "skippedActors": battle18.get("skippedActors", []),
+              }
+              status["s18Battle"] = compact["s18Battle"]
+
+          Path("native/build-status/v4.43-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1930,7 +2015,7 @@ jobs:
           post_s17 = s17_compact.get("postS17Probe", {})
           next_probe = s17_compact.get("nextScenarioProbe", {})
           r18_small = {
-              "version": "4.42.0",
+              "version": "4.43.0",
               "status": os.environ["BUILD_STATUS"],
               "r18": next_probe.get("R_18.eex", {}),
               "s18": next_probe.get("S_18.eex", {}),
@@ -1950,7 +2035,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.42-r18.json").write_text(
+          Path("native/build-status/v4.43-r18.json").write_text(
               json.dumps(
                   r18_small,
                   ensure_ascii=False,
@@ -1959,7 +2044,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.42.json").write_text(
+          Path("native/build-status/v4.43.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1967,11 +2052,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.42.json native/build-status/v4.42-summary.json native/build-status/v4.42-r18.json
+          git add native/build-status/v4.43.json native/build-status/v4.43-summary.json native/build-status/v4.43-r18.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.42 build status"
+          git commit -m "Record native v4.43 build status"
           git push
