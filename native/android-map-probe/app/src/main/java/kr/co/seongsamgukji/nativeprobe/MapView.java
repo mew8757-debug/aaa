@@ -1967,27 +1967,29 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
 
-                    case "deploymentTest":
-                        String nextBattle = r09StoryActive
-                                ? "S_09"
-                                : (r08StoryActive
-                                ? "S_08"
-                                : (r07StoryActive
-                                ? "S_07"
-                                : (r06StoryActive
-                                ? "S_06"
-                                : (r05StoryActive
-                                ? "S_05"
-                                : (r03StoryActive
-                                ? "S_03"
-                                : (r02StoryActive
-                                ? "S_02"
-                                : "S_01")))))));
+                    case "deploymentTest": {
+                        String nextBattle = "S_01";
+                        if (r09StoryActive) {
+                            nextBattle = "S_09";
+                        } else if (r08StoryActive) {
+                            nextBattle = "S_08";
+                        } else if (r07StoryActive) {
+                            nextBattle = "S_07";
+                        } else if (r06StoryActive) {
+                            nextBattle = "S_06";
+                        } else if (r05StoryActive) {
+                            nextBattle = "S_05";
+                        } else if (r03StoryActive) {
+                            nextBattle = "S_03";
+                        } else if (r02StoryActive) {
+                            nextBattle = "S_02";
+                        }
                         lastCombatMessage = "원본 출전 확인 · "
                                 + nextBattle + " 준비";
                         combatMessageUntil = now + 1000L;
                         activeBattleActionIndex++;
                         break;
+                    }
 
                     case "dialogue":
                         dialogueSpeaker = action.optString("speaker", "");
