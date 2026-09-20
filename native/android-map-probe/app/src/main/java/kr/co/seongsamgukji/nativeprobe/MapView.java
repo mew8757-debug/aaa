@@ -2295,7 +2295,21 @@ public class MapView extends View {
 
                     case "deploymentTest": {
                         String nextBattle = "S_01";
-                        if (r10StoryActive) {
+                        if (r17StoryActive) {
+                            nextBattle = "S_17";
+                        } else if (r16StoryActive) {
+                            nextBattle = "S_16";
+                        } else if (r15StoryActive) {
+                            nextBattle = "S_15";
+                        } else if (r14StoryActive) {
+                            nextBattle = "S_14";
+                        } else if (r13StoryActive) {
+                            nextBattle = "S_13";
+                        } else if (r12StoryActive) {
+                            nextBattle = "S_12";
+                        } else if (r11StoryActive) {
+                            nextBattle = "S_11";
+                        } else if (r10StoryActive) {
                             nextBattle = "S_10";
                         } else if (r09StoryActive) {
                             nextBattle = "S_09";
@@ -3751,6 +3765,9 @@ public class MapView extends View {
 
 
     private String currentStoryLabel() {
+        if (r17StoryActive) {
+            return "R_17";
+        }
         if (r16StoryActive) {
             return "R_16";
         }
@@ -6718,6 +6735,16 @@ public class MapView extends View {
                 finishS16Outcome();
                 return;
             }
+            if ("s17Victory".equals(outcomeStage)
+                    || "s17Defeat".equals(outcomeStage)) {
+                startS17PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s17PostBattle".equals(outcomeStage)) {
+                finishS17Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -6780,6 +6807,10 @@ public class MapView extends View {
             finishR16StoryScene();
             return;
         }
+        if (r17StoryActive) {
+            finishR17StoryScene();
+            return;
+        }
 
         if (currentBattleIndex == 10
                 && scriptedBattleFailure
@@ -6840,6 +6871,15 @@ public class MapView extends View {
                 && !outcomeFlowActive) {
             scriptedBattleFailure = false;
             startS16DefeatOutcome(
+                    -1,
+                    "원본 전장 이벤트 패배 조건");
+            return;
+        }
+        if (currentBattleIndex == 17
+                && scriptedBattleFailure
+                && !outcomeFlowActive) {
+            scriptedBattleFailure = false;
+            startS17DefeatOutcome(
                     -1,
                     "원본 전장 이벤트 패배 조건");
             return;
