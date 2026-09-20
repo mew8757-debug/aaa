@@ -2806,6 +2806,16 @@ def compile_r14_story(blob):
     )
 
 
+def compile_r15_story(blob):
+    return compile_r_story(
+        blob,
+        "R_15.eex",
+        5,
+        6,
+        "S_15.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -3012,6 +3022,70 @@ def extract_r14_departure_players(blob, previous_ids):
             stack.extend(node["children"])
 
     return ids[:9]
+
+
+def extract_r15_departure_players(blob):
+    # R15 Scene 6 fixes Liu Bei/Guan Yu/Zhang Fei and exposes the
+    # remaining deployment pool through 0x2D sections. Until a dedicated
+    # deployment-selection UI is added, preserve original section order and
+    # choose the first two selectable members for the five S15 slots.
+    fixed = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return fixed, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 6:
+        return fixed, selectable
+
+    departure = scenes[5]
+    fixed_from_limit = []
+    selectable_from_sections = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed_from_limit
+                    ):
+                        fixed_from_limit.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in selectable_from_sections
+                ):
+                    selectable_from_sections.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed_from_limit:
+        if cid not in seen:
+            fixed.append(cid)
+            seen.add(cid)
+
+    # 0x2D also repeats fixed members in their own deployment sections.
+    for cid in selectable_from_sections:
+        if cid not in seen:
+            selectable.append(cid)
+
+    roster = (fixed + selectable)[:5]
+    return roster, selectable
 
 
 def build_next_scenario_probe(filename, blob):
@@ -4310,19 +4384,58 @@ def main(argv):
 
     r15_probe = build_next_scenario_probe("R_15.eex", r15)
     s15_probe = build_next_scenario_probe("S_15.eex", s15)
+    r15_story = compile_r15_story(r15)
+    r15_player_ids, r15_selectable_ids = extract_r15_departure_players(r15)
+
     s15_init_probe = {
         "found": s15 is not None,
         "validEex": bool(s15 and s15.startswith(b"EEX")),
         "map": map15_probe,
     }
     s15_event_probe = []
+    s15_native_events = []
     s15_outcome_probe = {}
+    s15_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s15 and s15.startswith(b"EEX"):
         s15_scenes = parse_scenario_tree(s15)
         s15_init_probe = probe_s01_initialization(s15)
         s15_init_probe["map"] = map15_probe
         s15_event_probe = extract_scene2_native_events(s15_scenes)
+        s15_native_events = [
+            event
+            for event in s15_event_probe
+            if event["section"] not in {15, 20, 21}
+        ]
         s15_outcome_probe = probe_battle_outcome_candidates(s15_scenes)
+        s15_outcome_events = {
+            "victory": compile_scenario_section_actions(
+                s15_scenes,
+                2,
+                20,
+            ),
+            "defeatByCharacter": {
+                "0": compile_scenario_section_actions(
+                    s15_scenes,
+                    2,
+                    15,
+                ),
+            },
+            "genericDefeat": compile_scenario_section_actions(
+                s15_scenes,
+                2,
+                21,
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s15_scenes,
+                3,
+                1,
+            ),
+        }
 
     s15_event_summary = {
         "candidateCount": len(s15_event_probe),
@@ -7866,6 +7979,10 @@ def main(argv):
             "R_15.eex": r15_probe,
             "S_15.eex": s15_probe,
         },
+        "r15Story": r15_story,
+        "r15PlayerIds": r15_player_ids,
+        "r15SelectableIds": r15_selectable_ids,
+        "r15SelectionMode": "fixed-plus-source-order-default",
         "s15InitProbe": s15_init_probe,
         "s15EventSummary": s15_event_summary,
         "s15OutcomeProbe": s15_outcome_probe,
@@ -7904,6 +8021,220 @@ def main(argv):
     }
     (battle_dir / "battle14.json").write_text(
         json.dumps(s14_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # S15: R15 fixes Liu Bei/Guan Yu/Zhang Fei, then exposes a selectable
+    # pool in Scene 6. Until deployment selection gets its own UI, use the
+    # first two selectable members in original section order as a stable
+    # default and preserve the whole pool in battle15.json.
+    s15_units = []
+    s15_skipped_actors = []
+
+    def make_s15_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s15_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S15 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s15_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s15_slots = sorted(
+        s15_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if not r15_story.get("supported"):
+        raise SystemExit(
+            "R15 story unsupported: "
+            + repr(r15_story.get("unsupportedActionIds", []))
+        )
+    if len(r15_player_ids) != 5:
+        raise SystemExit(
+            "R15 default departure roster must contain 5 characters: "
+            + repr([(cid, name_of(cid)) for cid in r15_player_ids])
+        )
+    if len(s15_slots) < len(r15_player_ids):
+        raise SystemExit(
+            "S15 player slot count too small: " + repr(s15_slots)
+        )
+
+    for slot, cid in zip(s15_slots, r15_player_ids):
+        if not make_s15_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_15:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S15 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s15_init_probe.get("friendRecords", [])):
+        make_s15_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_15:0x46:{index}",
+        )
+
+    for index, row in enumerate(s15_init_probe.get("enemyRecords", [])):
+        make_s15_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_15:0x47:{index}",
+        )
+
+    s15_objective_text = (
+        s15_init_probe.get("objectiveTexts", [""])[0]
+        if s15_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s15_popup_text = (
+        s15_init_probe.get("objectivePopups", [""])[0]
+        if s15_init_probe.get("objectivePopups")
+        else ""
+    )
+    s15_turn_limit = objective_turn_limit(
+        s15_objective_text,
+        15,
+    )
+    s15_protected_ids = [0]
+
+    s15_battle = {
+        "version": 76,
+        "source": "RS/S_15.eex",
+        "battleMode": "s15-annihilation-with-ally-survival",
+        "mapId": 15,
+        "map": "m015.jpg",
+        "widthTiles": map15_probe["cols"],
+        "heightTiles": map15_probe["rows"],
+        "terrainFile": "terrain15.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s15_objective_text,
+                "popupText": s15_popup_text,
+                "turnLimit": s15_turn_limit,
+            },
+            "phase2": {
+                "objectiveText": s15_objective_text,
+                "popupText": s15_popup_text,
+                "turnLimit": s15_turn_limit,
+            },
+            "protectedCharacterIds": s15_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s15_protected_ids
+            ],
+            "requireAllySurvival": True,
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s15_native_events,
+        "outcomeEvents": s15_outcome_events,
+        "outcomeProbe": s15_outcome_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s15_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s15_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s15_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s15_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s15_native_events
+            ],
+        },
+        "terrainIds": map15_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s15_skipped_actors,
+        "r15PlayerIds": r15_player_ids,
+        "r15SelectableIds": r15_selectable_ids,
+        "r15SelectionMode": "fixed-plus-source-order-default",
+        "units": s15_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle15.json").write_text(
+        json.dumps(s15_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -8014,6 +8345,7 @@ def main(argv):
                 + s12_units
                 + s13_units
                 + s14_units
+                + s15_units
             )
         }
         | s09_special_sprite_ids
