@@ -2877,6 +2877,16 @@ def compile_r19_story(blob):
     )
 
 
+def compile_r20_story(blob):
+    return compile_r_story(
+        blob,
+        "R_20.eex",
+        9,
+        10,
+        "S_20.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -3335,6 +3345,46 @@ def extract_r19_departure_players(blob):
 
     roster = (fixed + selectable)[:9]
     return roster, selectable
+
+
+
+def extract_counted_forced_roster(blob, scene_number=1, section_number=1):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if scene_number < 1 or scene_number > len(scenes):
+        return []
+    section = next(
+        (
+            row for row in scenes[scene_number - 1]["sections"]
+            if row["section"] == section_number
+        ),
+        None,
+    )
+    if section is None:
+        return []
+
+    stack = list(section["commands"])
+    while stack:
+        node = stack.pop(0)
+        if node["commandId"] == 0x4A:
+            params = [
+                int(value)
+                for value in node["params"]
+                if isinstance(value, int)
+            ]
+            if params:
+                count = params[0]
+                if 0 < count <= 10:
+                    roster = [
+                        value
+                        for value in params[1:1 + count]
+                        if 0 <= value < 1024
+                    ]
+                    if len(roster) == count:
+                        return roster
+        stack[0:0] = node["children"]
+    return []
 
 
 def build_next_scenario_probe(filename, blob):
@@ -5241,19 +5291,48 @@ def main(argv):
 
     r20_probe = build_next_scenario_probe("R_20.eex", r20)
     s20_probe = build_next_scenario_probe("S_20.eex", s20)
+    r20_story = compile_r20_story(r20)
+    s20_player_ids = extract_counted_forced_roster(s20)
     s20_init_probe = {
         "found": s20 is not None,
         "validEex": bool(s20 and s20.startswith(b"EEX")),
         "map": map20_probe,
     }
     s20_event_probe = []
+    s20_native_events = []
     s20_outcome_probe = {}
+    s20_outcome_events = {
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s20 and s20.startswith(b"EEX"):
         s20_scenes = parse_scenario_tree(s20)
         s20_init_probe = probe_s01_initialization(s20)
         s20_init_probe["map"] = map20_probe
         s20_event_probe = extract_scene2_native_events(s20_scenes)
+        s20_native_events = [
+            event for event in s20_event_probe
+            if event["section"] not in {3, 18, 19}
+        ]
         s20_outcome_probe = probe_battle_outcome_candidates(s20_scenes)
+        s20_outcome_events = {
+            "defeatByCharacter": {
+                "2": compile_scenario_section_actions(
+                    s20_scenes, 2, 3
+                ),
+            },
+            "victory": compile_scenario_section_actions(
+                s20_scenes, 2, 18
+            ),
+            "genericDefeat": compile_scenario_section_actions(
+                s20_scenes, 2, 19
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s20_scenes, 3, 1
+            ),
+        }
 
     s17_route_model = {
         "outerCityClearSection": 5,
@@ -10099,11 +10178,248 @@ def main(argv):
         "r19PlayerIds": s19_player_ids,
         "r19SelectableIds": r19_selectable_ids,
         "r19SelectionMode": "fixed-plus-source-order-selectables",
+        "r20Story": r20_story,
+        "s20PlayerIds": s20_player_ids,
         "units": s19_units,
         "openingEvents": [],
     }
     (battle_dir / "battle19.json").write_text(
         json.dumps(s19_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+
+    # S20: Zhang Fei's five-person detachment must defeat Liu Dai.
+    s20_units = []
+    s20_skipped_actors = []
+
+    def make_s20_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s20_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S20 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s20_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s20_slots = sorted(
+        s20_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+
+    if not map20_probe.get("valid"):
+        raise SystemExit(
+            "M020 map probe invalid: " + repr(map20_probe)
+        )
+    if not r20_story.get("supported"):
+        raise SystemExit(
+            "R20 story unsupported: "
+            + repr(r20_story.get("unsupportedActionIds", []))
+        )
+    if len(s20_player_ids) != len(s20_slots):
+        raise SystemExit(
+            "S20 forced roster/slot mismatch: "
+            + repr({
+                "players": s20_player_ids,
+                "slots": s20_slots,
+            })
+        )
+
+    for slot, cid in zip(s20_slots, s20_player_ids):
+        if not make_s20_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_20:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S20 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s20_init_probe.get("friendRecords", [])):
+        make_s20_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_20:0x46:{index}",
+        )
+
+    for index, row in enumerate(s20_init_probe.get("enemyRecords", [])):
+        make_s20_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_20:0x47:{index}",
+        )
+
+    s20_objective_text = (
+        s20_init_probe.get("objectiveTexts", [""])[0]
+        if s20_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s20_popup_text = (
+        s20_init_probe.get("objectivePopups", [""])[0]
+        if s20_init_probe.get("objectivePopups")
+        else ""
+    )
+    s20_turn_limit = objective_turn_limit(
+        s20_objective_text,
+        15,
+    )
+    s20_target_ids = [
+        cid for cid in range(1024)
+        if name_of(cid) == "유대"
+    ]
+    if len(s20_target_ids) != 1:
+        raise SystemExit(
+            "Unable to resolve unique S20 Liu Dai target: "
+            + repr(s20_target_ids)
+        )
+    s20_target_id = s20_target_ids[0]
+
+    s20_battle = {
+        "version": 87,
+        "source": "RS/S_20.eex",
+        "battleMode": "kill-target",
+        "mapId": 20,
+        "map": "m020.jpg",
+        "widthTiles": map20_probe["cols"],
+        "heightTiles": map20_probe["rows"],
+        "terrainFile": "terrain20.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s20_objective_text,
+                "popupText": s20_popup_text,
+                "turnLimit": s20_turn_limit,
+                "goal": {
+                    "type": "kill-character",
+                    "characterId": s20_target_id,
+                    "name": name_of(s20_target_id),
+                },
+            },
+            "phase2": {
+                "objectiveText": s20_objective_text,
+                "popupText": s20_popup_text,
+                "turnLimit": s20_turn_limit,
+            },
+            "protectedCharacterIds": [2],
+            "protectedCharacters": [
+                {"characterId": 2, "name": name_of(2)}
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s20_native_events,
+        "outcomeEvents": s20_outcome_events,
+        "outcomeProbe": s20_outcome_probe,
+        "routeModel": {
+            "targetCharacterId": s20_target_id,
+            "targetName": name_of(s20_target_id),
+            "victorySection": 18,
+            "defeatByCharacterSections": {"2": 3},
+            "genericDefeatSection": 19,
+            "postBattleScene": "S03-SEC01",
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s20_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s20_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s20_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s20_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s20_native_events
+            ],
+        },
+        "terrainIds": map20_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s20_skipped_actors,
+        "r20PlayerIds": s20_player_ids,
+        "units": s20_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle20.json").write_text(
+        json.dumps(s20_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -10220,6 +10536,7 @@ def main(argv):
                 + s17_units
                 + s18_units
                 + s19_units
+                + s20_units
             )
         }
         | s09_special_sprite_ids
