@@ -11067,9 +11067,11 @@ def main(argv):
 
 
 
-    # S22 uses the generic 0x42 battle-victory test. Identify the
-    # named target from the original 0x36 battlefield-status tests instead
-    # of assuming the narrower HpCur==0 form used by native_trigger_from_node.
+    # S22 Sections 17..27 are original officer-retreat tests and
+    # Section 28 is the battle-victory settlement. The objective target is
+    # therefore the final non-protected 0x36 target immediately before the
+    # victory-settlement section. Derive that relation from the script rather
+    # than hardcoding a character ID.
     s22_status_targets = []
     if s22 and s22.startswith(b"EEX"):
         for row in flatten_scenario_nodes(s22_scenes):
@@ -11087,16 +11089,33 @@ def main(argv):
                 "params": params,
             })
 
-    unique_s22_targets = sorted({
-        row["characterId"] for row in s22_status_targets
-    })
-    if len(unique_s22_targets) != 1:
+    s22_victory_settlement_section = 28
+    preceding_status_tests = [
+        row for row in s22_status_targets
+        if 0 <= row["section"] < s22_victory_settlement_section
+    ]
+    if not preceding_status_tests:
         raise SystemExit(
-            "S22 non-protected 0x36 target is ambiguous: "
-            + repr(s22_status_targets)
+            "S22 has no non-protected 0x36 test before victory settlement"
         )
 
-    yan_liang_id = unique_s22_targets[0]
+    s22_victory_signal_section = max(
+        row["section"] for row in preceding_status_tests
+    )
+    target_rows = [
+        row for row in preceding_status_tests
+        if row["section"] == s22_victory_signal_section
+    ]
+    target_ids = sorted({
+        row["characterId"] for row in target_rows
+    })
+    if len(target_ids) != 1:
+        raise SystemExit(
+            "S22 final pre-victory 0x36 target is ambiguous: "
+            + repr(target_rows)
+        )
+
+    yan_liang_id = target_ids[0]
     s22_enemy_ids = {
         int(row["person"])
         for row in s22_init_probe.get("enemyRecords", [])
@@ -11104,26 +11123,13 @@ def main(argv):
     }
     if yan_liang_id not in s22_enemy_ids:
         raise SystemExit(
-            "S22 target is not present in the original enemy deployment: "
+            "S22 final pre-victory target is not in enemy deployment: "
             + repr({
                 "target": yan_liang_id,
-                "statusTests": s22_status_targets,
+                "signalSection": s22_victory_signal_section,
                 "enemyIds": sorted(s22_enemy_ids),
             })
         )
-
-    # Keep the original target-status section as the victory signal so its
-    # dialogue/side effects run before settlement. If no valid section exists,
-    # runtime falls back to the target HP reaching zero.
-    s22_victory_signal_section = next(
-        (
-            row["section"]
-            for row in s22_status_targets
-            if row["characterId"] == yan_liang_id
-            and row["section"] >= 0
-        ),
-        -1,
-    )
 
     s22_units = []
     s22_skipped_actors = []
