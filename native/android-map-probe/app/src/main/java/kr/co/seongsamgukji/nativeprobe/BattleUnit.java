@@ -43,6 +43,12 @@ public class BattleUnit {
     public int spiritCondition;
     public int burstCondition;
     public int moraleCondition;
+    public int spiritBonus;
+    public boolean aiAreaEnabled;
+    public int aiAreaLeft;
+    public int aiAreaTop;
+    public int aiAreaRight;
+    public int aiAreaBottom;
 
     public final List<Integer> movePath = new ArrayList<>();
     public int movePathIndex;
@@ -103,6 +109,12 @@ public class BattleUnit {
         this.spiritCondition = 1;
         this.burstCondition = 1;
         this.moraleCondition = 1;
+        this.spiritBonus = 0;
+        this.aiAreaEnabled = false;
+        this.aiAreaLeft = 0;
+        this.aiAreaTop = 0;
+        this.aiAreaRight = 255;
+        this.aiAreaBottom = 255;
         this.movePathIndex = 0;
     }
 
