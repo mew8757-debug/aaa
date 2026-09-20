@@ -1212,7 +1212,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v4.21 | R_01 Scene "
+            header = "Native v4.22 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1222,7 +1222,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.21 | R_02 Scene "
+            header = "Native v4.22 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1232,7 +1232,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.21 | R_03 Scene "
+            header = "Native v4.22 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1242,7 +1242,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r11StoryActive) {
-            header = "Native v4.21 | R_11 Scene "
+            header = "Native v4.22 | R_11 Scene "
                     + Math.min(
                     r11StorySceneIndex + 1,
                     r11StoryScenes == null
@@ -1252,7 +1252,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r10StoryActive) {
-            header = "Native v4.21 | R_10 Scene "
+            header = "Native v4.22 | R_10 Scene "
                     + Math.min(
                     r10StorySceneIndex + 1,
                     r10StoryScenes == null
@@ -1262,7 +1262,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r09StoryActive) {
-            header = "Native v4.21 | R_09 Scene "
+            header = "Native v4.22 | R_09 Scene "
                     + Math.min(
                     r09StorySceneIndex + 1,
                     r09StoryScenes == null
@@ -1272,7 +1272,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r08StoryActive) {
-            header = "Native v4.21 | R_08 Scene "
+            header = "Native v4.22 | R_08 Scene "
                     + Math.min(
                     r08StorySceneIndex + 1,
                     r08StoryScenes == null
@@ -1282,7 +1282,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.21 | R_07 Scene "
+            header = "Native v4.22 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1292,7 +1292,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.21 | R_06 Scene "
+            header = "Native v4.22 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1302,7 +1302,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.21 | R_05 Scene "
+            header = "Native v4.22 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1312,7 +1312,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.21 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.22 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -4934,6 +4934,84 @@ public class MapView extends View {
         }
     }
 
+    private void startS11VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "S_11 원본 승리 조건 달성");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s11Victory";
+        battleVictory = true;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_11 승리 후일담";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS11DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s11Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_11 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS11PostBattleCleanup() {
+        outcomeStage = "s11PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS11Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_11 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS11Outcome() {
+        outcomeFlowActive = false;
+        endBattle(
+                battleVictory,
+                battleVictory
+                        ? "S_11 원본 승리 흐름 완료"
+                        : (battleResultText == null
+                        || battleResultText.isEmpty()
+                        ? "S_11 원본 패배 흐름 완료"
+                        : battleResultText));
+    }
+
     private void startR11Story() {
         outcomeFlowActive = false;
         r11StoryActive = true;
@@ -4957,7 +5035,7 @@ public class MapView extends View {
         if (r11StorySceneIndex >= r11StoryScenes.length()) {
             r11StoryActive = false;
             s11Ready = true;
-            endBattle(true, "R_11 완료 · S_11 전투 준비 완료");
+            enterS11Battle();
             return;
         }
 
@@ -5010,7 +5088,54 @@ public class MapView extends View {
                 "terrain10.bin");
     }
 
+    private void enterS11Battle() {
+        try {
+            loadS11Battle(getContext());
+            lastCombatMessage = "R_11 완료 · S_11 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            endBattle(
+                    false,
+                    "S_11 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS11Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle11.json",
+                11,
+                "m011.jpg",
+                "terrain11.bin");
+    }
+
     private String currentBattleLabel() {
+        if (currentBattleIndex == 11) {
+            return "S_11";
+        }
+        if (currentBattleIndex == 11) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS11DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS11DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+            // Victory remains event-driven. v4.22 packages a transition
+            // probe so the dawn/capture trigger can be bound exactly.
+            return;
+        }
+
         if (currentBattleIndex == 10) {
             return "S_10";
         }
@@ -5184,6 +5309,16 @@ public class MapView extends View {
                 finishS10Outcome();
                 return;
             }
+            if ("s11Victory".equals(outcomeStage)
+                    || "s11Defeat".equals(outcomeStage)) {
+                startS11PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s11PostBattle".equals(outcomeStage)) {
+                finishS11Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -5232,6 +5367,15 @@ public class MapView extends View {
                 && !outcomeFlowActive) {
             scriptedBattleFailure = false;
             startS10DefeatOutcome(
+                    -1,
+                    "원본 전장 이벤트 패배 조건");
+            return;
+        }
+        if (currentBattleIndex == 11
+                && scriptedBattleFailure
+                && !outcomeFlowActive) {
+            scriptedBattleFailure = false;
+            startS11DefeatOutcome(
                     -1,
                     "원본 전장 이벤트 패배 조건");
             return;
