@@ -2574,6 +2574,16 @@ def compile_r10_story(blob):
     )
 
 
+def compile_r11_story(blob):
+    return compile_r_story(
+        blob,
+        "R_11.eex",
+        9,
+        10,
+        "S_11.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -3604,6 +3614,7 @@ def main(argv):
     r11_probe = build_next_scenario_probe("R_11.eex", r11)
     s11_probe = build_next_scenario_probe("S_11.eex", s11)
     r10_story = compile_r10_story(r10)
+    r11_story = compile_r11_story(r11)
     r10_player_ids = extract_r10_departure_players(r10)
     s10_init_probe = {
         "found": s10 is not None,
@@ -3617,7 +3628,59 @@ def main(argv):
         s10_scenes = parse_scenario_tree(s10)
         s10_init_probe = probe_s01_initialization(s10)
         s10_event_probe = extract_scene2_native_events(s10_scenes)
-        s10_native_events = s10_event_probe
+        s10_event_by_section = {
+            event["section"]: event
+            for event in s10_event_probe
+        }
+
+        # S10 has two mutually exclusive objective routes selected in R10:
+        # var70 = defeat Zhang Xun or Ji Ling, var71 = defend for 15 turns.
+        # Keep the terminal HP sections out of the ordinary event pump so
+        # Android can finish the original outcome exactly once.
+        s10_native_events = [
+            event
+            for event in s10_event_probe
+            if event["section"] not in {24, 26, 41}
+        ]
+
+        def supported_event(section_number):
+            event = s10_event_by_section.get(section_number)
+            if event is None:
+                return {
+                    "scene": 2,
+                    "section": section_number,
+                    "coreSupported": False,
+                    "actions": [],
+                    "requireTrueVariables": [],
+                    "requireFalseVariables": [],
+                    "triggers": [],
+                }
+            return event
+
+        s10_outcome_events = {
+            "attackVictoryByCharacter": {
+                "137": supported_event(24),
+                "215": supported_event(26),
+            },
+            "defeatByCharacter": {
+                "0": supported_event(41),
+            },
+            "victory": compile_scenario_section_actions(
+                s10_scenes,
+                2,
+                50,
+            ),
+            "genericDefeat": compile_scenario_section_actions(
+                s10_scenes,
+                2,
+                51,
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s10_scenes,
+                3,
+                1,
+            ),
+        }
         s10_outcome_probe = probe_battle_outcome_candidates(s10_scenes)
         s10_outcome_detail = probe_selected_scenario_sections(
             s10_scenes,
@@ -3634,6 +3697,13 @@ def main(argv):
             s10_scenes
         )
     else:
+        s10_outcome_events = {
+            "attackVictoryByCharacter": {},
+            "defeatByCharacter": {},
+            "victory": {"supported": False, "actions": []},
+            "genericDefeat": {"supported": False, "actions": []},
+            "postBattle": {"supported": False, "actions": []},
+        }
         s10_transition_probe = {
             "sections": {},
             "relevantSectionIds": [],
@@ -6012,7 +6082,7 @@ def main(argv):
         )
 
     s10_battle = {
-        "version": 59,
+        "version": 60,
         "source": "RS/S_10.eex",
         "battleMode": "s10-event-driven",
         "mapId": 10,
@@ -6043,6 +6113,8 @@ def main(argv):
             "phase1TransitionEvents": [],
         },
         "battleEvents": s10_native_events,
+        "outcomeEvents": s10_outcome_events,
+        "r11Story": r11_story,
         "outcomeProbe": s10_outcome_probe,
         "outcomeDetail": s10_outcome_detail,
         "transitionProbe": s10_transition_probe,
