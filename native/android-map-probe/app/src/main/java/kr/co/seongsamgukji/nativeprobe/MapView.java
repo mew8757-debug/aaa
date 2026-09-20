@@ -6676,6 +6676,51 @@ public class MapView extends View {
         if (currentBattleIndex == 18) {
             return "S_18";
         }
+        if (currentBattleIndex == 18) {
+            BattleUnit liuBei = findUnitByCharacterId(0);
+            if (liuBei != null && !liuBei.isAlive()) {
+                startS18DefeatOutcome(
+                        0,
+                        "유비 사망 · 원본 패배 조건");
+                return;
+            }
+            if (round > turnLimit) {
+                startS18DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS18DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            BattleUnit luBu = findUnitByCharacterId(119);
+            if (luBu != null && !luBu.isAlive()) {
+                startS18VictoryOutcome(
+                        119,
+                        "여포 격퇴 · 원본 승리 조건");
+                return;
+            }
+
+            BattleUnit diaoChan = findUnitByCharacterId(158);
+            if (diaoChan != null && !diaoChan.isAlive()) {
+                startS18VictoryOutcome(
+                        158,
+                        "초선 격퇴 · 원본 승리 분기");
+                return;
+            }
+
+            if (!hasAnyAliveEnemy()) {
+                startS18VictoryOutcome(
+                        -1,
+                        "적군 전멸 · 원본 승리 처리");
+            }
+            return;
+        }
+
         if (currentBattleIndex == 17) {
             return "S_17";
         }
