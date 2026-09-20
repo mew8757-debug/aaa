@@ -3253,6 +3253,79 @@ def probe_selected_scenario_sections(scenes, selections):
 
 
 
+
+def extract_standard_outcome_events(
+    scenes,
+    protected_character_ids,
+):
+    result = {
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
+    if len(scenes) < 2:
+        return result
+
+    protected = set(int(v) for v in protected_character_ids)
+    flat = flatten_scenario_nodes(scenes)
+
+    for section in scenes[1]["sections"]:
+        section_id = section["section"]
+        root_rows = [
+            row for row in flat
+            if row["scene"] == 2
+            and row["section"] == section_id
+            and row["depth"] == 0
+        ]
+        root_ids = {row["commandId"] for row in root_rows}
+
+        if 0x42 in root_ids:
+            result["victory"] = compile_scenario_section_actions(
+                scenes,
+                2,
+                section_id,
+            )
+            continue
+
+        if 0x43 in root_ids:
+            result["genericDefeat"] = compile_scenario_section_actions(
+                scenes,
+                2,
+                section_id,
+            )
+            continue
+
+        for row in root_rows:
+            if row["commandId"] != 0x36:
+                continue
+            params = row["params"]
+            if (
+                len(params) >= 4
+                and int(params[0]) in protected
+                and int(params[1]) == 7
+                and int(params[2]) == 0
+                and int(params[3]) == 2
+            ):
+                result["defeatByCharacter"][str(int(params[0]))] = (
+                    compile_scenario_section_actions(
+                        scenes,
+                        2,
+                        section_id,
+                    )
+                )
+                break
+
+    if len(scenes) >= 3 and scenes[2]["sections"]:
+        result["postBattle"] = compile_scenario_section_actions(
+            scenes,
+            3,
+            scenes[2]["sections"][0]["section"],
+        )
+
+    return result
+
+
 def probe_battle_outcome_candidates(scenes):
     flat = flatten_scenario_nodes(scenes)
     section_keys = set()
@@ -4060,12 +4133,22 @@ def main(argv):
     }
     s13_event_probe = []
     s13_outcome_probe = {}
+    s13_outcome_events = {
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s13 and s13.startswith(b"EEX"):
         s13_scenes = parse_scenario_tree(s13)
         s13_init_probe = probe_s01_initialization(s13)
         s13_init_probe["map"] = map13_probe
         s13_event_probe = extract_scene2_native_events(s13_scenes)
         s13_outcome_probe = probe_battle_outcome_candidates(s13_scenes)
+        s13_outcome_events = extract_standard_outcome_events(
+            s13_scenes,
+            [0, 36],
+        )
 
     s12_init_probe = {
         "found": s12 is not None,
@@ -7251,7 +7334,7 @@ def main(argv):
     s13_protected_ids = [0, 36]
 
     s13_battle = {
-        "version": 69,
+        "version": 70,
         "source": "RS/S_13.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 13,
@@ -7283,6 +7366,7 @@ def main(argv):
             "phase1TransitionEvents": [],
         },
         "battleEvents": s13_native_events,
+        "outcomeEvents": s13_outcome_events,
         "outcomeProbe": s13_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s13_native_events),
