@@ -123,6 +123,11 @@ public class MapView extends View {
     private long scriptedEffectUntil = 0L;
     private int highlightedCharacterId = -1;
     private long highlightUntil = 0L;
+    private int highlightAreaX1 = -1;
+    private int highlightAreaY1 = -1;
+    private int highlightAreaX2 = -1;
+    private int highlightAreaY2 = -1;
+    private long highlightAreaUntil = 0L;
 
     private String lastCombatMessage;
     private long combatMessageUntil;
@@ -184,6 +189,7 @@ public class MapView extends View {
     private JSONArray r18StoryScenes;
     private JSONArray r19StoryScenes;
     private JSONArray r20StoryScenes;
+    private JSONArray r21StoryScenes;
     private JSONObject s10AttackVictoryEvents;
     private JSONObject s18VictoryOutcomeEvents;
     private int activeBattleActionIndex = 0;
@@ -217,6 +223,7 @@ public class MapView extends View {
     private boolean r18StoryActive = false;
     private boolean r19StoryActive = false;
     private boolean r20StoryActive = false;
+    private boolean r21StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
@@ -236,6 +243,7 @@ public class MapView extends View {
     private boolean s18Ready = false;
     private boolean s19Ready = false;
     private boolean s20Ready = false;
+    private boolean s21Ready = false;
     private boolean s10DefenseRoute = false;
     private boolean s12AnnihilationRoute = false;
     private int s12RetreatVariable = 2;
@@ -272,6 +280,7 @@ public class MapView extends View {
     private int r18StorySceneIndex = 0;
     private int r19StorySceneIndex = 0;
     private int r20StorySceneIndex = 0;
+    private int r21StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -881,6 +890,7 @@ public class MapView extends View {
         r18StoryScenes = null;
         r19StoryScenes = null;
         r20StoryScenes = null;
+        r21StoryScenes = null;
         s10AttackVictoryEvents = null;
         s18VictoryOutcomeEvents = null;
         s12VictoryByRouteEvents = null;
@@ -1054,6 +1064,11 @@ public class MapView extends View {
                 && r20Story.optBoolean("supported", false)) {
             r20StoryScenes = r20Story.optJSONArray("scenes");
         }
+        JSONObject r21Story = battle.optJSONObject("r21Story");
+        if (r21Story != null
+                && r21Story.optBoolean("supported", false)) {
+            r21StoryScenes = r21Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -1076,6 +1091,7 @@ public class MapView extends View {
         r18StoryActive = false;
         r19StoryActive = false;
         r20StoryActive = false;
+        r21StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
@@ -1095,6 +1111,7 @@ public class MapView extends View {
         s18Ready = false;
         s19Ready = false;
         s20Ready = false;
+        s21Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
@@ -1114,6 +1131,7 @@ public class MapView extends View {
         r18StorySceneIndex = 0;
         r19StorySceneIndex = 0;
         r20StorySceneIndex = 0;
+        r21StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
@@ -1133,6 +1151,11 @@ public class MapView extends View {
         scriptedEffectUntil = 0L;
         highlightedCharacterId = -1;
         highlightUntil = 0L;
+        highlightAreaX1 = -1;
+        highlightAreaY1 = -1;
+        highlightAreaX2 = -1;
+        highlightAreaY2 = -1;
+        highlightAreaUntil = 0L;
 
         battlePhase = currentBattleIndex == 12
                 && s12AnnihilationRoute ? 2 : 1;
@@ -2716,6 +2739,12 @@ public class MapView extends View {
                         battleEventWaitUntil = now + 120L;
                         return true;
 
+                    case "highlightArea":
+                        applyHighlightAreaAction(action, now);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 520L;
+                        return true;
+
                     case "highlightUnit":
                         applyHighlightUnitAction(action, now);
                         activeBattleActionIndex++;
@@ -3504,6 +3533,28 @@ public class MapView extends View {
         combatMessageUntil = SystemClock.uptimeMillis() + 1000L;
     }
 
+    private void applyHighlightAreaAction(
+            JSONObject action,
+            long now) {
+        highlightAreaX1 = Math.min(
+                action.optInt("x1", -1),
+                action.optInt("x2", -1));
+        highlightAreaY1 = Math.min(
+                action.optInt("y1", -1),
+                action.optInt("y2", -1));
+        highlightAreaX2 = Math.max(
+                action.optInt("x1", -1),
+                action.optInt("x2", -1));
+        highlightAreaY2 = Math.max(
+                action.optInt("y1", -1),
+                action.optInt("y2", -1));
+        highlightAreaUntil = now + 1100L;
+        lastCombatMessage = action.optInt("mode", 1) == 0
+                ? "승리 조건 지역 강조"
+                : "전장 지역 강조";
+        combatMessageUntil = now + 1100L;
+    }
+
     private void applyHighlightUnitAction(
             JSONObject action,
             long now) {
@@ -3881,6 +3932,9 @@ public class MapView extends View {
 
 
     private String currentStoryLabel() {
+        if (r21StoryActive) {
+            return "R_21";
+        }
         if (r20StoryActive) {
             return "R_20";
         }
@@ -7074,10 +7128,181 @@ public class MapView extends View {
                             : battleResultText);
             return;
         }
-        endBattle(true, "S_20 원본 승리 흐름 완료");
+        if (r21StoryScenes != null && r21StoryScenes.length() > 0) {
+            startR21Story();
+        } else {
+            endBattle(true, "S_20 원본 승리 흐름 완료");
+        }
+    }
+
+    private void startR21Story() {
+        outcomeFlowActive = false;
+        r21StoryActive = true;
+        r21StorySceneIndex = 0;
+        s21Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR21StoryScene();
+    }
+
+    private void startR21StoryScene() {
+        if (!r21StoryActive || r21StoryScenes == null) {
+            return;
+        }
+        if (r21StorySceneIndex >= r21StoryScenes.length()) {
+            r21StoryActive = false;
+            s21Ready = true;
+            enterS21Battle();
+            return;
+        }
+
+        JSONObject scene = r21StoryScenes.optJSONObject(
+                r21StorySceneIndex);
+        if (scene == null) {
+            r21StorySceneIndex++;
+            startR21StoryScene();
+            return;
+        }
+
+        prepareScriptActionSequence(scene.optJSONArray("actions"));
+        int sceneNumber = scene.optInt("scene", r21StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_21 Scene " + sceneNumber
+                + ("departure".equals(kind) ? " · 출전" : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR21StoryScene() {
+        r21StorySceneIndex++;
+        startR21StoryScene();
+    }
+
+    private void enterS21Battle() {
+        try {
+            loadS21Battle(getContext());
+            lastCombatMessage = "R_21 완료 · S_21 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            endBattle(
+                    false,
+                    "S_21 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS21Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle21.json",
+                21,
+                "m021.jpg",
+                "terrain21.bin");
+    }
+
+    private void startS21VictoryOutcome(boolean escapeRoute) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        battleVictory = true;
+        battleResultText = escapeRoute
+                ? "유비 탈출 · 원본 승리 조건"
+                : "적군 전멸 · 원본 승리 조건";
+        stopBattleForOutcome();
+
+        if (escapeRoute) {
+            outcomeFlowActive = true;
+            startS21PostBattleCleanup();
+            invalidate();
+            return;
+        }
+
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            startS21PostBattleCleanup();
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s21Victory";
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_21 승리 후일담";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS21DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s21Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_21 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS21PostBattleCleanup() {
+        outcomeFlowActive = true;
+        outcomeStage = "s21PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS21Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_21 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS21Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_21 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+        endBattle(true, "S_21 원본 승리 흐름 완료");
     }
 
     private String currentBattleLabel() {
+        if (currentBattleIndex == 21) {
+            return "S_21";
+        }
         if (currentBattleIndex == 20) {
             return "S_20";
         }
@@ -7382,6 +7607,16 @@ public class MapView extends View {
                 finishS20Outcome();
                 return;
             }
+            if ("s21Victory".equals(outcomeStage)
+                    || "s21Defeat".equals(outcomeStage)) {
+                startS21PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s21PostBattle".equals(outcomeStage)) {
+                finishS21Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -7458,6 +7693,10 @@ public class MapView extends View {
         }
         if (r20StoryActive) {
             finishR20StoryScene();
+            return;
+        }
+        if (r21StoryActive) {
+            finishR21StoryScene();
             return;
         }
 
@@ -8098,6 +8337,7 @@ public class MapView extends View {
                 || r18StoryActive
                 || r19StoryActive
                 || r20StoryActive
+                || r21StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
             return;
