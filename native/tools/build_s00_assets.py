@@ -1804,6 +1804,38 @@ def extract_s12_outcome_events(scenes):
     }
 
 
+def extract_s13_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            76,
+        ),
+        "defeatByCharacter": {
+            "36": compile_scenario_section_actions(
+                scenes,
+                2,
+                39,
+            ),
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                50,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            77,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 def extract_s12_route_model(scenes):
     if len(scenes) < 2:
         return {
@@ -2726,6 +2758,27 @@ def compile_r13_story(blob):
     )
 
 
+def compile_r14_story(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return compile_r_story(
+            blob,
+            "R_14.eex",
+            0,
+            1,
+            "S_14.eex",
+        )
+    scenes = parse_scenario_tree(blob)
+    departure_scene = max(1, len(scenes))
+    story_scene_count = max(0, departure_scene - 1)
+    return compile_r_story(
+        blob,
+        "R_14.eex",
+        story_scene_count,
+        departure_scene,
+        "S_14.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -3333,6 +3386,8 @@ def main(argv):
         s12 = read_member_by_basename(game1, "S_12.eex")
         r13 = read_member_by_basename(game1, "R_13.eex")
         s13 = read_member_by_basename(game1, "S_13.eex")
+        r14 = read_member_by_basename(game1, "R_14.eex")
+        s14 = read_member_by_basename(game1, "S_14.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3346,6 +3401,7 @@ def main(argv):
         map11_bytes = read_member_by_basename(game2, "m011.jpg")
         map12_bytes = read_member_by_basename(game2, "m012.jpg")
         map13_bytes = read_member_by_basename(game2, "m013.jpg")
+        map14_bytes = read_member_by_basename(game2, "m014.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -3372,6 +3428,8 @@ def main(argv):
             map12_bytes = read_member_by_basename(game1, "m012.jpg")
         if map13_bytes is None:
             map13_bytes = read_member_by_basename(game1, "m013.jpg")
+        if map14_bytes is None:
+            map14_bytes = read_member_by_basename(game1, "m014.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -3710,6 +3768,45 @@ def main(argv):
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
+    map14_probe = {
+        "filename": "m014.jpg",
+        "found": map14_bytes is not None,
+        "hexzmapEntry": 14,
+    }
+    if map14_bytes is not None:
+        try:
+            map14_width, map14_height = jpeg_dimensions(map14_bytes)
+            if map14_width % 48 != 0 or map14_height % 48 != 0:
+                raise ValueError(
+                    f"m014 dimensions not divisible by 48: "
+                    f"{map14_width}x{map14_height}"
+                )
+            map14_cols = map14_width // 48
+            map14_rows = map14_height // 48
+            terrain14_cells = extract_hexzmap_cells(
+                hexz,
+                14,
+                map14_cols,
+                map14_rows,
+            )
+            (map_dir / "m014.jpg").write_bytes(map14_bytes)
+            (battle_dir / "terrain14.bin").write_bytes(terrain14_cells)
+            map14_probe.update({
+                "valid": True,
+                "width": map14_width,
+                "height": map14_height,
+                "cols": map14_cols,
+                "rows": map14_rows,
+                "terrainCellCount": len(terrain14_cells),
+                "terrainIds": sorted(set(terrain14_cells)),
+            })
+        except Exception as exc:
+            map14_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
     terrain_power_blob = bytearray()
     move_cost_blob = bytearray()
     for family in range(JOB_FAMILY_COUNT):
@@ -4042,6 +4139,23 @@ def main(argv):
     s13_probe = build_next_scenario_probe("S_13.eex", s13)
     r13_story = compile_r13_story(r13)
     r13_player_ids = extract_r13_departure_players(r13)
+    r14_probe = build_next_scenario_probe("R_14.eex", r14)
+    s14_probe = build_next_scenario_probe("S_14.eex", s14)
+    r14_story = compile_r14_story(r14)
+    s14_init_probe = {
+        "found": s14 is not None,
+        "validEex": bool(s14 and s14.startswith(b"EEX")),
+        "map": map14_probe,
+    }
+    s14_event_probe = []
+    s14_outcome_probe = {}
+    if s14 and s14.startswith(b"EEX"):
+        s14_scenes = parse_scenario_tree(s14)
+        s14_init_probe = probe_s01_initialization(s14)
+        s14_init_probe["map"] = map14_probe
+        s14_event_probe = extract_scene2_native_events(s14_scenes)
+        s14_outcome_probe = probe_battle_outcome_candidates(s14_scenes)
+
     s13_init_probe = {
         "found": s13 is not None,
         "validEex": bool(s13 and s13.startswith(b"EEX")),
@@ -4050,11 +4164,18 @@ def main(argv):
     s13_event_probe = []
     s13_outcome_probe = {}
     s13_outcome_detail = {}
+    s13_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s13 and s13.startswith(b"EEX"):
         s13_scenes = parse_scenario_tree(s13)
         s13_init_probe = probe_s01_initialization(s13)
         s13_init_probe["map"] = map13_probe
         s13_event_probe = extract_scene2_native_events(s13_scenes)
+        s13_outcome_events = extract_s13_outcome_events(s13_scenes)
         s13_outcome_probe = probe_battle_outcome_candidates(s13_scenes)
         s13_outcome_detail = probe_selected_scenario_sections(
             s13_scenes,
@@ -7251,7 +7372,7 @@ def main(argv):
     s13_protected_ids = [0, 36]
 
     s13_battle = {
-        "version": 70,
+        "version": 71,
         "source": "RS/S_13.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 13,
@@ -7283,8 +7404,32 @@ def main(argv):
             "phase1TransitionEvents": [],
         },
         "battleEvents": s13_native_events,
+        "outcomeEvents": s13_outcome_events,
         "outcomeProbe": s13_outcome_probe,
         "outcomeDetail": s13_outcome_detail,
+        "r14Story": r14_story,
+        "nextScenarioProbe": {
+            "R_14.eex": r14_probe,
+            "S_14.eex": s14_probe,
+        },
+        "s14Probe": {
+            "init": s14_init_probe,
+            "eventCandidateCount": len(s14_event_probe),
+            "eventSupportedCount": sum(
+                1 for event in s14_event_probe
+                if event["coreSupported"]
+            ),
+            "unsupportedEvents": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                }
+                for event in s14_event_probe
+                if not event["coreSupported"]
+            ],
+            "outcomeCandidates": sorted(s14_outcome_probe.keys()),
+        },
         "battleEventSummary": {
             "candidateCount": len(s13_native_events),
             "coreSupportedCount": sum(
@@ -7505,6 +7650,29 @@ def main(argv):
         r13_story["unsupportedActionIds"],
         "players=",
         [(cid, name_of(cid)) for cid in r13_player_ids],
+    )
+    print(
+        "post-S13 probes=",
+        {
+            "R_14.eex": {
+                "found": r14_probe.get("found"),
+                "sceneCount": r14_probe.get("sceneCount"),
+                "sectionCounts": r14_probe.get("sectionCounts"),
+                "storySupported": r14_story.get("supported"),
+            },
+            "S_14.eex": {
+                "found": s14_probe.get("found"),
+                "sceneCount": s14_probe.get("sceneCount"),
+                "sectionCounts": s14_probe.get("sectionCounts"),
+                "map": map14_probe,
+                "events": len(s14_event_probe),
+                "coreSupported": sum(
+                    1 for event in s14_event_probe
+                    if event["coreSupported"]
+                ),
+                "outcomes": sorted(s14_outcome_probe.keys()),
+            },
+        },
     )
     print(
         "s13 battle units=",
