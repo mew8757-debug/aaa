@@ -3564,12 +3564,24 @@ def main(argv):
     s10_event_probe = []
     s10_native_events = []
     s10_outcome_probe = {}
+    s10_outcome_detail = {}
     if s10 and s10.startswith(b"EEX"):
         s10_scenes = parse_scenario_tree(s10)
         s10_init_probe = probe_s01_initialization(s10)
         s10_event_probe = extract_scene2_native_events(s10_scenes)
         s10_native_events = s10_event_probe
         s10_outcome_probe = probe_battle_outcome_candidates(s10_scenes)
+        s10_outcome_detail = probe_selected_scenario_sections(
+            s10_scenes,
+            [
+                (2, 24),
+                (2, 26),
+                (2, 41),
+                (2, 50),
+                (2, 51),
+                (3, 1),
+            ],
+        )
     s10_init_probe["map"] = map10_probe
 
     scene0 = int.from_bytes(s00[10:14], "little")
@@ -5772,6 +5784,7 @@ def main(argv):
         raise SystemExit("S10 map probe is not valid: " + repr(map10_probe))
 
     s10_units = []
+    s10_skipped_actors = []
 
     def make_s10_unit(
         cid,
@@ -5788,6 +5801,16 @@ def main(argv):
     ):
         sid = sprite_of(cid)
         if not sprite_record_valid(sid):
+            s10_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
             print(f"skip S10 actor {cid}: invalid sprite {sid}")
             return False
         profile = combat_profile_of(cid, deploy_level)
@@ -5896,13 +5919,20 @@ def main(argv):
     s10_turn_limit = max(s10_turn_candidates) if s10_turn_candidates else 15
 
     s10_special_sprite_ids = set()
+    s10_special_sprite_by_character = {}
 
     def collect_s10_special_sprites(actions):
         for action in actions:
             if action.get("type") == "specialSprite":
                 sid = int(action.get("spriteId", -1))
+                cid = int(action.get("characterId", -1))
                 if sid >= 0 and sprite_record_valid(sid):
                     s10_special_sprite_ids.add(sid)
+                    if cid >= 0:
+                        s10_special_sprite_by_character.setdefault(
+                            cid,
+                            set(),
+                        ).add(sid)
             nested = action.get("actions")
             if isinstance(nested, list):
                 collect_s10_special_sprites(nested)
@@ -5914,6 +5944,14 @@ def main(argv):
 
     for event in s10_native_events:
         collect_s10_special_sprites(event.get("actions", []))
+
+    for actor in s10_skipped_actors:
+        actor["eventSpecialSpriteIds"] = sorted(
+            s10_special_sprite_by_character.get(
+                actor["characterId"],
+                set(),
+            )
+        )
 
     s10_battle = {
         "version": 57,
@@ -5948,6 +5986,12 @@ def main(argv):
         },
         "battleEvents": s10_native_events,
         "outcomeProbe": s10_outcome_probe,
+        "outcomeDetail": s10_outcome_detail,
+        "skippedActors": s10_skipped_actors,
+        "specialSpriteAssignments": {
+            str(cid): sorted(sprite_ids)
+            for cid, sprite_ids in s10_special_sprite_by_character.items()
+        },
         "r10Story": r10_story,
         "battleEventSummary": {
             "candidateCount": len(s10_native_events),
