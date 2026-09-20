@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.20
+name: Build Native Android Battle v4.21
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.20 APK
+      - name: Build native v4.21 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.20.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.21.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.20 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.20 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.21 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.21 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.20 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.20" \
-              --notes "Native v4.20은 R10 선택 변수에 따라 S10의 두 원본 목표를 실제 분기 실행합니다. 변수70 경로는 Section 24/26의 원본 조건을 보존해 기령(137) 또는 장훈(215) 격퇴 시 해당 승리 연출을 재생하고, 변수71 경로는 15턴 방어 후 Section 50 승리 흐름을 실행합니다. 유비 사망은 Section 41, 일반 패배는 Section 51, 이후 Scene3 정리를 거쳐 R_11 Scene 1~9와 Scene10 출전 흐름을 재생하고 S_11 준비 상태까지 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.21 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.21" \
+              --notes "Native v4.21은 v4.20의 S10 종료→R11 흐름 뒤 실제 S_11 전투에 진입합니다. R11 Scene10 원본 0x06 출전 제한에서 10명 로스터를 추출하고, M011/Hexzmap entry11, S11 0x4B 플레이어 슬롯, 0x46 우군, 0x47 적군을 battle11.json으로 패키징합니다. S11 종료 후보 Section은 일반 이벤트에서 분리하고 나머지 Scene2 이벤트를 실행합니다. 종료 의미는 다음 단계에서 outcome probe를 기준으로 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.20 build status
+      - name: Record v4.21 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.20.0",
+              "version": "4.21.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.20.0",
+              "version": "4.21.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1112,7 +1112,49 @@ jobs:
                   },
               }
 
-          Path("native/build-status/v4.20-summary.json").write_text(
+
+          if "s11Battle" in status:
+              s11 = status["s11Battle"]
+              compact["s11Battle"] = {
+                  "source": s11.get("source"),
+                  "battleMode": s11.get("battleMode"),
+                  "map": s11.get("map"),
+                  "widthTiles": s11.get("widthTiles"),
+                  "heightTiles": s11.get("heightTiles"),
+                  "unitCount": s11.get("unitCount"),
+                  "playerCount": s11.get("playerCount"),
+                  "playerRoster": s11.get("playerRoster", []),
+                  "allyCount": s11.get("allyCount"),
+                  "enemyCount": s11.get("enemyCount"),
+                  "skippedActors": s11.get("skippedActors", []),
+                  "specialSpriteAssignments": s11.get(
+                      "specialSpriteAssignments",
+                      {},
+                  ),
+                  "battleObjectives": s11.get(
+                      "battleObjectives",
+                      {},
+                  ),
+                  "eventCandidateCount": s11.get(
+                      "battleEventSummary",
+                      {},
+                  ).get("candidateCount"),
+                  "eventSupportedCount": s11.get(
+                      "battleEventSummary",
+                      {},
+                  ).get("coreSupportedCount"),
+                  "unsupportedSections": [
+                      section
+                      for section in s11.get(
+                          "battleEventSummary",
+                          {},
+                      ).get("sections", [])
+                      if not section.get("coreSupported")
+                  ],
+                  "outcomeProbe": s11.get("outcomeProbe", {}),
+              }
+
+          Path("native/build-status/v4.21-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1121,7 +1163,59 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.20.json").write_text(
+
+          battle11_path = Path("native/android-map-probe/app/src/main/assets/battle/battle11.json")
+          if battle11_path.exists():
+              battle11 = json.loads(
+                  battle11_path.read_text(encoding="utf-8")
+              )
+              status["s11Battle"] = {
+                  "source": battle11.get("source"),
+                  "battleMode": battle11.get("battleMode"),
+                  "map": battle11.get("map"),
+                  "widthTiles": battle11.get("widthTiles"),
+                  "heightTiles": battle11.get("heightTiles"),
+                  "terrainIds": battle11.get("terrainIds", []),
+                  "unitCount": len(battle11.get("units", [])),
+                  "playerCount": sum(
+                      1 for u in battle11.get("units", [])
+                      if u.get("faction") == "player"
+                  ),
+                  "playerRoster": [
+                      {
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                          "x": u.get("x"),
+                          "y": u.get("y"),
+                      }
+                      for u in battle11.get("units", [])
+                      if u.get("faction") == "player"
+                  ],
+                  "allyCount": sum(
+                      1 for u in battle11.get("units", [])
+                      if u.get("faction") == "ally"
+                  ),
+                  "enemyCount": sum(
+                      1 for u in battle11.get("units", [])
+                      if u.get("faction") == "enemy"
+                  ),
+                  "skippedActors": battle11.get("skippedActors", []),
+                  "specialSpriteAssignments": battle11.get(
+                      "specialSpriteAssignments",
+                      {},
+                  ),
+                  "battleObjectives": battle11.get(
+                      "battleObjectives",
+                      {},
+                  ),
+                  "battleEventSummary": battle11.get(
+                      "battleEventSummary",
+                      {},
+                  ),
+                  "outcomeProbe": battle11.get("outcomeProbe", {}),
+              }
+
+          Path("native/build-status/v4.21.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1129,11 +1223,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.20.json native/build-status/v4.20-summary.json
+          git add native/build-status/v4.21.json native/build-status/v4.21-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.20 build status"
+          git commit -m "Record native v4.21 build status"
           git push
