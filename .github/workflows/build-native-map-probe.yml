@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.29
+name: Build Native Android Battle v4.30
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.29 APK
+      - name: Build native v4.30 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.29.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.30.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.29 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.29 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.30 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.30 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.29 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.29" \
-              --notes "Native v4.29는 S12 승리 후 R_13.eex Scene1~26 스토리와 Scene27 출전 흐름을 원본 순서로 재생하고, 원본 7인 roster를 M013의 7개 슬롯에 배치해 S_13 전투로 실제 진입합니다. battle13.json은 25턴·유비/조조 보호·적 전멸 기본 승패, S13 core-supported 전장 이벤트, 미지원 raw 명령과 승패 후보를 포함합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.30 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.30" \
+              --notes "Native v4.30은 S13의 남은 전장 명령 0x3B(무장 합류), 0x37(금전/장절/충간 전역값 조건), 0x0C(Section 종료), 0x38 능력5(최대 HP 변경)를 원본 편집기 의미대로 실행합니다. 목표는 S13 raw 이벤트 69/69 및 일반 전장 이벤트 67/67 지원입니다. 승패 Section 39/50/76/77과 Scene3의 원본 트리도 compact build-status에 기록해 다음 버전에서 종료 흐름을 바로 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.29 build status
+      - name: Record v4.30 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.29.0",
+              "version": "4.30.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.29.0",
+              "version": "4.30.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1412,13 +1412,45 @@ jobs:
                   "outcomeKeys": sorted(
                       battle13_summary.get("outcomeProbe", {}).keys()
                   ),
+                  "outcomeDetail": {
+                      key: {
+                          "root": [
+                              {
+                                  "commandId": row.get("commandId"),
+                                  "commandHex": row.get("commandHex"),
+                                  "params": row.get("params"),
+                                  "childCommandIds": row.get("childCommandIds"),
+                              }
+                              for row in rows
+                              if row.get("depth") == 0
+                          ],
+                          "keyActions": [
+                              {
+                                  "depth": row.get("depth"),
+                                  "commandId": row.get("commandId"),
+                                  "commandHex": row.get("commandHex"),
+                                  "params": row.get("params"),
+                              }
+                              for row in rows
+                              if row.get("commandId") in (
+                                  0x0B, 0x0C, 0x0D, 0x0E,
+                                  0x11, 0x3A, 0x3B, 0x3D,
+                                  0x49, 0x53, 0x59, 0x77
+                              )
+                          ],
+                      }
+                      for key, rows in battle13_summary.get(
+                          "outcomeDetail",
+                          {},
+                      ).items()
+                  },
                   "skippedActors": battle13_summary.get(
                       "skippedActors",
                       [],
                   ),
               }
 
-          Path("native/build-status/v4.29-summary.json").write_text(
+          Path("native/build-status/v4.30-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1427,7 +1459,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.29.json").write_text(
+          Path("native/build-status/v4.30.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1435,11 +1467,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.29.json native/build-status/v4.29-summary.json
+          git add native/build-status/v4.30.json native/build-status/v4.30-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.29 build status"
+          git commit -m "Record native v4.30 build status"
           git push
