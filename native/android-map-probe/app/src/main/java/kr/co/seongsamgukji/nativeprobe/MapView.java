@@ -1299,7 +1299,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v4.29 | R_01 Scene "
+            header = "Native v4.30 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1309,7 +1309,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.29 | R_02 Scene "
+            header = "Native v4.30 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1319,7 +1319,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.29 | R_03 Scene "
+            header = "Native v4.30 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1329,7 +1329,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r12StoryActive) {
-            header = "Native v4.29 | R_12 Scene "
+            header = "Native v4.30 | R_12 Scene "
                     + Math.min(
                     r12StorySceneIndex + 1,
                     r12StoryScenes == null
@@ -1339,7 +1339,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r11StoryActive) {
-            header = "Native v4.29 | R_11 Scene "
+            header = "Native v4.30 | R_11 Scene "
                     + Math.min(
                     r11StorySceneIndex + 1,
                     r11StoryScenes == null
@@ -1349,7 +1349,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r10StoryActive) {
-            header = "Native v4.29 | R_10 Scene "
+            header = "Native v4.30 | R_10 Scene "
                     + Math.min(
                     r10StorySceneIndex + 1,
                     r10StoryScenes == null
@@ -1359,7 +1359,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r09StoryActive) {
-            header = "Native v4.29 | R_09 Scene "
+            header = "Native v4.30 | R_09 Scene "
                     + Math.min(
                     r09StorySceneIndex + 1,
                     r09StoryScenes == null
@@ -1369,7 +1369,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r08StoryActive) {
-            header = "Native v4.29 | R_08 Scene "
+            header = "Native v4.30 | R_08 Scene "
                     + Math.min(
                     r08StorySceneIndex + 1,
                     r08StoryScenes == null
@@ -1379,7 +1379,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.29 | R_07 Scene "
+            header = "Native v4.30 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1389,7 +1389,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.29 | R_06 Scene "
+            header = "Native v4.30 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1399,7 +1399,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.29 | R_05 Scene "
+            header = "Native v4.30 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1409,7 +1409,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.29 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.30 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -2062,6 +2062,26 @@ public class MapView extends View {
                         break;
                     }
 
+                    case "conditionalGlobalCompare": {
+                        int globalId = action.optInt("globalId", -1);
+                        int actual = globalValues.getOrDefault(
+                                globalId,
+                                0);
+                        int expected = action.optInt("value", 0);
+                        int compare = action.optInt("compare", 0);
+                        boolean taken = compareScenarioInt(
+                                actual,
+                                expected,
+                                compare);
+                        lastBattleConditionalTaken = taken;
+                        if (taken && enterNestedBattleActions(
+                                action.optJSONArray("actions"))) {
+                            break;
+                        }
+                        activeBattleActionIndex++;
+                        break;
+                    }
+
                     case "conditionalIntegerCompare": {
                         int variableId = action.optInt("variableId", -1);
                         int actual = integerVariables.getOrDefault(
@@ -2452,6 +2472,12 @@ public class MapView extends View {
                         activeBattleActionIndex++;
                         break;
 
+                    case "unitMaxHpChange":
+                        applyUnitMaxHpChangeAction(action);
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 120L;
+                        return true;
+
                     case "unitHpChange":
                         applyUnitHpChangeAction(action);
                         activeBattleActionIndex++;
@@ -2576,6 +2602,15 @@ public class MapView extends View {
                                 + pendingScenarioJump;
                         combatMessageUntil = now + 900L;
                         activeBattleActionIndex++;
+                        break;
+
+                    case "endSection":
+                        battleActionStack.clear();
+                        battleActionIndexStack.clear();
+                        battleConditionalStack.clear();
+                        activeBattleActionIndex = activeBattleActions.length();
+                        lastCombatMessage = "원본 Section 종료";
+                        combatMessageUntil = now + 500L;
                         break;
 
                     case "sceneEnd":
@@ -3172,6 +3207,31 @@ public class MapView extends View {
         integerVariables.put(id, next);
     }
 
+
+    private void applyUnitMaxHpChangeAction(JSONObject action) {
+        BattleUnit unit = findUnitByCharacterId(
+                action.optInt("characterId", -1));
+        if (unit == null) {
+            return;
+        }
+
+        int value = action.optInt("value", unit.maxHp);
+        int operation = action.optInt("operation", 0);
+        int next = unit.maxHp;
+        if (operation == 0) {
+            next = value;
+        } else if (operation == 1) {
+            next = unit.maxHp + value;
+        } else if (operation == 2) {
+            next = unit.maxHp - value;
+        }
+
+        unit.maxHp = Math.max(1, next);
+        unit.hp = Math.min(unit.hp, unit.maxHp);
+        lastCombatMessage = unit.name
+                + " 최대 HP " + unit.maxHp;
+        combatMessageUntil = SystemClock.uptimeMillis() + 1000L;
+    }
 
     private void applyUnitHpChangeAction(JSONObject action) {
         BattleUnit unit = findUnitByCharacterId(
