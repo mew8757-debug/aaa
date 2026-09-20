@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.13
+name: Build Native Android Battle v4.14
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.13 APK
+      - name: Build native v4.14 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.13.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.14.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.13 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.13 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.14 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.14 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.13 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.13" \
-              --notes "Native v4.13은 S09의 두 원본 승리 루트를 분리합니다. 유비-도겸 인접은 Section1 이벤트 발동 조건으로만 사용하며, Section1이 전리품/0x49/변수0=1/변수609=1/0x0D까지 완료한 뒤에만 직접승리로 확정해 Scene3 정리로 넘어갑니다. 조조 격퇴 루트는 Section51의 변수56을 신호로 Section74 승리 후일담을 실행합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.14 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.14" \
+              --notes "Native v4.14는 v4.13의 S09 두 승리 루트를 유지하면서 다음 원본 R_10.eex/S_10.eex와 M010 지도를 자동 진단합니다. R10/S10 Scene/Section/명령 분포, S10 초기 배치·목표·전장 이벤트·승패 후보, M010 크기와 Hexzmap entry10 지형을 build-status에 기록합니다. 아직 R10→S10 플레이 전환은 하지 않고 원본 구조를 확정합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.13 build status
+      - name: Record v4.14 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.13.0",
+              "version": "4.14.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -436,6 +436,30 @@ jobs:
                   "allyCount": sum(1 for u in battle3.get("units", []) if u.get("faction") == "ally"),
                   "enemyCount": sum(1 for u in battle3.get("units", []) if u.get("faction") == "enemy"),
                   "goal": phase1.get("goal", {}),
+                  "dualVictorySignals": {
+                      "directVictoryVariable": phase1.get(
+                          "goal",
+                          {},
+                      ).get("directVictoryVariable"),
+                      "directVictoryCompletionVariable": phase1.get(
+                          "goal",
+                          {},
+                      ).get("directVictoryCompletionVariable"),
+                      "caoCaoDefeatVariable": phase1.get(
+                          "goal",
+                          {},
+                      ).get("caoCaoDefeatVariable"),
+                  },
+                  "nextScenarioProbe": battle9.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
+                  "s10InitProbe": battle9.get("s10InitProbe", {}),
+                  "s10EventProbe": battle9.get("s10EventProbe", []),
+                  "s10OutcomeProbe": battle9.get(
+                      "s10OutcomeProbe",
+                      {},
+                  ),
                   "dualVictorySignals": {
                       "directVictoryVariable": phase1.get(
                           "goal",
@@ -872,7 +896,7 @@ jobs:
                   "s08BattlePackaged": battle8_path.exists(),
               }
 
-          Path("native/build-status/v4.13.json").write_text(
+          Path("native/build-status/v4.14.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -880,11 +904,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.13.json
+          git add native/build-status/v4.14.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.13 build status"
+          git commit -m "Record native v4.14 build status"
           git push
