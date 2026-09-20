@@ -5789,6 +5789,10 @@ def main(argv):
     }
     s23_event_probe = []
     s23_outcome_probe = {}
+    s23_flat = []
+    s23_objective_text = ""
+    s23_popup_text = ""
+    s23_special_sprite_by_character = {}
     if s23 and s23.startswith(b"EEX"):
         s23_scenes = parse_scenario_tree(s23)
         s23_init_probe = probe_s01_initialization(s23)
@@ -5799,6 +5803,31 @@ def main(argv):
             s23_scenes,
             [(2, 5)],
         )
+        s23_flat = flatten_scenario_nodes(s23_scenes)
+        for row in s23_flat:
+            if (
+                row["commandId"] == 0x19
+                and row["params"]
+                and isinstance(row["params"][0], str)
+                and not s23_objective_text
+            ):
+                s23_objective_text = row["params"][0]
+            elif (
+                row["commandId"] == 0x1A
+                and row["params"]
+                and isinstance(row["params"][0], str)
+                and not s23_popup_text
+            ):
+                s23_popup_text = row["params"][0]
+            elif row["commandId"] == 0x75 and len(row["params"]) >= 2:
+                cid = int(row["params"][0])
+                sid = int(row["params"][1])
+                if (
+                    0 <= cid < 1024
+                    and sid >= 0
+                    and sprite_record_valid(sid)
+                ):
+                    s23_special_sprite_by_character[cid] = sid
     else:
         s23_section5_probe = {}
 
@@ -11489,6 +11518,7 @@ def main(argv):
             "S_23.eex": s23_probe,
         },
         "postS22Probe": post_s22_probe,
+        "r23Story": r23_story,
         "routeModel": {
             "targetCharacterId": yan_liang_id,
             "targetName": "안량",
@@ -11536,6 +11566,285 @@ def main(argv):
     }
     (battle_dir / "battle22.json").write_text(
         json.dumps(s22_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # R23 -> S23 (延津/연진): defeat Cao Cao or annihilate all enemies.
+    # Section 5 carries the objective text and the original 40/50 percent
+    # probability branches. Sections 33/40 are victory settlements,
+    # 35/36/37 are protected-character defeats, 41 is generic defeat.
+    s23_terminal_sections = {33, 35, 36, 37, 40, 41}
+    s23_native_events = [
+        event for event in s23_event_probe
+        if event["section"] not in s23_terminal_sections
+    ]
+    s23_outcome_events = {
+        "victoryByCharacter": {
+            "36": (
+                compile_scenario_section_actions(s23_scenes, 2, 33)
+                if s23 and s23.startswith(b"EEX")
+                else {"supported": False, "actions": []}
+            ),
+        },
+        "defeatByCharacter": {
+            "0": (
+                compile_scenario_section_actions(s23_scenes, 2, 35)
+                if s23 and s23.startswith(b"EEX")
+                else {"supported": False, "actions": []}
+            ),
+            "25": (
+                compile_scenario_section_actions(s23_scenes, 2, 36)
+                if s23 and s23.startswith(b"EEX")
+                else {"supported": False, "actions": []}
+            ),
+            "4": (
+                compile_scenario_section_actions(s23_scenes, 2, 37)
+                if s23 and s23.startswith(b"EEX")
+                else {"supported": False, "actions": []}
+            ),
+        },
+        "victory": (
+            compile_scenario_section_actions(s23_scenes, 2, 40)
+            if s23 and s23.startswith(b"EEX")
+            else {"supported": False, "actions": []}
+        ),
+        "genericDefeat": (
+            compile_scenario_section_actions(s23_scenes, 2, 41)
+            if s23 and s23.startswith(b"EEX")
+            else {"supported": False, "actions": []}
+        ),
+        "postBattle": (
+            compile_scenario_section_actions(s23_scenes, 3, 1)
+            if s23 and s23.startswith(b"EEX")
+            else {"supported": False, "actions": []}
+        ),
+    }
+
+    s23_units = []
+    s23_skipped_actors = []
+
+    def make_s23_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        default_sid = sprite_of(cid)
+        sid = s23_special_sprite_by_character.get(cid, default_sid)
+        if not sprite_record_valid(sid):
+            s23_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": sid,
+                "defaultSpriteId": default_sid,
+            })
+            print(f"skip S23 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s23_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s23_slots = sorted(
+        s23_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if not map23_probe.get("valid"):
+        raise SystemExit("M023 map probe invalid: " + repr(map23_probe))
+    if not r23_story.get("supported"):
+        raise SystemExit(
+            "R23 story unsupported: "
+            + repr(r23_story.get("unsupportedActionIds", []))
+        )
+    if len(s23_player_ids) != len(s23_slots):
+        raise SystemExit(
+            "S23 roster/slot mismatch: "
+            + repr({"players": s23_player_ids, "slots": s23_slots})
+        )
+
+    for slot, cid in zip(s23_slots, s23_player_ids):
+        if not make_s23_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_23:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S23 player {cid} has invalid default/special sprite"
+            )
+
+    for index, row in enumerate(s23_init_probe.get("friendRecords", [])):
+        make_s23_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_23:0x46:{index}",
+        )
+
+    for index, row in enumerate(s23_init_probe.get("enemyRecords", [])):
+        make_s23_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_23:0x47:{index}",
+        )
+
+    s23_turn_limit = objective_turn_limit(s23_objective_text, 25)
+    if s23_turn_limit != 25:
+        raise SystemExit(
+            "S23 expected 25-turn limit from objective text: "
+            + repr(s23_objective_text)
+        )
+
+    if name_of(36) != "조조":
+        raise SystemExit(f"S23 Cao Cao mapping mismatch: 36={name_of(36)}")
+    if name_of(0) != "유비":
+        raise SystemExit(f"S23 Liu Bei mapping mismatch: 0={name_of(0)}")
+
+    s23_battle = {
+        "version": 95,
+        "source": "RS/S_23.eex",
+        "battleMode": "s23-cao-cao-or-annihilation",
+        "mapId": 23,
+        "map": "m023.jpg",
+        "widthTiles": map23_probe["cols"],
+        "heightTiles": map23_probe["rows"],
+        "terrainFile": "terrain23.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s23_objective_text,
+                "popupText": s23_popup_text,
+                "turnLimit": s23_turn_limit,
+                "goal": {
+                    "type": "kill-character-or-annihilation",
+                    "characterId": 36,
+                    "name": name_of(36),
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s23_turn_limit,
+            },
+            "protectedCharacterIds": [0, 25, 4],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+                {"characterId": 25, "name": name_of(25)},
+                {"characterId": 4, "name": name_of(4)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s23_native_events,
+        "outcomeEvents": s23_outcome_events,
+        "outcomeProbe": s23_outcome_probe,
+        "routeModel": {
+            "targetCharacterId": 36,
+            "targetName": name_of(36),
+            "targetVictorySection": 33,
+            "genericVictorySection": 40,
+            "defeatByCharacterSections": {
+                "0": 35,
+                "25": 36,
+                "4": 37,
+            },
+            "genericDefeatSection": 41,
+            "postBattleScene": "S03-SEC01",
+            "probabilityBranches": [
+                {"percent": 40, "setVariable": 101},
+                {"percent": 50, "setVariable": 102, "conditionalOnPreviousFailure": True},
+                {"elseSetVariable": 103},
+            ],
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s23_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s23_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s23_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s23_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s23_native_events
+            ],
+        },
+        "terrainIds": map23_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s23_skipped_actors,
+        "r23PlayerIds": s23_player_ids,
+        "r23SelectableIds": r23_selectable_ids,
+        "specialSpriteAssignments": {
+            str(cid): sid
+            for cid, sid in s23_special_sprite_by_character.items()
+        },
+        "units": s23_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle23.json").write_text(
+        json.dumps(s23_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -11655,6 +11964,7 @@ def main(argv):
                 + s20_units
                 + s21_units
                 + s22_units
+                + s23_units
             )
         }
         | s09_special_sprite_ids
