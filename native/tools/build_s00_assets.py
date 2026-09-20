@@ -2917,6 +2917,77 @@ def compile_r22_story(blob):
     )
 
 
+def compile_r23_story(blob):
+    return compile_r_story(
+        blob,
+        "R_23.eex",
+        7,
+        8,
+        "S_23.eex",
+    )
+
+
+def extract_r23_departure_players(blob):
+    fixed = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return fixed, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 8:
+        return fixed, selectable
+
+    departure = scenes[7]
+    fixed_from_limit = []
+    selectable_from_sections = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed_from_limit
+                    ):
+                        fixed_from_limit.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in selectable_from_sections
+                ):
+                    selectable_from_sections.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed_from_limit:
+        if cid not in seen and len(fixed) < 6:
+            fixed.append(cid)
+            seen.add(cid)
+
+    for cid in selectable_from_sections:
+        if cid not in selectable:
+            selectable.append(cid)
+        if cid not in seen and len(fixed) < 6:
+            fixed.append(cid)
+            seen.add(cid)
+
+    return fixed[:6], selectable
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -5696,6 +5767,8 @@ def main(argv):
 
     r23_probe = build_next_scenario_probe("R_23.eex", r23)
     s23_probe = build_next_scenario_probe("S_23.eex", s23)
+    r23_story = compile_r23_story(r23)
+    s23_player_ids, r23_selectable_ids = extract_r23_departure_players(r23)
     s23_init_probe = {
         "found": s23 is not None,
         "validEex": bool(s23 and s23.startswith(b"EEX")),
@@ -5709,6 +5782,12 @@ def main(argv):
         s23_init_probe["map"] = map23_probe
         s23_event_probe = extract_scene2_native_events(s23_scenes)
         s23_outcome_probe = probe_battle_outcome_candidates(s23_scenes)
+        s23_section5_probe = probe_selected_scenario_sections(
+            s23_scenes,
+            [(2, 5)],
+        )
+    else:
+        s23_section5_probe = {}
 
     post_s22_probe = {
         "R_23.eex": r23_probe,
@@ -5732,6 +5811,18 @@ def main(argv):
             ],
         },
         "S23OutcomeProbe": s23_outcome_probe,
+        "S23Section5Probe": s23_section5_probe,
+        "R23Story": {
+            "supported": r23_story.get("supported"),
+            "sceneCount": r23_story.get("sceneCount"),
+            "unsupportedActionIds": r23_story.get(
+                "unsupportedActionIds",
+                [],
+            ),
+            "nextBattle": r23_story.get("nextBattle"),
+        },
+        "R23PlayerIds": s23_player_ids,
+        "R23SelectableIds": r23_selectable_ids,
     }
 
     s21_native_events = []
