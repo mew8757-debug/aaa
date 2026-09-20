@@ -1640,6 +1640,17 @@ public class MapView extends View {
                 && !r05StoryActive
                 && !r06StoryActive
                 && !r07StoryActive
+                && !r08StoryActive
+                && !r09StoryActive
+                && !r10StoryActive
+                && !r11StoryActive
+                && !r12StoryActive
+                && !r13StoryActive
+                && !r14StoryActive
+                && !r15StoryActive
+                && !r16StoryActive
+                && !r17StoryActive
+                && !r18StoryActive
                 && selectedUnit != null) {
             String terrainInfo = "";
             if (inBounds(selectedX, selectedY)) {
@@ -1710,6 +1721,14 @@ public class MapView extends View {
                 || r08StoryActive
                 || r09StoryActive
                 || r10StoryActive
+                || r11StoryActive
+                || r12StoryActive
+                || r13StoryActive
+                || r14StoryActive
+                || r15StoryActive
+                || r16StoryActive
+                || r17StoryActive
+                || r18StoryActive
                 || activeChoiceAction != null
                 || !playerTurn
                 || hasActiveAttackAnimation(now)
@@ -2334,7 +2353,9 @@ public class MapView extends View {
 
                     case "deploymentTest": {
                         String nextBattle = "S_01";
-                        if (r17StoryActive) {
+                        if (r18StoryActive) {
+                            nextBattle = "S_18";
+                        } else if (r17StoryActive) {
                             nextBattle = "S_17";
                         } else if (r16StoryActive) {
                             nextBattle = "S_16";
