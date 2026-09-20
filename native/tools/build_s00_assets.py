@@ -2806,6 +2806,16 @@ def compile_r14_story(blob):
     )
 
 
+def compile_r15_story(blob):
+    return compile_r_story(
+        blob,
+        "R_15.eex",
+        5,
+        6,
+        "S_15.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -3012,6 +3022,70 @@ def extract_r14_departure_players(blob, previous_ids):
             stack.extend(node["children"])
 
     return ids[:9]
+
+
+def extract_r15_departure_players(blob):
+    # R15 Scene 6 fixes Liu Bei/Guan Yu/Zhang Fei and exposes the
+    # remaining deployment pool through 0x2D sections. Until a dedicated
+    # deployment-selection UI is added, preserve original section order and
+    # choose the first two selectable members for the five S15 slots.
+    fixed = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return fixed, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 6:
+        return fixed, selectable
+
+    departure = scenes[5]
+    fixed_from_limit = []
+    selectable_from_sections = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed_from_limit
+                    ):
+                        fixed_from_limit.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in selectable_from_sections
+                ):
+                    selectable_from_sections.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed_from_limit:
+        if cid not in seen:
+            fixed.append(cid)
+            seen.add(cid)
+
+    # 0x2D also repeats fixed members in their own deployment sections.
+    for cid in selectable_from_sections:
+        if cid not in seen:
+            selectable.append(cid)
+
+    roster = (fixed + selectable)[:5]
+    return roster, selectable
 
 
 def build_next_scenario_probe(filename, blob):
