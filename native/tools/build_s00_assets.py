@@ -5622,28 +5622,6 @@ def main(argv):
     if not s22_player_ids:
         s22_player_ids = [1]
 
-    yan_liang_id = -1
-    if s22_init_probe.get("enemyRecords"):
-        for row in s22_init_probe["enemyRecords"]:
-            cid = int(row["person"])
-            if name_of(cid) == "안량":
-                yan_liang_id = cid
-                break
-    if yan_liang_id < 0:
-        raise SystemExit("S22 Yan Liang character ID not found by Data.e5 name")
-
-    s22_victory_signal_section = -1
-    for event in s22_event_probe:
-        for trigger in event.get("triggers", []):
-            if (
-                trigger.get("type") == "unitHpEqualsZero"
-                and int(trigger.get("characterId", -1)) == yan_liang_id
-            ):
-                s22_victory_signal_section = int(event["section"])
-                break
-        if s22_victory_signal_section >= 0:
-            break
-
     s22_terminal_sections = {15, 16, 28, 29}
     s22_native_events = [
         event for event in s22_event_probe
@@ -11088,6 +11066,28 @@ def main(argv):
     )
 
 
+
+    yan_liang_id = -1
+    if s22_init_probe.get("enemyRecords"):
+        for row in s22_init_probe["enemyRecords"]:
+            cid = int(row["person"])
+            if name_of(cid) == "안량":
+                yan_liang_id = cid
+                break
+    if yan_liang_id < 0:
+        raise SystemExit("S22 Yan Liang character ID not found by Data.e5 name")
+
+    s22_victory_signal_section = -1
+    for event in s22_event_probe:
+        for trigger in event.get("triggers", []):
+            if (
+                trigger.get("type") == "unitHpEqualsZero"
+                and int(trigger.get("characterId", -1)) == yan_liang_id
+            ):
+                s22_victory_signal_section = int(event["section"])
+                break
+        if s22_victory_signal_section >= 0:
+            break
 
     s22_units = []
     s22_skipped_actors = []
