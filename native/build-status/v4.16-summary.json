@@ -1,0 +1,256 @@
+{
+  "version": "4.16.0",
+  "sourceCommit": "29654e06d3d178959e6427eb6c77a26c83225f11",
+  "status": "success",
+  "r10Story": {
+    "supported": false,
+    "sceneCount": 26,
+    "unsupportedActionIds": [
+      32
+    ],
+    "nextBattle": "S_10.eex"
+  },
+  "r10SpecialFlow": [
+    {
+      "scene": 25,
+      "section": 1,
+      "depth": 1,
+      "commandId": 111,
+      "commandHex": "0x6F",
+      "params": [
+        40
+      ]
+    },
+    {
+      "scene": 25,
+      "section": 1,
+      "depth": 1,
+      "commandId": 111,
+      "commandHex": "0x6F",
+      "params": [
+        70
+      ]
+    },
+    {
+      "scene": 26,
+      "section": 2,
+      "depth": 0,
+      "commandId": 45,
+      "commandHex": "0x2D",
+      "params": [
+        1
+      ]
+    },
+    {
+      "scene": 26,
+      "section": 2,
+      "depth": 2,
+      "commandId": 4,
+      "commandHex": "0x04",
+      "params": [
+        1
+      ]
+    },
+    {
+      "scene": 26,
+      "section": 3,
+      "depth": 0,
+      "commandId": 45,
+      "commandHex": "0x2D",
+      "params": [
+        27
+      ]
+    },
+    {
+      "scene": 26,
+      "section": 4,
+      "depth": 0,
+      "commandId": 45,
+      "commandHex": "0x2D",
+      "params": [
+        26
+      ]
+    },
+    {
+      "scene": 26,
+      "section": 5,
+      "depth": 0,
+      "commandId": 45,
+      "commandHex": "0x2D",
+      "params": [
+        28
+      ]
+    },
+    {
+      "scene": 26,
+      "section": 6,
+      "depth": 0,
+      "commandId": 45,
+      "commandHex": "0x2D",
+      "params": [
+        66
+      ]
+    },
+    {
+      "scene": 26,
+      "section": 7,
+      "depth": 0,
+      "commandId": 45,
+      "commandHex": "0x2D",
+      "params": [
+        19
+      ]
+    },
+    {
+      "scene": 26,
+      "section": 8,
+      "depth": 0,
+      "commandId": 45,
+      "commandHex": "0x2D",
+      "params": [
+        20
+      ]
+    }
+  ],
+  "r10SceneCount": 26,
+  "r10SectionCounts": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    8
+  ],
+  "s10": {
+    "found": true,
+    "validEex": true,
+    "sceneCount": 3,
+    "sectionCounts": [
+      1,
+      51,
+      1
+    ],
+    "map": {
+      "filename": "m010.jpg",
+      "found": true,
+      "hexzmapEntry": 10,
+      "valid": true,
+      "width": 1152,
+      "height": 1344,
+      "cols": 24,
+      "rows": 28,
+      "terrainCellCount": 672,
+      "terrainIds": [
+        0,
+        2,
+        3,
+        4,
+        5,
+        12,
+        14,
+        20,
+        22,
+        23
+      ]
+    },
+    "playerSlots": [
+      {
+        "slot": 0,
+        "x": 2,
+        "y": 23,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 1,
+        "x": 3,
+        "y": 23,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 2,
+        "x": 2,
+        "y": 22,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 3,
+        "x": 3,
+        "y": 22,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 4,
+        "x": 5,
+        "y": 22,
+        "direction": 1,
+        "flag": 0
+      },
+      {
+        "slot": 5,
+        "x": 5,
+        "y": 23,
+        "direction": 1,
+        "flag": 0
+      },
+      {
+        "slot": 6,
+        "x": 2,
+        "y": 20,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 7,
+        "x": 3,
+        "y": 20,
+        "direction": 0,
+        "flag": 0
+      }
+    ],
+    "friendCount": 0,
+    "enemyCount": 44,
+    "objectiveTexts": [
+      "승리 조건\n★·장훈 또는 기령 격퇴.\n\n패배 조건\n☆·유비 사망.\n☆·아군 녹채 점령당함.",
+      "승리 조건\n★·15턴 동안 방어.\n\n패배 조건\n☆·유비 사망.\n☆·아군 녹채 점령당함."
+    ],
+    "objectivePopups": [
+      "장훈 또는 기령을 격퇴하라!",
+      "15턴 동안 지켜라!"
+    ],
+    "eventCandidateCount": 43,
+    "eventSupportedCount": 43,
+    "unsupportedEvents": [],
+    "outcomeSections": [
+      "S02-SEC24",
+      "S02-SEC26",
+      "S02-SEC41",
+      "S02-SEC50",
+      "S02-SEC51",
+      "S03-SEC01"
+    ]
+  }
+}
