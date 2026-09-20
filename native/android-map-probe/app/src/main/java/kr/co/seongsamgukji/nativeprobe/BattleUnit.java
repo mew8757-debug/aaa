@@ -12,7 +12,7 @@ public class BattleUnit {
     public final int movePoints;
     public final int attackRangeId;
     public final int level;
-    public final int maxHp;
+    public int maxHp;
 
     public int activeSpriteId;
     public int activeJobId;
