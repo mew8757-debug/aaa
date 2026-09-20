@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.15
+name: Build Native Android Battle v4.16
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.15 APK
+      - name: Build native v4.16 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.15.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.16.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.15 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.15 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.16 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.16 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.15 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.15" \
-              --notes "Native v4.15는 R_10.eex를 Scene1~25 스토리 + Scene26 출전 흐름으로 공용 R 실행기에 컴파일하고, S_10의 0x79 정수변수 비교 조건을 지원해 전장 이벤트 43/43을 목표로 합니다. R10의 0x04/0x2D/0x6F raw 흐름도 probe에 포함해 남는 미지원 명령을 정확히 확인합니다. 아직 S10 플레이 전환은 하지 않습니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.16 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.16" \
+              --notes "Native v4.16은 v4.15의 R10 스토리 컴파일과 S10 0x79 실행을 유지하면서, 큰 build-status와 별도로 R10 미지원 명령/특수 흐름, S10 이벤트 지원률, M010, 초기배치/목표, 승패 후보만 담은 작은 v4.16-summary.json을 기록합니다. 이 요약을 기준으로 battle10.json과 실제 R10→S10 전환을 다음 단계에서 즉시 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.15 build status
+      - name: Record v4.16 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.15.0",
+              "version": "4.16.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -913,7 +913,90 @@ jobs:
                   "s08BattlePackaged": battle8_path.exists(),
               }
 
-          Path("native/build-status/v4.15.json").write_text(
+          battle9_summary_path = Path(
+              "native/android-map-probe/app/src/main/assets/battle/battle9.json"
+          )
+          compact = {
+              "version": "4.16.0",
+              "sourceCommit": os.environ["GITHUB_SHA"],
+              "status": os.environ["BUILD_STATUS"],
+          }
+          if battle9_summary_path.exists():
+              battle9_summary = json.loads(
+                  battle9_summary_path.read_text(encoding="utf-8")
+              )
+              r10_story = battle9_summary.get("r10Story", {})
+              next_probe = battle9_summary.get("nextScenarioProbe", {})
+              r10_probe = next_probe.get("R_10.eex", {})
+              s10_probe = next_probe.get("S_10.eex", {})
+              s10_init = battle9_summary.get("s10InitProbe", {})
+              s10_events = battle9_summary.get("s10EventProbe", [])
+              s10_outcome = battle9_summary.get("s10OutcomeProbe", {})
+              compact.update({
+                  "r10Story": {
+                      "supported": r10_story.get("supported"),
+                      "sceneCount": r10_story.get("sceneCount"),
+                      "unsupportedActionIds": r10_story.get(
+                          "unsupportedActionIds",
+                          [],
+                      ),
+                      "nextBattle": r10_story.get("nextBattle"),
+                  },
+                  "r10SpecialFlow": [
+                      row
+                      for row in r10_probe.get("flowCommands", [])
+                      if row.get("commandId") in (0x04, 0x2D, 0x6F)
+                  ],
+                  "r10SceneCount": r10_probe.get("sceneCount"),
+                  "r10SectionCounts": r10_probe.get("sectionCounts", []),
+                  "s10": {
+                      "found": s10_probe.get("found"),
+                      "validEex": s10_probe.get("validEex"),
+                      "sceneCount": s10_probe.get("sceneCount"),
+                      "sectionCounts": s10_probe.get("sectionCounts", []),
+                      "map": s10_init.get("map", {}),
+                      "playerSlots": s10_init.get("playerSlots", []),
+                      "friendCount": len(s10_init.get("friendRecords", [])),
+                      "enemyCount": len(s10_init.get("enemyRecords", [])),
+                      "objectiveTexts": s10_init.get("objectiveTexts", []),
+                      "objectivePopups": s10_init.get("objectivePopups", []),
+                      "eventCandidateCount": len(s10_events),
+                      "eventSupportedCount": sum(
+                          1 for event in s10_events
+                          if event.get("coreSupported")
+                      ),
+                      "unsupportedEvents": [
+                          {
+                              "section": event.get("section"),
+                              "unsupportedTriggerIds": event.get(
+                                  "unsupportedTriggerIds",
+                                  [],
+                              ),
+                              "unsupportedActionIds": event.get(
+                                  "unsupportedActionIds",
+                                  [],
+                              ),
+                              "unsupportedActions": event.get(
+                                  "unsupportedActions",
+                                  [],
+                              ),
+                          }
+                          for event in s10_events
+                          if not event.get("coreSupported")
+                      ],
+                      "outcomeSections": sorted(s10_outcome.keys()),
+                  },
+              })
+          Path("native/build-status/v4.16-summary.json").write_text(
+              json.dumps(
+                  compact,
+                  ensure_ascii=False,
+                  indent=2,
+              ) + "\n",
+              encoding="utf-8",
+          )
+
+          Path("native/build-status/v4.16.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -921,11 +1004,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.15.json
+          git add native/build-status/v4.16.json native/build-status/v4.16-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.15 build status"
+          git commit -m "Record native v4.16 build status"
           git push
