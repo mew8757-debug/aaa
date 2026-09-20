@@ -1804,6 +1804,30 @@ def extract_s12_outcome_events(scenes):
     }
 
 
+def extract_s13_outcome_events(scenes):
+    return {
+        "defeatByCharacter": {
+            "36": compile_scenario_section_actions(scenes, 2, 39),
+            "0": compile_scenario_section_actions(scenes, 2, 50),
+        },
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            76,
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            77,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 def extract_s12_route_model(scenes):
     if len(scenes) < 2:
         return {
@@ -3333,6 +3357,8 @@ def main(argv):
         s12 = read_member_by_basename(game1, "S_12.eex")
         r13 = read_member_by_basename(game1, "R_13.eex")
         s13 = read_member_by_basename(game1, "S_13.eex")
+        r14 = read_member_by_basename(game1, "R_14.eex")
+        s14 = read_member_by_basename(game1, "S_14.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -4040,6 +4066,8 @@ def main(argv):
 
     r13_probe = build_next_scenario_probe("R_13.eex", r13)
     s13_probe = build_next_scenario_probe("S_13.eex", s13)
+    r14_probe = build_next_scenario_probe("R_14.eex", r14)
+    s14_probe = build_next_scenario_probe("S_14.eex", s14)
     r13_story = compile_r13_story(r13)
     r13_player_ids = extract_r13_departure_players(r13)
     s13_init_probe = {
@@ -4050,12 +4078,19 @@ def main(argv):
     s13_event_probe = []
     s13_outcome_probe = {}
     s13_outcome_detail = {}
+    s13_outcome_events = {
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s13 and s13.startswith(b"EEX"):
         s13_scenes = parse_scenario_tree(s13)
         s13_init_probe = probe_s01_initialization(s13)
         s13_init_probe["map"] = map13_probe
         s13_event_probe = extract_scene2_native_events(s13_scenes)
         s13_outcome_probe = probe_battle_outcome_candidates(s13_scenes)
+        s13_outcome_events = extract_s13_outcome_events(s13_scenes)
         s13_outcome_detail = probe_selected_scenario_sections(
             s13_scenes,
             [
@@ -7251,7 +7286,7 @@ def main(argv):
     s13_protected_ids = [0, 36]
 
     s13_battle = {
-        "version": 70,
+        "version": 71,
         "source": "RS/S_13.eex",
         "battleMode": "enemy-annihilation",
         "mapId": 13,
@@ -7283,8 +7318,13 @@ def main(argv):
             "phase1TransitionEvents": [],
         },
         "battleEvents": s13_native_events,
+        "outcomeEvents": s13_outcome_events,
         "outcomeProbe": s13_outcome_probe,
         "outcomeDetail": s13_outcome_detail,
+        "nextScenarioProbe": {
+            "R_14.eex": r14_probe,
+            "S_14.eex": s14_probe,
+        },
         "battleEventSummary": {
             "candidateCount": len(s13_native_events),
             "coreSupportedCount": sum(
