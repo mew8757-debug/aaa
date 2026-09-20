@@ -72,6 +72,7 @@ public class MapView extends View {
     private final Map<Integer, Integer> portraitOverrides = new HashMap<>();
     private final Map<Integer, Integer> globalValues = new HashMap<>();
     private final Map<Integer, Integer> itemInventory = new HashMap<>();
+    private final Map<Integer, int[]> equipmentState = new HashMap<>();
     private int pendingScenarioJump = -1;
     private final List<JSONArray> battleActionStack = new ArrayList<>();
     private final List<Integer> battleActionIndexStack = new ArrayList<>();
@@ -1146,7 +1147,7 @@ public class MapView extends View {
 
         String header;
         if (r01StoryActive) {
-            header = "Native v4.11 | R_01 Scene "
+            header = "Native v4.12 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1156,7 +1157,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.11 | R_02 Scene "
+            header = "Native v4.12 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1166,7 +1167,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.11 | R_03 Scene "
+            header = "Native v4.12 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1176,7 +1177,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r09StoryActive) {
-            header = "Native v4.11 | R_09 Scene "
+            header = "Native v4.12 | R_09 Scene "
                     + Math.min(
                     r09StorySceneIndex + 1,
                     r09StoryScenes == null
@@ -1186,7 +1187,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r08StoryActive) {
-            header = "Native v4.11 | R_08 Scene "
+            header = "Native v4.12 | R_08 Scene "
                     + Math.min(
                     r08StorySceneIndex + 1,
                     r08StoryScenes == null
@@ -1196,7 +1197,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.11 | R_07 Scene "
+            header = "Native v4.12 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1206,7 +1207,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.11 | R_06 Scene "
+            header = "Native v4.12 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1216,7 +1217,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.11 | R_05 Scene "
+            header = "Native v4.12 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1226,7 +1227,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.11 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.12 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -1932,6 +1933,11 @@ public class MapView extends View {
                         break;
                     }
 
+                    case "equipmentSet":
+                        applyEquipmentSetAction(action);
+                        activeBattleActionIndex++;
+                        break;
+
                     case "storyLocation":
                         storyLocation = action.optString("text", "");
                         lastCombatMessage = "장소 · " + storyLocation;
@@ -1962,7 +1968,11 @@ public class MapView extends View {
                         break;
 
                     case "deploymentTest":
-                        String nextBattle = r07StoryActive
+                        String nextBattle = r09StoryActive
+                                ? "S_09"
+                                : (r08StoryActive
+                                ? "S_08"
+                                : (r07StoryActive
                                 ? "S_07"
                                 : (r06StoryActive
                                 ? "S_06"
@@ -1972,7 +1982,7 @@ public class MapView extends View {
                                 ? "S_03"
                                 : (r02StoryActive
                                 ? "S_02"
-                                : "S_01"))));
+                                : "S_01")))))));
                         lastCombatMessage = "원본 출전 확인 · "
                                 + nextBattle + " 준비";
                         combatMessageUntil = now + 1000L;
@@ -2791,6 +2801,37 @@ public class MapView extends View {
             lastCombatMessage = "S형상 로드 실패 · " + spriteId;
         }
         combatMessageUntil = SystemClock.uptimeMillis() + 900L;
+    }
+
+
+    private void applyEquipmentSetAction(JSONObject action) {
+        int characterId = action.optInt("characterId", -1);
+        if (characterId < 0) {
+            return;
+        }
+
+        int weaponCode = action.optInt("weaponCode", 0);
+        int weaponLevel = action.optInt("weaponLevel", 0);
+        int armorCode = action.optInt("armorCode", 0);
+        int armorLevel = action.optInt("armorLevel", 0);
+        int auxiliaryCode = action.optInt("auxiliaryCode", 0);
+
+        equipmentState.put(
+                characterId,
+                new int[] {
+                        weaponCode,
+                        weaponLevel,
+                        armorCode,
+                        armorLevel,
+                        auxiliaryCode
+                });
+
+        lastCombatMessage = "장비 설정 · 인물 "
+                + characterId
+                + " · 무기 " + weaponCode
+                + " / 방어구 " + armorCode
+                + " / 보조 " + auxiliaryCode;
+        combatMessageUntil = SystemClock.uptimeMillis() + 1000L;
     }
 
     private void applyGlobalValueAction(JSONObject action) {
