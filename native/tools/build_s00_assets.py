@@ -698,7 +698,7 @@ def native_action_from_node(node):
     if (
         cid == 0x78
         and len(params) >= 4
-        and int(params[3]) in (0, 1, 7, 32, 33)
+        and int(params[3]) in (0, 1, 7, 8, 32, 33, 34)
     ):
         return {
             "type": "unitAttributeTransfer",
@@ -729,6 +729,22 @@ def native_action_from_node(node):
             "characterId": int(params[0]),
             "mode": int(params[1]) if len(params) >= 2 else 0,
         }
+
+    if cid == 0x52 and len(params) >= 2:
+        return {
+            "type": "jobChange",
+            "characterId": int(params[0]),
+            "jobId": int(params[1]),
+        }
+
+    if cid == 0x75 and len(params) >= 2:
+        return {
+            "type": "specialSprite",
+            "characterId": int(params[0]),
+            "spriteId": int(params[1]),
+            "refresh": int(params[2]) != 0 if len(params) >= 3 else True,
+        }
+
 
     if cid == 0x5D and len(params) >= 2:
         return {"type": "turnLimit", "value": int(params[1])}
@@ -3483,6 +3499,10 @@ def main(argv):
             1,
             initial_hp + job["growthHp"] * max(0, level - base_level),
         )
+        mp_max = max(
+            0,
+            initial_mp + job["growthMp"] * max(0, level - base_level),
+        )
 
         return {
             **job,
@@ -3501,6 +3521,7 @@ def main(argv):
             "burst": burst_value,
             "moralePanel": morale_value,
             "hpMax": hp_max,
+            "mpMax": mp_max,
         }
 
     def sprite_of(cid):
@@ -5467,6 +5488,53 @@ def main(argv):
     if name_of(36) != "조조":
         raise SystemExit(f"S09 Cao Cao mapping mismatch: 36={name_of(36)}")
 
+
+    s09_special_sprite_ids = set()
+
+    def enrich_s09_action_list(actions):
+        for action in actions:
+            action_type = action.get("type")
+            if action_type == "jobChange":
+                job_id = int(action["jobId"])
+                family = detailed_job_to_family(job_id)
+                growth_off = JOB_GROWTH_BASE + job_id * JOB_GROWTH_STRIDE
+                if growth_off + JOB_GROWTH_STRIDE > len(data):
+                    raise ValueError(
+                        f"S09 job change row out of range: {job_id}"
+                    )
+                growth = data[
+                    growth_off:growth_off + JOB_GROWTH_STRIDE
+                ]
+                action["jobFamily"] = family
+                action["movePoints"] = int(growth[0])
+                action["attackRangeId"] = int(growth[1])
+            elif action_type == "specialSprite":
+                sid = int(action["spriteId"])
+                if sprite_record_valid(sid):
+                    s09_special_sprite_ids.add(sid)
+
+            nested = action.get("actions")
+            if isinstance(nested, list):
+                enrich_s09_action_list(nested)
+            for case in action.get("cases", []):
+                if isinstance(case, dict):
+                    case_actions = case.get("actions")
+                    if isinstance(case_actions, list):
+                        enrich_s09_action_list(case_actions)
+
+    for event in s09_native_events:
+        enrich_s09_action_list(event.get("actions", []))
+    for outcome_key in ("victory", "genericDefeat", "postBattle"):
+        outcome = s09_outcome_events.get(outcome_key)
+        if isinstance(outcome, dict):
+            enrich_s09_action_list(outcome.get("actions", []))
+    for outcome in s09_outcome_events.get(
+        "defeatByCharacter",
+        {},
+    ).values():
+        if isinstance(outcome, dict):
+            enrich_s09_action_list(outcome.get("actions", []))
+
     s09_battle = {
         "version": 51,
         "source": "RS/S_09.eex",
@@ -5629,21 +5697,24 @@ def main(argv):
         encoding="utf-8",
     )
 
-    sprite_ids = sorted({
-        u["spriteId"]
-        for u in (
-            units
-            + s01_units
-            + s02_units
-            + s03_units
-            + s04_units
-            + s05_units
-            + s06_units
-            + s07_units
-            + s08_units
-            + s09_units
-        )
-    })
+    sprite_ids = sorted(
+        {
+            u["spriteId"]
+            for u in (
+                units
+                + s01_units
+                + s02_units
+                + s03_units
+                + s04_units
+                + s05_units
+                + s06_units
+                + s07_units
+                + s08_units
+                + s09_units
+            )
+        }
+        | s09_special_sprite_ids
+    )
     for sid in sprite_ids:
         specs = (
             ("unit_mov", mov, 48, 48, 11),
