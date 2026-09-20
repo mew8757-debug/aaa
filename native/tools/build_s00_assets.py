@@ -617,6 +617,68 @@ def native_action_from_node(node):
             "value": int(params[3]),
         }
 
+    if (
+        cid == 0x38
+        and len(params) >= 4
+        and int(params[1]) in (0, 1, 2, 3, 4)
+    ):
+        return {
+            "type": "unitPanelChange",
+            "characterId": int(params[0]),
+            "panel": int(params[1]),
+            "operation": int(params[2]),
+            "value": int(params[3]),
+        }
+
+
+
+    # 0x72 / extended command 11:
+    # line 1 = movement rectangle, following line(s) = DATA character ids.
+    if (
+        cid == 0x72
+        and len(params) >= 2
+        and int(params[0]) == 11
+        and isinstance(params[1], str)
+    ):
+        lines = [
+            line.strip()
+            for line in params[1].replace("\r", "").split("\n")
+            if line.strip()
+        ]
+        if lines:
+            area_match = re.fullmatch(
+                r"\s*(-?\d+)\s*,\s*(-?\d+)\s*\|"
+                r"\s*(-?\d+)\s*,\s*(-?\d+)\s*",
+                lines[0],
+            )
+            if area_match:
+                x1, y1, x2, y2 = (
+                    int(area_match.group(i))
+                    for i in range(1, 5)
+                )
+                ids = []
+                for line in lines[1:]:
+                    for token in re.split(r"[,|\s]+", line):
+                        if not token:
+                            continue
+                        try:
+                            ids.append(int(token))
+                        except ValueError:
+                            pass
+                return {
+                    "type": "aiAreaLimit",
+                    "x1": x1,
+                    "y1": y1,
+                    "x2": x2,
+                    "y2": y2,
+                    "enabled": not (
+                        x1 == 0
+                        and y1 == 0
+                        and x2 == 255
+                        and y2 == 255
+                    ),
+                    "characterIds": ids,
+                }
 
     # 0x58: object/display/terrain/x/y/viewpoint/sound.
     if cid == 0x58 and len(params) >= 7:
@@ -636,7 +698,7 @@ def native_action_from_node(node):
     if (
         cid == 0x78
         and len(params) >= 4
-        and int(params[3]) in (0, 7, 32, 33)
+        and int(params[3]) in (0, 1, 7, 32, 33)
     ):
         return {
             "type": "unitAttributeTransfer",
@@ -1563,6 +1625,38 @@ def extract_s07_outcome_events(scenes):
             scenes,
             2,
             56,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
+def extract_s08_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            52,
+        ),
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                36,
+            ),
+            "149": compile_scenario_section_actions(
+                scenes,
+                2,
+                37,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            53,
         ),
         "postBattle": compile_scenario_section_actions(
             scenes,
@@ -3183,6 +3277,11 @@ def main(argv):
     }
     s08_event_probe = extract_scene2_native_events(s08_scenes)
     s08_outcome_probe = probe_battle_outcome_candidates(s08_scenes)
+    s08_native_events = extract_scene2_native_events(
+        s08_scenes,
+        excluded_sections={36, 37, 52, 53},
+    )
+    s08_outcome_events = extract_s08_outcome_events(s08_scenes)
 
     scene0 = int.from_bytes(s00[10:14], "little")
     section_count = u16(s00, scene0)
