@@ -3470,6 +3470,8 @@ def main(argv):
         s13 = read_member_by_basename(game1, "S_13.eex")
         r14 = read_member_by_basename(game1, "R_14.eex")
         s14 = read_member_by_basename(game1, "S_14.eex")
+        r15 = read_member_by_basename(game1, "R_15.eex")
+        s15 = read_member_by_basename(game1, "S_15.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3484,6 +3486,7 @@ def main(argv):
         map12_bytes = read_member_by_basename(game2, "m012.jpg")
         map13_bytes = read_member_by_basename(game2, "m013.jpg")
         map14_bytes = read_member_by_basename(game2, "m014.jpg")
+        map15_bytes = read_member_by_basename(game2, "m015.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -3512,6 +3515,8 @@ def main(argv):
             map13_bytes = read_member_by_basename(game1, "m013.jpg")
         if map14_bytes is None:
             map14_bytes = read_member_by_basename(game1, "m014.jpg")
+        if map15_bytes is None:
+            map15_bytes = read_member_by_basename(game1, "m015.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -3884,6 +3889,44 @@ def main(argv):
             })
         except Exception as exc:
             map14_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    map15_probe = {
+        "filename": "m015.jpg",
+        "found": map15_bytes is not None,
+        "hexzmapEntry": 15,
+    }
+    if map15_bytes is not None:
+        try:
+            map15_width, map15_height = jpeg_dimensions(map15_bytes)
+            if map15_width % 48 != 0 or map15_height % 48 != 0:
+                raise ValueError(
+                    f"m015 dimensions not divisible by 48: "
+                    f"{map15_width}x{map15_height}"
+                )
+            map15_cols = map15_width // 48
+            map15_rows = map15_height // 48
+            terrain15_cells = extract_hexzmap_cells(
+                hexz,
+                15,
+                map15_cols,
+                map15_rows,
+            )
+            (map_dir / "m015.jpg").write_bytes(map15_bytes)
+            (battle_dir / "terrain15.bin").write_bytes(terrain15_cells)
+            map15_probe.update({
+                "valid": True,
+                "width": map15_width,
+                "height": map15_height,
+                "cols": map15_cols,
+                "rows": map15_rows,
+                "terrainCellCount": len(terrain15_cells),
+                "terrainIds": sorted(set(terrain15_cells)),
+            })
+        except Exception as exc:
+            map15_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -4264,6 +4307,40 @@ def main(argv):
                 (3, 1),
             ],
         )
+
+    r15_probe = build_next_scenario_probe("R_15.eex", r15)
+    s15_probe = build_next_scenario_probe("S_15.eex", s15)
+    s15_init_probe = {
+        "found": s15 is not None,
+        "validEex": bool(s15 and s15.startswith(b"EEX")),
+        "map": map15_probe,
+    }
+    s15_event_probe = []
+    s15_outcome_probe = {}
+    if s15 and s15.startswith(b"EEX"):
+        s15_scenes = parse_scenario_tree(s15)
+        s15_init_probe = probe_s01_initialization(s15)
+        s15_init_probe["map"] = map15_probe
+        s15_event_probe = extract_scene2_native_events(s15_scenes)
+        s15_outcome_probe = probe_battle_outcome_candidates(s15_scenes)
+
+    s15_event_summary = {
+        "candidateCount": len(s15_event_probe),
+        "coreSupportedCount": sum(
+            1 for event in s15_event_probe
+            if event["coreSupported"]
+        ),
+        "unsupportedSections": [
+            {
+                "section": event["section"],
+                "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                "unsupportedActionIds": event["unsupportedActionIds"],
+                "nestedBranchCount": event["nestedBranchCount"],
+            }
+            for event in s15_event_probe
+            if not event["coreSupported"]
+        ],
+    }
 
     s13_init_probe = {
         "found": s13 is not None,
@@ -7785,6 +7862,13 @@ def main(argv):
         "outcomeEvents": s14_outcome_events,
         "outcomeProbe": s14_outcome_probe,
         "outcomeDetail": s14_outcome_detail,
+        "nextScenarioProbe": {
+            "R_15.eex": r15_probe,
+            "S_15.eex": s15_probe,
+        },
+        "s15InitProbe": s15_init_probe,
+        "s15EventSummary": s15_event_summary,
+        "s15OutcomeProbe": s15_outcome_probe,
         "battleEventSummary": {
             "candidateCount": len(s14_native_events),
             "coreSupportedCount": sum(
@@ -8037,6 +8121,28 @@ def main(argv):
         s14_turn_limit,
         "escape=",
         (0, 1, 19),
+    )
+    print(
+        "post-S14 probes=",
+        {
+            "R_15.eex": {
+                "found": r15_probe.get("found"),
+                "sceneCount": r15_probe.get("sceneCount"),
+                "sectionCounts": r15_probe.get("sectionCounts"),
+            },
+            "S_15.eex": {
+                "found": s15_probe.get("found"),
+                "sceneCount": s15_probe.get("sceneCount"),
+                "sectionCounts": s15_probe.get("sectionCounts"),
+                "map": map15_probe,
+                "events": len(s15_event_probe),
+                "coreSupported": sum(
+                    1 for event in s15_event_probe
+                    if event["coreSupported"]
+                ),
+                "outcomes": sorted(s15_outcome_probe.keys()),
+            },
+        },
     )
     print(
         "s13 battle units=",
