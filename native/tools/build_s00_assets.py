@@ -5558,7 +5558,7 @@ def main(argv):
             enrich_s09_action_list(outcome.get("actions", []))
 
     s09_battle = {
-        "version": 51,
+        "version": 52,
         "source": "RS/S_09.eex",
         "battleMode": "s09-xuzhou-rescue",
         "mapId": 9,
@@ -5581,6 +5581,10 @@ def main(argv):
                     "caoCaoCharacterId": 36,
                     "taoQianCharacterId": 145,
                     "caoCaoDefeatVariable": 56,
+                    "directVictoryVariable": 0,
+                    "directVictoryCompletionVariable": 609,
+                    "directVictorySection": 1,
+                    "caoCaoDefeatSection": 51,
                 },
             },
             "phase2": {
