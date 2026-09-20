@@ -11067,34 +11067,48 @@ def main(argv):
 
 
 
-    # S22's victory target is encoded by the only non-protected
-    # unit-HP-zero battlefield trigger. Derive it from the original event
-    # tree instead of depending on a localized Data.e5 display name.
-    s22_target_candidates = []
-    for event in s22_event_probe:
-        for trigger in event.get("triggers", []):
-            if trigger.get("type") != "unitHpEqualsZero":
-                continue
-            cid = int(trigger.get("characterId", -1))
-            if cid < 0 or cid in {1, 36}:
-                continue
-            s22_target_candidates.append((int(event["section"]), cid))
+    # S22's original objective text names Yan Liang, but this scenario
+    # uses the engine-level battle-victory test (0x42) rather than a
+    # per-character HP-zero trigger. Resolve the target from the complete
+    # Data.e5 character table, accepting the Korean and Chinese spellings,
+    # then verify that the resolved actor is present in the S22 enemy table.
+    yan_liang_names = {"안량", "颜良", "顏良"}
+    yan_liang_matches = []
+    character_count = max(0, (len(data) - 0x18C) // 0x20)
+    for cid in range(character_count):
+        char_off = 0x18C + cid * 0x20
+        raw_name = data[char_off:char_off + 13].split(b"\\0", 1)[0]
+        if not raw_name:
+            continue
+        char_name = raw_name.decode("cp949", "replace").strip()
+        if char_name in yan_liang_names:
+            yan_liang_matches.append((cid, char_name))
 
-    unique_s22_targets = sorted({
-        cid for _section, cid in s22_target_candidates
-    })
-    if len(unique_s22_targets) != 1:
+    if len(yan_liang_matches) != 1:
         raise SystemExit(
-            "S22 target HP-zero trigger is ambiguous: "
-            + repr(s22_target_candidates)
+            "S22 Yan Liang Data.e5 match is ambiguous: "
+            + repr(yan_liang_matches)
         )
 
-    yan_liang_id = unique_s22_targets[0]
-    s22_victory_signal_section = next(
-        section
-        for section, cid in s22_target_candidates
-        if cid == yan_liang_id
-    )
+    yan_liang_id = yan_liang_matches[0][0]
+    s22_enemy_ids = {
+        int(row["person"])
+        for row in s22_init_probe.get("enemyRecords", [])
+        if int(row.get("person", -1)) >= 0
+    }
+    if yan_liang_id not in s22_enemy_ids:
+        raise SystemExit(
+            "S22 Yan Liang is not present in the original enemy deployment: "
+            + repr({
+                "target": yan_liang_matches[0],
+                "enemyIds": sorted(s22_enemy_ids),
+            })
+        )
+
+    # No explicit HP-zero signal exists in S22; the original uses the
+    # generic 0x42 battle-victory test. The runtime therefore falls back to
+    # the resolved target's HP reaching zero.
+    s22_victory_signal_section = -1
 
     s22_units = []
     s22_skipped_actors = []
