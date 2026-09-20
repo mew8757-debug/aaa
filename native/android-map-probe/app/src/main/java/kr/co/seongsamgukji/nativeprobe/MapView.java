@@ -5540,6 +5540,82 @@ public class MapView extends View {
         startR15StoryScene();
     }
 
+    private void startR16Story() {
+        outcomeFlowActive = false;
+        r16StoryActive = true;
+        r16StorySceneIndex = 0;
+        s16Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR16StoryScene();
+    }
+
+    private void startR16StoryScene() {
+        if (!r16StoryActive || r16StoryScenes == null) {
+            return;
+        }
+        if (r16StorySceneIndex >= r16StoryScenes.length()) {
+            r16StoryActive = false;
+            s16Ready = true;
+            enterS16Battle();
+            return;
+        }
+
+        JSONObject scene = r16StoryScenes.optJSONObject(
+                r16StorySceneIndex);
+        if (scene == null) {
+            r16StorySceneIndex++;
+            startR16StoryScene();
+            return;
+        }
+
+        prepareScriptActionSequence(scene.optJSONArray("actions"));
+        int sceneNumber = scene.optInt(
+                "scene",
+                r16StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_16 Scene " + sceneNumber
+                + ("departure".equals(kind)
+                ? " · 출전"
+                : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR16StoryScene() {
+        r16StorySceneIndex++;
+        startR16StoryScene();
+    }
+
+    private void enterS16Battle() {
+        try {
+            loadS16Battle(getContext());
+            lastCombatMessage = "R_16 완료 · S_16 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            endBattle(
+                    false,
+                    "S_16 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS16Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle16.json",
+                16,
+                "m016.jpg",
+                "terrain16.bin");
+    }
+
     private void enterS15Battle() {
         try {
             loadS15Battle(getContext());
