@@ -1836,6 +1836,33 @@ def extract_s13_outcome_events(scenes):
     }
 
 
+def extract_s14_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            35,
+        ),
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                34,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            36,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 def extract_s12_route_model(scenes):
     if len(scenes) < 2:
         return {
@@ -2930,6 +2957,61 @@ def extract_r13_departure_players(blob):
     # R13's deployment pool is seven members. Keep the original 0x2D
     # section order, with Liu Bei as the mandatory first slot.
     return ids[:7]
+
+
+def extract_r14_departure_players(blob, previous_ids):
+    ids = []
+    seen = set()
+
+    for value in previous_ids:
+        cid = int(value)
+        if 0 <= cid < 1024 and cid not in seen:
+            ids.append(cid)
+            seen.add(cid)
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return ids
+
+    scenes = parse_scenario_tree(blob)
+    if not scenes:
+        return ids
+
+    departure = scenes[-1]
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            # R14 Section 2 carries the fixed deployment members in 0x06.
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in seen
+                    ):
+                        ids.append(int(value))
+                        seen.add(int(value))
+
+            # The remaining selectable members are exposed as 0x2D sections.
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in seen
+                ):
+                    ids.append(int(value))
+                    seen.add(int(value))
+
+            stack.extend(node["children"])
+
+    return ids[:9]
 
 
 def build_next_scenario_probe(filename, blob):
@@ -4142,19 +4224,36 @@ def main(argv):
     r14_probe = build_next_scenario_probe("R_14.eex", r14)
     s14_probe = build_next_scenario_probe("S_14.eex", s14)
     r14_story = compile_r14_story(r14)
+    r14_player_ids = extract_r14_departure_players(
+        r14,
+        r13_player_ids,
+    )
     s14_init_probe = {
         "found": s14 is not None,
         "validEex": bool(s14 and s14.startswith(b"EEX")),
         "map": map14_probe,
     }
     s14_event_probe = []
+    s14_native_events = []
     s14_outcome_probe = {}
     s14_outcome_detail = {}
+    s14_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s14 and s14.startswith(b"EEX"):
         s14_scenes = parse_scenario_tree(s14)
         s14_init_probe = probe_s01_initialization(s14)
         s14_init_probe["map"] = map14_probe
         s14_event_probe = extract_scene2_native_events(s14_scenes)
+        s14_native_events = [
+            event
+            for event in s14_event_probe
+            if event["section"] not in {34, 35, 36}
+        ]
+        s14_outcome_events = extract_s14_outcome_events(s14_scenes)
         s14_outcome_probe = probe_battle_outcome_candidates(s14_scenes)
         s14_outcome_detail = probe_selected_scenario_sections(
             s14_scenes,
@@ -7505,6 +7604,225 @@ def main(argv):
         encoding="utf-8",
     )
 
+    # S14: R14 departure continues the seven S13 members and adds
+    # Mi Zhu (27) from the original selectable 0x2D roster.
+    s14_units = []
+    s14_skipped_actors = []
+
+    def make_s14_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s14_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S14 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s14_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s14_slots = sorted(
+        s14_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if not r14_story.get("supported"):
+        raise SystemExit(
+            "R14 story unsupported: "
+            + repr(r14_story.get("unsupportedActionIds", []))
+        )
+    if len(r14_player_ids) != 8:
+        raise SystemExit(
+            "R14 departure roster must contain 8 characters: "
+            + repr([(cid, name_of(cid)) for cid in r14_player_ids])
+        )
+    if len(s14_slots) < len(r14_player_ids):
+        raise SystemExit(
+            "S14 player slot count too small: " + repr(s14_slots)
+        )
+
+    for slot, cid in zip(s14_slots, r14_player_ids):
+        if not make_s14_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_14:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S14 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s14_init_probe.get("friendRecords", [])):
+        make_s14_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_14:0x46:{index}",
+        )
+
+    for index, row in enumerate(s14_init_probe.get("enemyRecords", [])):
+        make_s14_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_14:0x47:{index}",
+        )
+
+    s14_objective_text = (
+        s14_init_probe.get("objectiveTexts", [""])[0]
+        if s14_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s14_popup_text = (
+        s14_init_probe.get("objectivePopups", [""])[0]
+        if s14_init_probe.get("objectivePopups")
+        else ""
+    )
+    s14_turn_limit = objective_turn_limit(
+        s14_objective_text,
+        15,
+    )
+    s14_protected_ids = [0]
+
+    s14_battle = {
+        "version": 74,
+        "source": "RS/S_14.eex",
+        "battleMode": "s14-escape-or-annihilation",
+        "mapId": 14,
+        "map": "m014.jpg",
+        "widthTiles": map14_probe["cols"],
+        "heightTiles": map14_probe["rows"],
+        "terrainFile": "terrain14.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s14_objective_text,
+                "popupText": s14_popup_text,
+                "turnLimit": s14_turn_limit,
+                "goal": {
+                    "type": "escape-character",
+                    "characterId": 0,
+                    "x": 1,
+                    "y": 19,
+                    "eventSection": 11,
+                    "completionVariable": 0,
+                    "storyVariable": 614,
+                },
+            },
+            "phase2": {
+                "objectiveText": s14_objective_text,
+                "popupText": s14_popup_text,
+                "turnLimit": s14_turn_limit,
+            },
+            "protectedCharacterIds": s14_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s14_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s14_native_events,
+        "outcomeEvents": s14_outcome_events,
+        "outcomeProbe": s14_outcome_probe,
+        "outcomeDetail": s14_outcome_detail,
+        "battleEventSummary": {
+            "candidateCount": len(s14_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s14_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s14_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s14_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s14_native_events
+            ],
+        },
+        "terrainIds": map14_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s14_skipped_actors,
+        "r14PlayerIds": r14_player_ids,
+        "units": s14_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle14.json").write_text(
+        json.dumps(s14_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
@@ -7611,6 +7929,7 @@ def main(argv):
                 + s11_units
                 + s12_units
                 + s13_units
+                + s14_units
             )
         }
         | s09_special_sprite_ids
@@ -7700,6 +8019,24 @@ def main(argv):
                 "outcomes": sorted(s14_outcome_probe.keys()),
             },
         },
+    )
+    print(
+        "s14 battle units=",
+        len(s14_units),
+        "players=",
+        [(u["characterId"], u["name"]) for u in s14_units if u["faction"] == PLAYER],
+        "allies=",
+        sum(1 for u in s14_units if u["faction"] == ALLY),
+        "enemies=",
+        sum(1 for u in s14_units if u["faction"] == ENEMY),
+        "native-events=",
+        len(s14_native_events),
+        "core-supported=",
+        sum(1 for e in s14_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s14_turn_limit,
+        "escape=",
+        (0, 1, 19),
     )
     print(
         "s13 battle units=",
