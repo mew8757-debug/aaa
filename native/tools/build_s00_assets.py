@@ -760,6 +760,16 @@ def native_action_from_node(node):
     if cid == 0x0C:
         return {"type": "endSection"}
 
+    if cid == 0x5B and len(params) >= 5:
+        return {
+            "type": "highlightArea",
+            "x1": int(params[0]),
+            "y1": int(params[1]),
+            "x2": int(params[2]),
+            "y2": int(params[3]),
+            "mode": int(params[4]),
+        }
+
     if cid == 0x5C and params:
         return {
             "type": "highlightUnit",
@@ -2887,6 +2897,16 @@ def compile_r20_story(blob):
     )
 
 
+def compile_r21_story(blob):
+    return compile_r_story(
+        blob,
+        "R_21.eex",
+        8,
+        9,
+        "S_21.eex",
+    )
+
+
 def extract_r09_departure_players(blob):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -3346,6 +3366,68 @@ def extract_r19_departure_players(blob):
     roster = (fixed + selectable)[:9]
     return roster, selectable
 
+
+
+
+def extract_r21_departure_players(blob):
+    fixed = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return fixed, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 9:
+        return fixed, selectable
+
+    departure = scenes[8]
+    fixed_from_limit = []
+    selectable_from_sections = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed_from_limit
+                    ):
+                        fixed_from_limit.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in selectable_from_sections
+                ):
+                    selectable_from_sections.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed_from_limit:
+        if cid not in seen and len(fixed) < 5:
+            fixed.append(cid)
+            seen.add(cid)
+
+    for cid in selectable_from_sections:
+        if cid not in seen and len(fixed) < 5:
+            fixed.append(cid)
+            seen.add(cid)
+        if cid not in selectable:
+            selectable.append(cid)
+
+    return fixed[:5], selectable
 
 
 def extract_counted_forced_roster(blob, scene_number=1, section_number=1):
@@ -4592,6 +4674,8 @@ def main(argv):
                 map21_cols,
                 map21_rows,
             )
+            (map_dir / "m021.jpg").write_bytes(map21_bytes)
+            (battle_dir / "terrain21.bin").write_bytes(terrain21_cells)
             map21_probe.update({
                 "valid": True,
                 "width": map21_width,
@@ -5459,6 +5543,39 @@ def main(argv):
         s21_init_probe["map"] = map21_probe
         s21_event_probe = extract_scene2_native_events(s21_scenes)
         s21_outcome_probe = probe_battle_outcome_candidates(s21_scenes)
+
+    r21_story = compile_r21_story(r21)
+    s21_player_ids, r21_selectable_ids = extract_r21_departure_players(r21)
+    s21_native_events = []
+    s21_outcome_events = {
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
+    if s21 and s21.startswith(b"EEX"):
+        s21_native_events = [
+            event for event in s21_event_probe
+            if event["section"] not in {43, 44, 45, 46, 47, 48, 49}
+        ]
+        s21_outcome_events = {
+            "defeatByCharacter": {
+                "0": compile_scenario_section_actions(s21_scenes, 2, 43),
+                "2": compile_scenario_section_actions(s21_scenes, 2, 44),
+                "17": compile_scenario_section_actions(s21_scenes, 2, 45),
+                "26": compile_scenario_section_actions(s21_scenes, 2, 46),
+                "19": compile_scenario_section_actions(s21_scenes, 2, 47),
+            },
+            "victory": compile_scenario_section_actions(
+                s21_scenes, 2, 48
+            ),
+            "genericDefeat": compile_scenario_section_actions(
+                s21_scenes, 2, 49
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s21_scenes, 3, 1
+            ),
+        }
 
     s17_route_model = {
         "outerCityClearSection": 5,
@@ -10576,11 +10693,240 @@ def main(argv):
         "supportedAttackRangeIds": [0, 1],
         "skippedActors": s20_skipped_actors,
         "r20PlayerIds": s20_player_ids,
+        "r21Story": r21_story,
+        "s21PlayerIds": s21_player_ids,
+        "r21SelectableIds": r21_selectable_ids,
         "units": s20_units,
         "openingEvents": [],
     }
     (battle_dir / "battle20.json").write_text(
         json.dumps(s20_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    s21_units = []
+    s21_skipped_actors = []
+
+    def make_s21_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s21_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "defaultSpriteId": int(sid),
+                "faction": faction,
+                "hidden": bool(hidden),
+                "x": int(x),
+                "y": int(y),
+                "source": source,
+            })
+            print(f"skip S21 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s21_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s21_slots = sorted(
+        s21_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if not map21_probe.get("valid"):
+        raise SystemExit("M021 map probe invalid: " + repr(map21_probe))
+    if not r21_story.get("supported"):
+        raise SystemExit(
+            "R21 story unsupported: "
+            + repr(r21_story.get("unsupportedActionIds", []))
+        )
+    if len(s21_player_ids) != len(s21_slots):
+        raise SystemExit(
+            "S21 roster/slot mismatch: "
+            + repr({"players": s21_player_ids, "slots": s21_slots})
+        )
+
+    for slot, cid in zip(s21_slots, s21_player_ids):
+        if not make_s21_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_21:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S21 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s21_init_probe.get("friendRecords", [])):
+        make_s21_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_21:0x46:{index}",
+        )
+
+    for index, row in enumerate(s21_init_probe.get("enemyRecords", [])):
+        make_s21_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_21:0x47:{index}",
+        )
+
+    s21_objective_text = (
+        s21_init_probe.get("objectiveTexts", [""])[0]
+        if s21_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s21_popup_text = (
+        s21_init_probe.get("objectivePopups", [""])[0]
+        if s21_init_probe.get("objectivePopups")
+        else ""
+    )
+    s21_turn_limit = objective_turn_limit(s21_objective_text, 6)
+
+    s21_battle = {
+        "version": 90,
+        "source": "RS/S_21.eex",
+        "battleMode": "s21-two-route-event-driven",
+        "mapId": 21,
+        "map": "m021.jpg",
+        "widthTiles": map21_probe["cols"],
+        "heightTiles": map21_probe["rows"],
+        "terrainFile": "terrain21.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s21_objective_text,
+                "popupText": s21_popup_text,
+                "turnLimit": s21_turn_limit,
+                "goal": {"type": "enemy-annihilation"},
+            },
+            "phase2": {
+                "objectiveText": (
+                    "승리 조건\n★·모든 적군 섬멸.\n★·유비 탈출.\n\n"
+                    "패배 조건\n☆·유비 사망.\n☆·25턴 초과."
+                ),
+                "popupText": "유비를 탈출시켜라!",
+                "turnLimit": 25,
+                "goal": {
+                    "type": "escape-or-annihilation",
+                    "characterId": 0,
+                    "name": "유비",
+                },
+            },
+            "protectedCharacterIds": s21_player_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s21_player_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s21_native_events,
+        "outcomeEvents": s21_outcome_events,
+        "outcomeProbe": s21_outcome_probe,
+        "routeModel": {
+            "phase2TransitionSection": 2,
+            "escapeVictorySection": 4,
+            "annihilationVictorySection": 48,
+            "defeatByCharacterSections": {
+                "0": 43,
+                "2": 44,
+                "17": 45,
+                "26": 46,
+                "19": 47,
+            },
+            "genericDefeatSection": 49,
+            "postBattleScene": "S03-SEC01",
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s21_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s21_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s21_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s21_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s21_native_events
+            ],
+        },
+        "terrainIds": map21_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s21_skipped_actors,
+        "r21PlayerIds": s21_player_ids,
+        "r21SelectableIds": r21_selectable_ids,
+        "r21SelectionMode": "liu-bei-plus-fixed-source-order",
+        "units": s21_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle21.json").write_text(
+        json.dumps(s21_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -10698,6 +11044,7 @@ def main(argv):
                 + s18_units
                 + s19_units
                 + s20_units
+                + s21_units
             )
         }
         | s09_special_sprite_ids
