@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.27
+name: Build Native Android Battle v4.28
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.27 APK
+      - name: Build native v4.28 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.27.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.28.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.27 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.27 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.28 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.28 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.27 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.27" \
-              --notes "Native v4.27은 R_12 Scene22 출전 종료 뒤 battle12.json을 실제 로드해 S_12 전투에 진입합니다. 원본 변수2 퇴각 루트는 유비 보호·20턴·서쪽 퇴각 또는 적 전멸, 변수3 섬멸 루트는 유비/관우/장비 보호·25턴·적 전멸로 분리합니다. Section42/53/54 패배, Section66/67 승리, Section68 일반패배와 Scene3 정리를 원본 액션으로 실행합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.28 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.28" \
+              --notes "Native v4.28은 v4.27의 S12 전투/승패 흐름을 유지하면서 S12 종료 다음 원본 R_13.eex/S_13.eex 구조를 자동 진단합니다. R13/S13 Scene·Section·명령 분포, S13 초기배치·목표·턴·전장 이벤트 지원률·승패 후보와 M013/Hexzmap entry13을 build-status에 기록해 다음 버전에서 R13→S13을 추측 없이 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.27 build status
+      - name: Record v4.28 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.27.0",
+              "version": "4.28.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.27.0",
+              "version": "4.28.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1329,9 +1329,17 @@ jobs:
                       "skippedActors",
                       [],
                   ),
+                  "nextScenarioProbe": battle12_summary.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
+                  "s13Probe": battle12_summary.get(
+                      "s13Probe",
+                      {},
+                  ),
               }
 
-          Path("native/build-status/v4.27-summary.json").write_text(
+          Path("native/build-status/v4.28-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1340,7 +1348,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.27.json").write_text(
+          Path("native/build-status/v4.28.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1348,11 +1356,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.27.json native/build-status/v4.27-summary.json
+          git add native/build-status/v4.28.json native/build-status/v4.28-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.27 build status"
+          git commit -m "Record native v4.28 build status"
           git push
