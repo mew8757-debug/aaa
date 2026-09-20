@@ -1666,6 +1666,38 @@ def extract_s08_outcome_events(scenes):
     }
 
 
+def extract_s09_outcome_events(scenes):
+    return {
+        "victory": compile_scenario_section_actions(
+            scenes,
+            2,
+            74,
+        ),
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                scenes,
+                2,
+                56,
+            ),
+            "145": compile_scenario_section_actions(
+                scenes,
+                2,
+                57,
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            scenes,
+            2,
+            75,
+        ),
+        "postBattle": compile_scenario_section_actions(
+            scenes,
+            3,
+            1,
+        ),
+    }
+
+
 
 def extract_s00_objective_model(scenes):
     flat = flatten_scenario_nodes(scenes)
@@ -2459,6 +2491,43 @@ def compile_r08_story(blob):
         23,
         "S_08.eex",
     )
+
+
+def compile_r09_story(blob):
+    return compile_r_story(
+        blob,
+        "R_09.eex",
+        17,
+        18,
+        "S_09.eex",
+    )
+
+
+def extract_r09_departure_players(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 18:
+        return []
+    ids = [0]
+    seen = {0}
+    for section in scenes[17]["sections"]:
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            if node["commandId"] == 0x06:
+                params = node["params"]
+                if len(params) >= 3 and int(params[0]) == 1:
+                    for value in params[2:]:
+                        if (
+                            isinstance(value, int)
+                            and 0 <= value < 1024
+                            and value not in seen
+                        ):
+                            ids.append(int(value))
+                            seen.add(int(value))
+            stack.extend(node["children"])
+    return ids[:8]
 
 
 
@@ -3321,16 +3390,25 @@ def main(argv):
         "terrainIds": sorted(set(terrain9_cells)),
         "hexzmapEntry": 9,
     }
-    s09_event_probe = extract_scene2_native_events(s09_scenes)
+    r09_story = compile_r09_story(r09)
+    r09_player_ids = extract_r09_departure_players(r09)
+    s09_event_probe = extract_scene2_native_events(
+        s09_scenes,
+        excluded_sections={56, 57, 74, 75},
+    )
+    s09_native_events = s09_event_probe
     s09_outcome_probe = probe_battle_outcome_candidates(s09_scenes)
+    s09_outcome_events = extract_s09_outcome_events(s09_scenes)
     s09_goal_probe = probe_selected_scenario_sections(
         s09_scenes,
         [
+            (2, 1),
             (2, 20),
             (2, 21),
             (2, 31),
             (2, 33),
             (2, 34),
+            (2, 51),
         ],
     )
 
