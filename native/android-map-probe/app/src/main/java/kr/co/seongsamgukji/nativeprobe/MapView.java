@@ -192,6 +192,7 @@ public class MapView extends View {
     private JSONArray r20StoryScenes;
     private JSONArray r21StoryScenes;
     private JSONArray r22StoryScenes;
+    private JSONArray r23StoryScenes;
     private JSONObject s10AttackVictoryEvents;
     private JSONObject s18VictoryOutcomeEvents;
     private int activeBattleActionIndex = 0;
@@ -227,6 +228,7 @@ public class MapView extends View {
     private boolean r20StoryActive = false;
     private boolean r21StoryActive = false;
     private boolean r22StoryActive = false;
+    private boolean r23StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
@@ -248,6 +250,7 @@ public class MapView extends View {
     private boolean s20Ready = false;
     private boolean s21Ready = false;
     private boolean s22Ready = false;
+    private boolean s23Ready = false;
     private boolean s10DefenseRoute = false;
     private boolean s12AnnihilationRoute = false;
     private int s12RetreatVariable = 2;
@@ -287,6 +290,7 @@ public class MapView extends View {
     private int r20StorySceneIndex = 0;
     private int r21StorySceneIndex = 0;
     private int r22StorySceneIndex = 0;
+    private int r23StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -908,6 +912,7 @@ public class MapView extends View {
         r20StoryScenes = null;
         r21StoryScenes = null;
         r22StoryScenes = null;
+        r23StoryScenes = null;
         s10AttackVictoryEvents = null;
         s18VictoryOutcomeEvents = null;
         s12VictoryByRouteEvents = null;
@@ -1091,6 +1096,11 @@ public class MapView extends View {
                 && r22Story.optBoolean("supported", false)) {
             r22StoryScenes = r22Story.optJSONArray("scenes");
         }
+        JSONObject r23Story = battle.optJSONObject("r23Story");
+        if (r23Story != null
+                && r23Story.optBoolean("supported", false)) {
+            r23StoryScenes = r23Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -1115,6 +1125,7 @@ public class MapView extends View {
         r20StoryActive = false;
         r21StoryActive = false;
         r22StoryActive = false;
+        r23StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
@@ -1136,6 +1147,7 @@ public class MapView extends View {
         s20Ready = false;
         s21Ready = false;
         s22Ready = false;
+        s23Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
@@ -1157,6 +1169,7 @@ public class MapView extends View {
         r20StorySceneIndex = 0;
         r21StorySceneIndex = 0;
         r22StorySceneIndex = 0;
+        r23StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
@@ -2386,6 +2399,20 @@ public class MapView extends View {
                         break;
                     }
 
+                    case "conditionalProbability": {
+                        int percent = Math.max(
+                                0,
+                                Math.min(100, action.optInt("percent", 0)));
+                        boolean taken = Math.random() * 100.0 < percent;
+                        lastBattleConditionalTaken = taken;
+                        if (taken && enterNestedBattleActions(
+                                action.optJSONArray("actions"))) {
+                            break;
+                        }
+                        activeBattleActionIndex++;
+                        break;
+                    }
+
                     case "conditionalTrigger": {
                         JSONObject trigger = action.optJSONObject("trigger");
                         boolean taken = trigger != null
@@ -2479,7 +2506,11 @@ public class MapView extends View {
 
                     case "deploymentTest": {
                         String nextBattle = "S_01";
-                        if (r21StoryActive) {
+                        if (r23StoryActive) {
+                            nextBattle = "S_23";
+                        } else if (r22StoryActive) {
+                            nextBattle = "S_22";
+                        } else if (r21StoryActive) {
                             nextBattle = "S_21";
                         } else if (r20StoryActive) {
                             nextBattle = "S_20";
@@ -4013,6 +4044,12 @@ public class MapView extends View {
 
 
     private String currentStoryLabel() {
+        if (r23StoryActive) {
+            return "R_23";
+        }
+        if (r22StoryActive) {
+            return "R_22";
+        }
         if (r21StoryActive) {
             return "R_21";
         }
@@ -7539,6 +7576,9 @@ public class MapView extends View {
     }
 
     private String currentBattleLabel() {
+        if (currentBattleIndex == 23) {
+            return "S_23";
+        }
         if (currentBattleIndex == 22) {
             return "S_22";
         }
