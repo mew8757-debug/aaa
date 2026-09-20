@@ -557,46 +557,6 @@ public class MapView extends View {
             r01StoryScenes = r01Story.optJSONArray("scenes");
         }
 
-        if (currentBattleIndex == 23) {
-            for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS23DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-            if (round > turnLimit) {
-                startS23DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-            if (!hasAnyAliveFriendly()) {
-                startS23DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-
-            if ("s23-cao-cao-or-annihilation".equals(battleMode)) {
-                BattleUnit caoCao = findUnitByCharacterId(
-                        killTargetCharacterId >= 0
-                                ? killTargetCharacterId
-                                : 36);
-                if (caoCao != null && !caoCao.isAlive()) {
-                    startS23VictoryOutcome(true);
-                    return;
-                }
-                if (!hasAnyAliveEnemy()) {
-                    startS23VictoryOutcome(false);
-                    return;
-                }
-            }
-            return;
-        }
-
         if (currentBattleIndex == 22) {
             JSONObject routeModel = battle.optJSONObject("routeModel");
             if (routeModel != null) {
@@ -8864,6 +8824,46 @@ public class MapView extends View {
                 || r23StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
+            return;
+        }
+
+        if (currentBattleIndex == 23) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS23DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+            if (round > turnLimit) {
+                startS23DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS23DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if ("s23-cao-cao-or-annihilation".equals(battleMode)) {
+                BattleUnit caoCao = findUnitByCharacterId(
+                        killTargetCharacterId >= 0
+                                ? killTargetCharacterId
+                                : 36);
+                if (caoCao != null && !caoCao.isAlive()) {
+                    startS23VictoryOutcome(true);
+                    return;
+                }
+                if (!hasAnyAliveEnemy()) {
+                    startS23VictoryOutcome(false);
+                    return;
+                }
+            }
             return;
         }
 
