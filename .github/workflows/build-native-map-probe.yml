@@ -436,44 +436,6 @@ jobs:
                   "allyCount": sum(1 for u in battle3.get("units", []) if u.get("faction") == "ally"),
                   "enemyCount": sum(1 for u in battle3.get("units", []) if u.get("faction") == "enemy"),
                   "goal": phase1.get("goal", {}),
-                  "dualVictorySignals": {
-                      "directVictoryVariable": phase1.get(
-                          "goal",
-                          {},
-                      ).get("directVictoryVariable"),
-                      "directVictoryCompletionVariable": phase1.get(
-                          "goal",
-                          {},
-                      ).get("directVictoryCompletionVariable"),
-                      "caoCaoDefeatVariable": phase1.get(
-                          "goal",
-                          {},
-                      ).get("caoCaoDefeatVariable"),
-                  },
-                  "nextScenarioProbe": battle9.get(
-                      "nextScenarioProbe",
-                      {},
-                  ),
-                  "s10InitProbe": battle9.get("s10InitProbe", {}),
-                  "s10EventProbe": battle9.get("s10EventProbe", []),
-                  "s10OutcomeProbe": battle9.get(
-                      "s10OutcomeProbe",
-                      {},
-                  ),
-                  "dualVictorySignals": {
-                      "directVictoryVariable": phase1.get(
-                          "goal",
-                          {},
-                      ).get("directVictoryVariable"),
-                      "directVictoryCompletionVariable": phase1.get(
-                          "goal",
-                          {},
-                      ).get("directVictoryCompletionVariable"),
-                      "caoCaoDefeatVariable": phase1.get(
-                          "goal",
-                          {},
-                      ).get("caoCaoDefeatVariable"),
-                  },
                   "turnLimit": phase1.get("turnLimit"),
                   "protectedCharacterIds": battle3.get("battleObjectives", {}).get("protectedCharacterIds", []),
                   "battleEventSummary": battle3.get("battleEventSummary", {}),
@@ -842,6 +804,30 @@ jobs:
                       if u.get("faction") == "enemy"
                   ),
                   "goal": phase1.get("goal", {}),
+                  "dualVictorySignals": {
+                      "directVictoryVariable": phase1.get(
+                          "goal",
+                          {},
+                      ).get("directVictoryVariable"),
+                      "directVictoryCompletionVariable": phase1.get(
+                          "goal",
+                          {},
+                      ).get("directVictoryCompletionVariable"),
+                      "caoCaoDefeatVariable": phase1.get(
+                          "goal",
+                          {},
+                      ).get("caoCaoDefeatVariable"),
+                  },
+                  "nextScenarioProbe": battle9.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
+                  "s10InitProbe": battle9.get("s10InitProbe", {}),
+                  "s10EventProbe": battle9.get("s10EventProbe", []),
+                  "s10OutcomeProbe": battle9.get(
+                      "s10OutcomeProbe",
+                      {},
+                  ),
                   "turnLimit": phase1.get("turnLimit"),
                   "protectedCharacters": battle9.get(
                       "battleObjectives",
