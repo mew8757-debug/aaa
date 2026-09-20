@@ -5308,6 +5308,7 @@ def main(argv):
             "R_09.eex": r09_probe,
             "S_09.eex": s09_probe,
         },
+        "r09Story": r09_story,
         "s09InitProbe": s09_init_probe,
         "s09EventProbe": s09_event_probe,
         "s09OutcomeProbe": s09_outcome_probe,
@@ -5340,6 +5341,203 @@ def main(argv):
     }
     (battle_dir / "battle8.json").write_text(
         json.dumps(s08_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # S_09: Xuzhou rescue. R09 departure data selects up to eight active
+    # player characters; Tao Qian (145) and Liu Bei (0) are the loss gates.
+    s09_units = []
+
+    def make_s09_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            print(f"skip S09 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s09_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s09_slots = sorted(
+        s09_init_probe["playerSlots"],
+        key=lambda row: row["slot"],
+    )
+    if len(r09_player_ids) != 8:
+        raise SystemExit(
+            "R09 departure roster must contain 8 characters: "
+            + repr([
+                (cid, name_of(cid))
+                for cid in r09_player_ids
+            ])
+        )
+    if len(s09_slots) < len(r09_player_ids):
+        raise SystemExit(
+            "S09 player slot count too small: "
+            + repr(s09_slots)
+        )
+    for slot, cid in zip(s09_slots, r09_player_ids):
+        make_s09_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_09:0x4B:{slot['slot']}",
+        )
+
+    for index, row in enumerate(s09_init_probe["friendRecords"]):
+        make_s09_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_09:0x46:{index}",
+        )
+
+    for index, row in enumerate(s09_init_probe["enemyRecords"]):
+        make_s09_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_09:0x47:{index}",
+        )
+
+    s09_objective_text = (
+        s09_init_probe["objectiveTexts"][0]
+        if s09_init_probe["objectiveTexts"]
+        else ""
+    )
+    s09_popup_text = (
+        s09_init_probe["objectivePopups"][0]
+        if s09_init_probe["objectivePopups"]
+        else ""
+    )
+    s09_turn_match = re.search(r"(\d+)턴", s09_objective_text)
+    s09_turn_limit = int(s09_turn_match.group(1)) if s09_turn_match else 20
+
+    if name_of(0) != "유비":
+        raise SystemExit(f"S09 Liu Bei mapping mismatch: 0={name_of(0)}")
+    if name_of(145) != "도겸":
+        raise SystemExit(f"S09 Tao Qian mapping mismatch: 145={name_of(145)}")
+    if name_of(36) != "조조":
+        raise SystemExit(f"S09 Cao Cao mapping mismatch: 36={name_of(36)}")
+
+    s09_battle = {
+        "version": 51,
+        "source": "RS/S_09.eex",
+        "battleMode": "s09-xuzhou-rescue",
+        "mapId": 9,
+        "map": "m009.jpg",
+        "widthTiles": map9_cols,
+        "heightTiles": map9_rows,
+        "terrainFile": "terrain9.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s09_objective_text,
+                "popupText": s09_popup_text,
+                "turnLimit": s09_turn_limit,
+                "goal": {
+                    "type": "s09-xuzhou-rescue",
+                    "caoCaoCharacterId": 36,
+                    "taoQianCharacterId": 145,
+                    "caoCaoDefeatVariable": 56,
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s09_turn_limit,
+            },
+            "protectedCharacterIds": [0, 145],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+                {"characterId": 145, "name": name_of(145)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s09_native_events,
+        "outcomeEvents": s09_outcome_events,
+        "outcomeProbe": s09_outcome_probe,
+        "goalProbe": s09_goal_probe,
+        "r09Story": r09_story,
+        "battleEventSummary": {
+            "candidateCount": len(s09_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s09_native_events
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s09_native_events
+            ],
+        },
+        "terrainIds": sorted(set(terrain9_cells)),
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "units": s09_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle9.json").write_text(
+        json.dumps(s09_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -5443,6 +5641,7 @@ def main(argv):
             + s06_units
             + s07_units
             + s08_units
+            + s09_units
         )
     })
     for sid in sprite_ids:
@@ -5797,6 +5996,30 @@ def main(argv):
         r02_story["sceneCount"],
         "unsupported=",
         r02_story["unsupportedActionIds"],
+    )
+    print(
+        "r09 story supported=",
+        r09_story["supported"],
+        "scenes=",
+        r09_story["sceneCount"],
+        "unsupported=",
+        r09_story["unsupportedActionIds"],
+        "players=",
+        [(cid, name_of(cid)) for cid in r09_player_ids],
+    )
+    print(
+        "s09 battle units=",
+        len(s09_units),
+        "players=",
+        [(u["characterId"], u["name"]) for u in s09_units if u["faction"] == PLAYER],
+        "protected=",
+        [(0, name_of(0)), (145, name_of(145))],
+        "events=",
+        len(s09_native_events),
+        "core-supported=",
+        sum(1 for e in s09_native_events if e["coreSupported"]),
+        "turnLimit=",
+        s09_turn_limit,
     )
     print(
         "units=", len(units),
