@@ -4430,6 +4430,84 @@ public class MapView extends View {
                 "terrain9.bin");
     }
 
+    private void startS09VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "S_09 원본 승리 조건 달성");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s09Victory";
+        battleVictory = true;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_09 승리 후일담";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS09DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s09Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_09 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS09PostBattleCleanup() {
+        outcomeStage = "s09PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS09Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_09 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS09Outcome() {
+        outcomeFlowActive = false;
+        endBattle(
+                battleVictory,
+                battleVictory
+                        ? "S_09 원본 승리 흐름 완료"
+                        : (battleResultText == null
+                        || battleResultText.isEmpty()
+                        ? "S_09 원본 패배 흐름 완료"
+                        : battleResultText));
+    }
+
     private String currentBattleLabel() {
         if (currentBattleIndex == 9) {
             return "S_09";
@@ -4579,6 +4657,16 @@ public class MapView extends View {
             }
             if ("s08PostBattle".equals(outcomeStage)) {
                 finishS08Outcome();
+                return;
+            }
+            if ("s09Victory".equals(outcomeStage)
+                    || "s09Defeat".equals(outcomeStage)) {
+                startS09PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s09PostBattle".equals(outcomeStage)) {
+                finishS09Outcome();
                 return;
             }
         }
@@ -5141,6 +5229,7 @@ public class MapView extends View {
                 || r06StoryActive
                 || r07StoryActive
                 || r08StoryActive
+                || r09StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
             return;
