@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.25
+name: Build Native Android Battle v4.26
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.25 APK
+      - name: Build native v4.26 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.25.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.26.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.25 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.25 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.26 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.26 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.25 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.25" \
-              --notes "Native v4.25는 R_12.eex를 기존 R 스토리 컴파일러로 실제 컴파일하고 Scene22 출전 데이터에서 최대 10인의 roster를 추출합니다. S_12.eex는 초기 0x4A/4B/46/47 배치, 목표/턴, Scene2 전장 이벤트 지원률, 승패 후보 Section과 위치/턴/HP 전환 트리까지 깊게 probe합니다. 결과가 완전하면 다음 버전에서 S11 종료→R12→S12 실제 진입을 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.26 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.26" \
+              --notes "Native v4.26은 S_11 원본 승리/Scene3 정리가 끝나면 battle11에 패키징된 R_12 22개 Scene을 실제 Android 스토리 엔진으로 재생합니다. Scene22 출전까지 끝나면 S_12 준비 완료 상태로 전환합니다. 동시에 S_12 종료 후보 Section 42/53/54/66/67/68과 Scene3의 루트 조건/핵심 본문 명령을 compact status에 기록해 다음 버전에서 두 목표 루트의 정확한 승패 상태기를 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.25 build status
+      - name: Record v4.26 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.25.0",
+              "version": "4.26.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.25.0",
+              "version": "4.26.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1251,6 +1251,26 @@ jobs:
                   "s12OutcomeSections": sorted(
                       battle11_summary.get("s12OutcomeProbe", {}).keys()
                   ),
+                  "s12OutcomeDetail": {
+                      key: [
+                          {
+                              "depth": row.get("depth"),
+                              "commandHex": row.get("commandHex"),
+                              "params": row.get("params"),
+                              "childCommandIds": row.get("childCommandIds", []),
+                          }
+                          for row in rows
+                          if row.get("depth", 99) <= 1
+                          or row.get("commandId") in {
+                              0x0B, 0x0D, 0x0E, 0x19, 0x1A,
+                              0x3D, 0x49, 0x53, 0x59,
+                          }
+                      ]
+                      for key, rows in battle11_summary.get(
+                          "s12OutcomeProbe",
+                          {},
+                      ).items()
+                  },
                   "s12TransitionSections": sorted(
                       battle11_summary.get("s12TransitionProbe", {}).keys()
                   ),
@@ -1260,7 +1280,7 @@ jobs:
                   ),
               }
 
-          Path("native/build-status/v4.25-summary.json").write_text(
+          Path("native/build-status/v4.26-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1269,7 +1289,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.25.json").write_text(
+          Path("native/build-status/v4.26.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1277,11 +1297,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.25.json native/build-status/v4.25-summary.json
+          git add native/build-status/v4.26.json native/build-status/v4.26-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.25 build status"
+          git commit -m "Record native v4.26 build status"
           git push
