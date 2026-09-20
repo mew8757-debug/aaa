@@ -10327,14 +10327,22 @@ def main(argv):
         s20_objective_text,
         15,
     )
-    s20_target_ids = [
-        cid for cid in range(1024)
+    s20_deployed_enemy_ids = {
+        int(row["person"])
+        for row in s20_init_probe.get("enemyRecords", [])
+        if isinstance(row.get("person"), int)
+    }
+    s20_target_ids = sorted(
+        cid for cid in s20_deployed_enemy_ids
         if name_of(cid) == "유대"
-    ]
+    )
     if len(s20_target_ids) != 1:
         raise SystemExit(
-            "Unable to resolve unique S20 Liu Dai target: "
-            + repr(s20_target_ids)
+            "Unable to resolve unique deployed S20 Liu Dai target: "
+            + repr({
+                "candidates": s20_target_ids,
+                "deployedEnemyIds": sorted(s20_deployed_enemy_ids),
+            })
         )
     s20_target_id = s20_target_ids[0]
 
