@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.19
+name: Build Native Android Battle v4.20
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.19 APK
+      - name: Build native v4.20 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.19.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.20.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.19 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.19 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.20 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.20 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.19 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.19" \
-              --notes "Native v4.19은 v4.18의 R10→S10 실제 진입을 유지하면서 S10의 변수70 설정/검사, 장훈(215)·기령(137) 사망 조건, 목표/턴제한 변경 Section을 compact transition probe로 기록합니다. 또한 S10 종료 다음 원본 R_11.eex/S_11.eex 구조를 직접 진단하고, 256~259번은 0x75 특수형상 배정이 없다는 v4.18 결과를 보존합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.20 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.20" \
+              --notes "Native v4.20은 R10 선택 변수에 따라 S10의 두 원본 목표를 실제 분기 실행합니다. 변수70 경로는 Section 24/26의 원본 조건을 보존해 기령(137) 또는 장훈(215) 격퇴 시 해당 승리 연출을 재생하고, 변수71 경로는 15턴 방어 후 Section 50 승리 흐름을 실행합니다. 유비 사망은 Section 41, 일반 패배는 Section 51, 이후 Scene3 정리를 거쳐 R_11 Scene 1~9와 Scene10 출전 흐름을 재생하고 S_11 준비 상태까지 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.19 build status
+      - name: Record v4.20 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.19.0",
+              "version": "4.20.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.19.0",
+              "version": "4.20.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1075,9 +1075,44 @@ jobs:
                       "nextScenarioProbe",
                       {},
                   ),
+                  "outcomeEvents": {
+                      "keys": sorted(
+                          battle10_summary.get(
+                              "outcomeEvents",
+                              {},
+                          ).keys()
+                      ),
+                      "attackVictoryCharacters": sorted(
+                          battle10_summary.get(
+                              "outcomeEvents",
+                              {},
+                          ).get(
+                              "attackVictoryByCharacter",
+                              {},
+                          ).keys()
+                      ),
+                  },
+                  "r11Story": {
+                      "supported": battle10_summary.get(
+                          "r11Story",
+                          {},
+                      ).get("supported"),
+                      "sceneCount": battle10_summary.get(
+                          "r11Story",
+                          {},
+                      ).get("sceneCount"),
+                      "unsupportedActionIds": battle10_summary.get(
+                          "r11Story",
+                          {},
+                      ).get("unsupportedActionIds", []),
+                      "nextBattle": battle10_summary.get(
+                          "r11Story",
+                          {},
+                      ).get("nextBattle"),
+                  },
               }
 
-          Path("native/build-status/v4.19-summary.json").write_text(
+          Path("native/build-status/v4.20-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1086,7 +1121,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.19.json").write_text(
+          Path("native/build-status/v4.20.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1094,11 +1129,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.19.json native/build-status/v4.19-summary.json
+          git add native/build-status/v4.20.json native/build-status/v4.20-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.19 build status"
+          git commit -m "Record native v4.20 build status"
           git push
