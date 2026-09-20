@@ -3857,6 +3857,45 @@ def main(argv):
         s20 = read_member_by_basename(game1, "S_20.eex")
         r21 = read_member_by_basename(game1, "R_21.eex")
         s21 = read_member_by_basename(game1, "S_21.eex")
+
+        rs_inventory = []
+        for member in game1.namelist():
+            base = member.replace("\\", "/").rsplit("/", 1)[-1]
+            match = re.fullmatch(r"([RS])_(\d+)\.eex", base, re.IGNORECASE)
+            if match:
+                rs_inventory.append({
+                    "kind": match.group(1).upper(),
+                    "number": int(match.group(2)),
+                    "filename": base,
+                })
+        rs_inventory.sort(
+            key=lambda row: (row["number"], row["kind"])
+        )
+        next_r_after20 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 20
+            ),
+            None,
+        )
+        next_s_after20 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 20
+            ),
+            None,
+        )
+        next_r_after20_blob = (
+            read_member_by_basename(game1, next_r_after20["filename"])
+            if next_r_after20
+            else None
+        )
+        next_s_after20_blob = (
+            read_member_by_basename(game1, next_s_after20["filename"])
+            if next_s_after20
+            else None
+        )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -5378,6 +5417,35 @@ def main(argv):
 
     r21_probe = build_next_scenario_probe("R_21.eex", r21)
     s21_probe = build_next_scenario_probe("S_21.eex", s21)
+    next_r_after20_probe = (
+        build_next_scenario_probe(
+            next_r_after20["filename"],
+            next_r_after20_blob,
+        )
+        if next_r_after20
+        else {}
+    )
+    next_s_after20_probe = (
+        build_next_scenario_probe(
+            next_s_after20["filename"],
+            next_s_after20_blob,
+        )
+        if next_s_after20
+        else {}
+    )
+    post_s20_inventory_probe = {
+        "scenarioJumpTargetFromR20": 41,
+        "interpretation": (
+            "R20 departure 0x11 target 41 is an internal scenario index; "
+            "actual next files are determined from the archive inventory."
+        ),
+        "availableAfter20": [
+            row for row in rs_inventory
+            if row["number"] > 20
+        ],
+        "nextR": next_r_after20_probe,
+        "nextS": next_s_after20_probe,
+    }
     s21_init_probe = {
         "found": s21 is not None,
         "validEex": bool(s21 and s21.startswith(b"EEX")),
@@ -10448,6 +10516,7 @@ def main(argv):
             "S_21.eex": s21_probe,
         },
         "postS20Probe": {
+            "scenarioInventory": post_s20_inventory_probe,
             "map21": map21_probe,
             "s21Init": s21_init_probe,
             "s21EventSummary": {
