@@ -6082,8 +6082,16 @@ public class MapView extends View {
                         "아군 전멸 · 원본 패배 조건");
                 return;
             }
-            // Victory remains event-driven. v4.22 packages a transition
-            // probe so the dawn/capture trigger can be bound exactly.
+
+            // Original S11 has two independent victory routes.
+            // Section 9 sets variable 9 after surviving until dawn.
+            // Section 10 sets variable 16 after occupying Guangling at (11,0).
+            boolean dawnVictory = scenarioVariables.getOrDefault(9, 0) != 0;
+            boolean guanglingVictory =
+                    scenarioVariables.getOrDefault(16, 0) != 0;
+            if (dawnVictory || guanglingVictory) {
+                startS11VictoryOutcome();
+            }
             return;
         }
 
