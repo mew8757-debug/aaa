@@ -1184,6 +1184,19 @@ def compile_native_action_tree(node):
                 total_nested,
             )
 
+        if cid == 0x6E and params:
+            percent = max(0, min(100, int(params[0])))
+            return (
+                {
+                    "type": "conditionalProbability",
+                    "percent": percent,
+                    "actions": child_actions,
+                },
+                unsupported_ids,
+                unsupported_actions,
+                total_nested,
+            )
+
         if cid == 0x03:
             return (
                 {
