@@ -733,7 +733,7 @@ def native_action_from_node(node):
     if (
         cid == 0x78
         and len(params) >= 4
-        and int(params[3]) in (0, 1, 7, 8, 32, 33, 34)
+        and int(params[3]) in (0, 1, 7, 8, 20, 21, 22, 32, 33, 34)
     ):
         return {
             "type": "unitAttributeTransfer",
@@ -2904,6 +2904,16 @@ def compile_r21_story(blob):
         8,
         9,
         "S_21.eex",
+    )
+
+
+def compile_r22_story(blob):
+    return compile_r_story(
+        blob,
+        "R_22.eex",
+        22,
+        23,
+        "S_22.eex",
     )
 
 
@@ -5606,6 +5616,60 @@ def main(argv):
         s22_init_probe["map"] = map22_probe
         s22_event_probe = extract_scene2_native_events(s22_scenes)
         s22_outcome_probe = probe_battle_outcome_candidates(s22_scenes)
+
+    r22_story = compile_r22_story(r22)
+    s22_player_ids = extract_counted_forced_roster(s22)
+    if not s22_player_ids:
+        s22_player_ids = [1]
+
+    yan_liang_id = -1
+    if s22_init_probe.get("enemyRecords"):
+        for row in s22_init_probe["enemyRecords"]:
+            cid = int(row["person"])
+            if name_of(cid) == "안량":
+                yan_liang_id = cid
+                break
+    if yan_liang_id < 0:
+        raise SystemExit("S22 Yan Liang character ID not found by Data.e5 name")
+
+    s22_victory_signal_section = -1
+    for event in s22_event_probe:
+        for trigger in event.get("triggers", []):
+            if (
+                trigger.get("type") == "unitHpEqualsZero"
+                and int(trigger.get("characterId", -1)) == yan_liang_id
+            ):
+                s22_victory_signal_section = int(event["section"])
+                break
+        if s22_victory_signal_section >= 0:
+            break
+
+    s22_terminal_sections = {15, 16, 28, 29}
+    s22_native_events = [
+        event for event in s22_event_probe
+        if event["section"] not in s22_terminal_sections
+    ]
+    s22_outcome_events = {
+        "defeatByCharacter": {
+            "36": compile_scenario_section_actions(s22_scenes, 2, 15),
+            "1": compile_scenario_section_actions(s22_scenes, 2, 16),
+        } if s22 and s22.startswith(b"EEX") else {},
+        "victory": (
+            compile_scenario_section_actions(s22_scenes, 2, 28)
+            if s22 and s22.startswith(b"EEX")
+            else {"supported": False, "actions": []}
+        ),
+        "genericDefeat": (
+            compile_scenario_section_actions(s22_scenes, 2, 29)
+            if s22 and s22.startswith(b"EEX")
+            else {"supported": False, "actions": []}
+        ),
+        "postBattle": (
+            compile_scenario_section_actions(s22_scenes, 3, 1)
+            if s22 and s22.startswith(b"EEX")
+            else {"supported": False, "actions": []}
+        ),
+    }
 
     s21_native_events = []
     s21_outcome_events = {
@@ -10941,6 +11005,7 @@ def main(argv):
             "R_22.eex": r22_probe,
             "S_22.eex": s22_probe,
         },
+        "r22Story": r22_story,
         "postS21Probe": {
             "map22": map22_probe,
             "s22Init": s22_init_probe,
@@ -11019,6 +11084,222 @@ def main(argv):
     }
     (battle_dir / "battle21.json").write_text(
         json.dumps(s21_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+
+    s22_units = []
+    s22_skipped_actors = []
+
+    def make_s22_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s22_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": sid,
+            })
+            print(f"skip S22 actor {cid}: invalid sprite {sid}")
+            return False
+        profile = combat_profile_of(cid, deploy_level)
+        s22_units.append({
+            "characterId": cid,
+            "name": name_of(cid),
+            "spriteId": sid,
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": ai_policy,
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    s22_slots = sorted(
+        s22_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if not map22_probe.get("valid"):
+        raise SystemExit("M022 map probe invalid: " + repr(map22_probe))
+    if not r22_story.get("supported"):
+        raise SystemExit(
+            "R22 story unsupported: "
+            + repr(r22_story.get("unsupportedActionIds", []))
+        )
+    if len(s22_player_ids) != len(s22_slots):
+        raise SystemExit(
+            "S22 roster/slot mismatch: "
+            + repr({"players": s22_player_ids, "slots": s22_slots})
+        )
+
+    for slot, cid in zip(s22_slots, s22_player_ids):
+        if not make_s22_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_22:0x4B:{slot['slot']}",
+        ):
+            raise SystemExit(
+                f"S22 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s22_init_probe.get("friendRecords", [])):
+        make_s22_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_22:0x46:{index}",
+        )
+
+    for index, row in enumerate(s22_init_probe.get("enemyRecords", [])):
+        make_s22_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_22:0x47:{index}",
+        )
+
+    s22_objective_text = (
+        s22_init_probe.get("objectiveTexts", [""])[0]
+        if s22_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s22_popup_text = (
+        s22_init_probe.get("objectivePopups", [""])[0]
+        if s22_init_probe.get("objectivePopups")
+        else ""
+    )
+    s22_turn_limit = objective_turn_limit(s22_objective_text, 20)
+
+    s22_battle = {
+        "version": 93,
+        "source": "RS/S_22.eex",
+        "battleMode": "s22-target-defeat-event-driven",
+        "mapId": 22,
+        "map": "m022.jpg",
+        "widthTiles": map22_probe["cols"],
+        "heightTiles": map22_probe["rows"],
+        "terrainFile": "terrain22.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s22_objective_text,
+                "popupText": s22_popup_text,
+                "turnLimit": s22_turn_limit,
+                "goal": {
+                    "type": "kill-character",
+                    "characterId": yan_liang_id,
+                    "name": "안량",
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s22_turn_limit,
+            },
+            "protectedCharacterIds": [1, 36],
+            "protectedCharacters": [
+                {"characterId": 1, "name": name_of(1)},
+                {"characterId": 36, "name": name_of(36)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s22_native_events,
+        "outcomeEvents": s22_outcome_events,
+        "outcomeProbe": s22_outcome_probe,
+        "routeModel": {
+            "targetCharacterId": yan_liang_id,
+            "targetName": "안량",
+            "targetDefeatSignalSection": s22_victory_signal_section,
+            "victorySettlementSection": 28,
+            "defeatByCharacterSections": {
+                "36": 15,
+                "1": 16,
+            },
+            "genericDefeatSection": 29,
+            "postBattleScene": "S03-SEC01",
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s22_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s22_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s22_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s22_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s22_native_events
+            ],
+        },
+        "terrainIds": map22_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s22_skipped_actors,
+        "r22PlayerIds": s22_player_ids,
+        "units": s22_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle22.json").write_text(
+        json.dumps(s22_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -11137,6 +11418,7 @@ def main(argv):
                 + s19_units
                 + s20_units
                 + s21_units
+                + s22_units
             )
         }
         | s09_special_sprite_ids
