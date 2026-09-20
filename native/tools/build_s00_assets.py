@@ -2927,6 +2927,50 @@ def probe_s01_initialization(blob):
 
 
 
+
+def probe_s10_transition_sections(scenes):
+    flat = flatten_scenario_nodes(scenes)
+    relevant_sections = set()
+    variable70_sections = set()
+    objective_sections = set()
+
+    for row in flat:
+        cid = row["commandId"]
+        params = row["params"]
+        section = row["section"]
+
+        if cid == 0x36 and params and int(params[0]) in (137, 215):
+            relevant_sections.add(section)
+
+        if cid == 0x05 and len(params) >= 2:
+            arrays = [
+                value for value in params[:2]
+                if isinstance(value, list)
+            ]
+            if any(70 in values for values in arrays):
+                relevant_sections.add(section)
+                variable70_sections.add(section)
+
+        if cid == 0x0B and len(params) >= 2 and int(params[0]) == 70:
+            relevant_sections.add(section)
+            variable70_sections.add(section)
+
+        if cid in (0x19, 0x1A, 0x5D, 0x42, 0x43):
+            relevant_sections.add(section)
+            objective_sections.add(section)
+
+    selected = probe_selected_scenario_sections(
+        scenes,
+        [(2, section) for section in sorted(relevant_sections)],
+    )
+    return {
+        "sections": selected,
+        "relevantSectionIds": sorted(relevant_sections),
+        "variable70SectionIds": sorted(variable70_sections),
+        "objectiveSectionIds": sorted(objective_sections),
+    }
+
+
 def probe_selected_scenario_sections(scenes, selections):
     flat = flatten_scenario_nodes(scenes)
     result = {}
@@ -3034,6 +3078,8 @@ def main(argv):
         s09 = read_member_by_basename(game1, "S_09.eex")
         r10 = read_member_by_basename(game1, "R_10.eex")
         s10 = read_member_by_basename(game1, "S_10.eex")
+        r11 = read_member_by_basename(game1, "R_11.eex")
+        s11 = read_member_by_basename(game1, "S_11.eex")
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -3555,6 +3601,8 @@ def main(argv):
 
     r10_probe = build_next_scenario_probe("R_10.eex", r10)
     s10_probe = build_next_scenario_probe("S_10.eex", s10)
+    r11_probe = build_next_scenario_probe("R_11.eex", r11)
+    s11_probe = build_next_scenario_probe("S_11.eex", s11)
     r10_story = compile_r10_story(r10)
     r10_player_ids = extract_r10_departure_players(r10)
     s10_init_probe = {
@@ -3582,6 +3630,16 @@ def main(argv):
                 (3, 1),
             ],
         )
+        s10_transition_probe = probe_s10_transition_sections(
+            s10_scenes
+        )
+    else:
+        s10_transition_probe = {
+            "sections": {},
+            "relevantSectionIds": [],
+            "variable70SectionIds": [],
+            "objectiveSectionIds": [],
+        }
     s10_init_probe["map"] = map10_probe
 
     scene0 = int.from_bytes(s00[10:14], "little")
@@ -5954,7 +6012,7 @@ def main(argv):
         )
 
     s10_battle = {
-        "version": 57,
+        "version": 59,
         "source": "RS/S_10.eex",
         "battleMode": "s10-event-driven",
         "mapId": 10,
@@ -5987,6 +6045,11 @@ def main(argv):
         "battleEvents": s10_native_events,
         "outcomeProbe": s10_outcome_probe,
         "outcomeDetail": s10_outcome_detail,
+        "transitionProbe": s10_transition_probe,
+        "nextScenarioProbe": {
+            "R_11.eex": r11_probe,
+            "S_11.eex": s11_probe,
+        },
         "skippedActors": s10_skipped_actors,
         "specialSpriteAssignments": {
             str(cid): sorted(sprite_ids)
