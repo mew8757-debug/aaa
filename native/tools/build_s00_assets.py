@@ -2640,6 +2640,35 @@ def extract_r10_departure_players(blob):
     return ids[:8]
 
 
+
+def extract_r11_departure_players(blob):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 10:
+        return []
+
+    ids = [0]
+    seen = {0}
+    for section in scenes[9]["sections"]:
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            if node["commandId"] == 0x06:
+                params = node["params"]
+                if len(params) >= 3 and int(params[0]) == 1:
+                    for value in params[2:]:
+                        if (
+                            isinstance(value, int)
+                            and 0 <= value < 1024
+                            and value not in seen
+                        ):
+                            ids.append(int(value))
+                            seen.add(int(value))
+            stack.extend(node["children"])
+    return ids[:10]
+
+
 def build_next_scenario_probe(filename, blob):
     if blob is None:
         return {
