@@ -5739,6 +5739,82 @@ public class MapView extends View {
         startR17StoryScene();
     }
 
+    private void startR18Story() {
+        outcomeFlowActive = false;
+        r18StoryActive = true;
+        r18StorySceneIndex = 0;
+        s18Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR18StoryScene();
+    }
+
+    private void startR18StoryScene() {
+        if (!r18StoryActive || r18StoryScenes == null) {
+            return;
+        }
+        if (r18StorySceneIndex >= r18StoryScenes.length()) {
+            r18StoryActive = false;
+            s18Ready = true;
+            enterS18Battle();
+            return;
+        }
+
+        JSONObject scene = r18StoryScenes.optJSONObject(
+                r18StorySceneIndex);
+        if (scene == null) {
+            r18StorySceneIndex++;
+            startR18StoryScene();
+            return;
+        }
+
+        prepareScriptActionSequence(scene.optJSONArray("actions"));
+        int sceneNumber = scene.optInt(
+                "scene",
+                r18StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_18 Scene " + sceneNumber
+                + ("departure".equals(kind)
+                ? " · 출전"
+                : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR18StoryScene() {
+        r18StorySceneIndex++;
+        startR18StoryScene();
+    }
+
+    private void enterS18Battle() {
+        try {
+            loadS18Battle(getContext());
+            lastCombatMessage = "R_18 완료 · S_18 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            endBattle(
+                    false,
+                    "S_18 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS18Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle18.json",
+                18,
+                "m018.jpg",
+                "terrain18.bin");
+    }
+
     private void enterS17Battle() {
         try {
             loadS17Battle(getContext());
@@ -6495,7 +6571,105 @@ public class MapView extends View {
                             : battleResultText);
             return;
         }
-        endBattle(true, "S_17 원본 승리 흐름 완료");
+        if (r18StoryScenes != null && r18StoryScenes.length() > 0) {
+            startR18Story();
+        } else {
+            endBattle(true, "S_17 원본 승리 흐름 완료");
+        }
+    }
+
+    private void startS18VictoryOutcome(
+            int defeatedCharacterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s18VictoryOutcomeEvents != null
+                && defeatedCharacterId >= 0) {
+            JSONObject entry = s18VictoryOutcomeEvents.optJSONObject(
+                    String.valueOf(defeatedCharacterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null) {
+            actions = victoryOutcomeActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(true, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s18Victory";
+        battleVictory = true;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_18 승리 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS18DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s18Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_18 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS18PostBattleCleanup() {
+        outcomeStage = "s18PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS18Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_18 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS18Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_18 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+        endBattle(true, "S_18 원본 승리 흐름 완료");
     }
 
     private String currentBattleLabel() {
@@ -6767,6 +6941,16 @@ public class MapView extends View {
                 finishS17Outcome();
                 return;
             }
+            if ("s18Victory".equals(outcomeStage)
+                    || "s18Defeat".equals(outcomeStage)) {
+                startS18PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s18PostBattle".equals(outcomeStage)) {
+                finishS18Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -6831,6 +7015,10 @@ public class MapView extends View {
         }
         if (r17StoryActive) {
             finishR17StoryScene();
+            return;
+        }
+        if (r18StoryActive) {
+            finishR18StoryScene();
             return;
         }
 
@@ -6902,6 +7090,15 @@ public class MapView extends View {
                 && !outcomeFlowActive) {
             scriptedBattleFailure = false;
             startS17DefeatOutcome(
+                    -1,
+                    "원본 전장 이벤트 패배 조건");
+            return;
+        }
+        if (currentBattleIndex == 18
+                && scriptedBattleFailure
+                && !outcomeFlowActive) {
+            scriptedBattleFailure = false;
+            startS18DefeatOutcome(
                     -1,
                     "원본 전장 이벤트 패배 조건");
             return;
