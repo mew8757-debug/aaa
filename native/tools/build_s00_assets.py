@@ -4791,24 +4791,97 @@ def main(argv):
 
     r17_probe = build_next_scenario_probe("R_17.eex", r17)
     s17_probe = build_next_scenario_probe("S_17.eex", s17)
+    r17_story = compile_r17_story(r17)
+    r17_player_ids, r17_selectable_ids = extract_r17_departure_players(r17)
     s17_init_probe = {
         "found": s17 is not None,
         "validEex": bool(s17 and s17.startswith(b"EEX")),
         "map": map17_probe,
     }
     s17_event_probe = []
+    s17_native_events = []
     s17_outcome_probe = {}
+    s17_route_probe = {}
+    s17_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s17 and s17.startswith(b"EEX"):
         s17_scenes = parse_scenario_tree(s17)
         s17_init_probe = probe_s01_initialization(s17)
         s17_init_probe["map"] = map17_probe
         s17_event_probe = extract_scene2_native_events(s17_scenes)
+        s17_native_events = [
+            event
+            for event in s17_event_probe
+            if event["section"] not in {49, 54, 58, 59}
+        ]
         s17_outcome_probe = probe_battle_outcome_candidates(s17_scenes)
+        s17_outcome_events = {
+            "victory": compile_scenario_section_actions(
+                s17_scenes,
+                2,
+                58,
+            ),
+            "defeatByCharacter": {
+                "36": compile_scenario_section_actions(
+                    s17_scenes,
+                    2,
+                    49,
+                ),
+                "0": compile_scenario_section_actions(
+                    s17_scenes,
+                    2,
+                    54,
+                ),
+            },
+            "genericDefeat": compile_scenario_section_actions(
+                s17_scenes,
+                2,
+                59,
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s17_scenes,
+                3,
+                1,
+            ),
+        }
+        s17_flat = flatten_scenario_nodes(s17_scenes)
+        s17_route_sections = sorted({
+            row["section"]
+            for row in s17_flat
+            if row["scene"] == 2
+            and (
+                (
+                    row["depth"] == 0
+                    and row["commandId"] in {
+                        0x25, 0x26, 0x36, 0x3F, 0x40, 0x41
+                    }
+                )
+                or (
+                    row["depth"] >= 1
+                    and row["commandId"] in {
+                        0x0B, 0x19, 0x1A, 0x21, 0x5D
+                    }
+                )
+            )
+        })
+        s17_route_probe = probe_selected_scenario_sections(
+            s17_scenes,
+            [(2, section) for section in s17_route_sections],
+        )
 
     s17_event_summary = {
         "candidateCount": len(s17_event_probe),
         "coreSupportedCount": sum(
             1 for event in s17_event_probe
+            if event["coreSupported"]
+        ),
+        "nativeCandidateCount": len(s17_native_events),
+        "nativeSupportedCount": sum(
+            1 for event in s17_native_events
             if event["coreSupported"]
         ),
         "unsupportedSections": [
