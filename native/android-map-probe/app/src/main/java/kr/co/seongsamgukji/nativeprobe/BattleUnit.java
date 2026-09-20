@@ -13,6 +13,14 @@ public class BattleUnit {
     public final int attackRangeId;
     public final int level;
     public final int maxHp;
+
+    public int activeSpriteId;
+    public int activeJobId;
+    public int activeJobFamily;
+    public int activeMovePoints;
+    public int activeAttackRangeId;
+    public int maxMp;
+    public int mp;
     public final int attack;
     public final int defense;
     public final String faction;
@@ -81,6 +89,13 @@ public class BattleUnit {
         this.level = level;
         this.maxHp = Math.max(1, maxHp);
         this.hp = this.maxHp;
+        this.activeSpriteId = spriteId;
+        this.activeJobId = jobId;
+        this.activeJobFamily = jobFamily;
+        this.activeMovePoints = movePoints;
+        this.activeAttackRangeId = attackRangeId;
+        this.maxMp = 0;
+        this.mp = 0;
         this.attack = Math.max(0, attack);
         this.defense = Math.max(0, defense);
         this.faction = faction;
