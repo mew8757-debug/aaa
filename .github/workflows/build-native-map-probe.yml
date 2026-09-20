@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.34
+name: Build Native Android Battle v4.35
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.34 APK
+      - name: Build native v4.35 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.34.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.35.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.34 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.34 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.35 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.35 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.34 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.34" \
-              --notes "Native v4.34는 R14 종료 직후 원본 S14 전투로 실제 진입합니다. battle14.json에 M014 28x21/terrain14, R14 8인 roster, 원본 우군·적군 배치, 15턴·유비 보호·(1,19) 탈출 목표와 Scene2 이벤트를 패키징합니다. Section11 유비 탈출과 Section35 적 전멸의 두 승리 루트, Section34 유비 사망/Section36 일반패배, Scene3 정리를 원본 순서로 실행합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.35 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.35" \
+              --notes "Native v4.35는 v4.34의 S14 실제 진입/승패 처리를 유지하면서 원본 R_15.eex / S_15.eex와 M015/Hexzmap entry15 구조를 자동 진단합니다. R15 Scene/Section/흐름 명령, S15 초기 배치·목표·전장 이벤트 지원률·승패 후보를 compact build-status에 기록해 다음 버전에서 S14→R15→S15를 추측 없이 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.34 build status
+      - name: Record v4.35 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.34.0",
+              "version": "4.35.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.34.0",
+              "version": "4.35.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -1576,7 +1576,28 @@ jobs:
                   },
               }
 
-          Path("native/build-status/v4.34-summary.json").write_text(
+          if battle14_summary_path.exists():
+              compact["postS14Probe"] = {
+                  "nextScenarioProbe": battle14_summary.get(
+                      "nextScenarioProbe",
+                      {},
+                  ),
+                  "s15InitProbe": battle14_summary.get(
+                      "s15InitProbe",
+                      {},
+                  ),
+                  "s15EventSummary": battle14_summary.get(
+                      "s15EventSummary",
+                      {},
+                  ),
+                  "s15OutcomeProbe": battle14_summary.get(
+                      "s15OutcomeProbe",
+                      {},
+                  ),
+              }
+              status["postS14Probe"] = compact["postS14Probe"]
+
+          Path("native/build-status/v4.35-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -1585,7 +1606,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.34.json").write_text(
+          Path("native/build-status/v4.35.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -1593,11 +1614,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.34.json native/build-status/v4.34-summary.json
+          git add native/build-status/v4.35.json native/build-status/v4.35-summary.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.34 build status"
+          git commit -m "Record native v4.35 build status"
           git push
