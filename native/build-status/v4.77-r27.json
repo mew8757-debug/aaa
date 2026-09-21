@@ -1,6 +1,6 @@
 {
   "version": "4.77.0",
-  "status": "failure",
+  "status": "success",
   "source": "RS/S_27.eex",
   "battleMode": "s27-lure-then-annihilate",
   "map": "m027.jpg",

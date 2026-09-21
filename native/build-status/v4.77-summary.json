@@ -1,7 +1,7 @@
 {
   "version": "4.77.0",
-  "sourceCommit": "95cb770a705fd9da7e33d0981e79c2a79ef67054",
-  "status": "failure",
+  "sourceCommit": "374fd56201f42f967c42a304f78f53b2d65334c2",
+  "status": "success",
   "r10Story": {
     "supported": true,
     "sceneCount": 26,
