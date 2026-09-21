@@ -13543,6 +13543,39 @@ def main(argv):
             probe_battle_outcome_candidates(post26_scenes)
         )
 
+        post26_flat = flatten_scenario_nodes(post26_scenes)
+        route_sections = set()
+        for row in post26_flat:
+            if row["scene"] != 2:
+                continue
+            cid = row["commandId"]
+            params = row["params"]
+            if row["depth"] == 0 and cid in {
+                0x25, 0x26, 0x2E, 0x36,
+                0x3F, 0x40, 0x41, 0x42, 0x43,
+            }:
+                route_sections.add((2, row["section"]))
+            if cid == 0x0B and len(params) >= 2:
+                if int(params[0]) in {0, 1, 6, 8, 627}:
+                    route_sections.add((2, row["section"]))
+            if cid == 0x05 and len(params) >= 2:
+                values = []
+                for group in params[:2]:
+                    if isinstance(group, list):
+                        values.extend(
+                            int(v) for v in group
+                            if isinstance(v, int)
+                        )
+                if any(v in {0, 1, 6, 8, 627} for v in values):
+                    route_sections.add((2, row["section"]))
+
+        post_s26_probe["nextSRouteProbe"] = (
+            probe_selected_scenario_sections(
+                post26_scenes,
+                sorted(route_sections),
+            )
+        )
+
     if (
         next_r_after26_blob
         and next_r_after26_blob.startswith(b"EEX")
