@@ -648,3 +648,12 @@
 - Section 47 조건부 승리와 Section 67 적 전멸 승리 분기를 원본 outcome으로 연결
 - Section 48/49/50/51/65/66 개별 패배, Section 68 일반/25턴 초과 패배, Scene3 정리 연결
 - 검증 결과를 `native/build-status/v4.89-s33.json`에 기록
+
+
+## v4.90 S33 이후 원본 경로 자동 탐색
+
+- S33 승리 이후 33보다 큰 첫 R/S 파일을 원본 ZIP에서 자동 탐색
+- 다음 R/S의 Scene/Section/명령 구조와 다음 R 마지막 출전 Scene 명령을 compact status에 기록
+- 다음 S 초기 배치, Scene2 이벤트 지원률, 승패 후보와 route action을 자동 진단
+- 다음 S 번호의 지도 JPEG/Hexzmap 지형을 검증하고 probe 자산으로 미리 패키징
+- 결과를 `native/build-status/v4.90-next33.json`에 기록해 R34/S34 연결 근거로 사용
