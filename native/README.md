@@ -657,3 +657,14 @@
 - 다음 S 초기 배치, Scene2 이벤트 지원률, 승패 후보와 route action을 자동 진단
 - 다음 S 번호의 지도 JPEG/Hexzmap 지형을 검증하고 probe 자산으로 미리 패키징
 - 결과를 `native/build-status/v4.90-next33.json`에 기록해 R34/S34 연결 근거로 사용
+
+
+## v4.91 R34 → S34 네이티브 연결
+
+- S33 승리 후 `R_34.eex` Scene 1~19 스토리와 Scene20 출전 흐름을 연속 재생
+- R34 Scene20의 고정 출전 명단과 `0x2D` 선택 후보를 원본 순서로 합쳐 S34 10개 슬롯 구성
+- `M034` 24×34 / `terrain34.bin` 기반 S34 전장 실제 진입
+- Scene2 원본 이벤트 30개를 공용 네이티브 이벤트 엔진으로 처리하고 Section32/33 패배, Section37 승리, Section38 일반 패배 보존
+- 유비(0)·유기(151) 사망 및 적군 전멸 승패 판정을 원본 outcome 흐름으로 연결
+- 유기 관련 Section4 이벤트로 목표가 25턴에서 30턴으로 갱신될 때 Android 턴 제한도 30으로 동기화
+- 검증 결과를 `native/build-status/v4.91-s34.json`에 기록
