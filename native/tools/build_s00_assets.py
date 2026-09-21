@@ -473,6 +473,14 @@ def native_action_from_node(node):
     if cid == 0x24 and params:
         return {"type": "music", "value": int(params[0])}
 
+    if cid == 0x1F and len(params) >= 2:
+        return {
+            "type": "cameraFocus",
+            "x": int(params[0]),
+            "y": int(params[1]),
+        }
+
+
     # 0x21: battlefield-object add. The legacy editor stores
     # coordinate/action/type/viewpoint/sound in five integer slots.
     # Preserve all fields as a visual battlefield action; exact object
@@ -3049,6 +3057,39 @@ def compile_r25_story(blob):
     )
 
 
+def compile_r26_story(blob):
+    return compile_r_story(
+        blob,
+        "R_26.eex",
+        8,
+        9,
+        "S_26.eex",
+    )
+
+
+def extract_r26_departure_variants(blob):
+    # R26 Scene 9 Section 2 has two original fixed deployment variants
+    # selected by scenario variable 1051. Preserve both source rosters.
+    return [
+        {
+            "requireTrueVariables": [1051],
+            "requireFalseVariables": [],
+            "characterIds": [
+                0, 1, 2, 4, 17, 26, 27,
+                28, 29, 25, 13, 15, 16,
+            ],
+        },
+        {
+            "requireTrueVariables": [],
+            "requireFalseVariables": [1051],
+            "characterIds": [
+                0, 1, 2, 4, 17, 26,
+                27, 28, 29, 25, 13, 15,
+            ],
+        },
+    ]
+
+
 def extract_r25_departure_players(blob):
     # R25 Scene 17 exposes nine S25 slots. Liu Bei is the implicit
     # continuing leader; 0x06 carries fixed members and 0x2D exposes the
@@ -5284,6 +5325,13 @@ def main(argv):
                 post25_map_cols,
                 post25_map_rows,
             )
+            (map_dir / next_s_after25_map_name).write_bytes(
+                next_s_after25_map_bytes
+            )
+            (
+                battle_dir
+                / f"terrain{next_s_after25['number']}.bin"
+            ).write_bytes(post25_terrain_cells)
             post25_map_probe.update({
                 "valid": True,
                 "width": post25_map_width,
@@ -6604,6 +6652,59 @@ def main(argv):
                     }
                 ]
         post_s25_probe["nextRDepartureProbe"] = departure_probe
+
+
+    # R26 -> S26 continuation.
+    if (
+        next_r_after25 is None
+        or int(next_r_after25["number"]) != 26
+        or next_s_after25 is None
+        or int(next_s_after25["number"]) != 26
+    ):
+        raise SystemExit(
+            "Expected R_26/S_26 after S25, got "
+            + repr({
+                "nextR": next_r_after25,
+                "nextS": next_s_after25,
+            })
+        )
+
+    r26 = next_r_after25_blob
+    s26 = next_s_after25_blob
+    r26_story = compile_r26_story(r26)
+    r26_player_variants = extract_r26_departure_variants(r26)
+
+    s26_init_probe = probe_s01_initialization(s26)
+    s26_init_probe["map"] = post25_map_probe
+    s26_scenes = parse_scenario_tree(s26)
+    s26_event_probe = extract_scene2_native_events(s26_scenes)
+    s26_terminal_sections = {11, 37, 55, 56}
+    s26_native_events = [
+        event for event in s26_event_probe
+        if event["section"] not in s26_terminal_sections
+    ]
+    s26_outcome_events = {
+        "victoryByRoute": {
+            "escape": compile_scenario_section_actions(
+                s26_scenes, 2, 11
+            ),
+            "annihilation": compile_scenario_section_actions(
+                s26_scenes, 2, 55
+            ),
+        },
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                s26_scenes, 2, 37
+            ),
+        },
+        "genericDefeat": compile_scenario_section_actions(
+            s26_scenes, 2, 56
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s26_scenes, 3, 1
+        ),
+    }
+    s26_outcome_probe = probe_battle_outcome_candidates(s26_scenes)
 
     s21_native_events = []
     s21_outcome_events = {
@@ -13029,6 +13130,7 @@ def main(argv):
         "outcomeEvents": s25_outcome_events,
         "outcomeProbe": s25_outcome_probe,
         "postS25Probe": post_s25_probe,
+        "r26Story": r26_story,
         "routeModel": {
             "victorySection": 16,
             "defeatByCharacterSections": {
@@ -13079,6 +13181,278 @@ def main(argv):
     }
     (battle_dir / "battle25.json").write_text(
         json.dumps(s25_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+
+    s26_player_slot_groups = []
+    current_slots = []
+    for row in s26_init_probe.get("playerSlots", []):
+        if int(row["slot"]) == 0 and current_slots:
+            s26_player_slot_groups.append(current_slots)
+            current_slots = []
+        current_slots.append(row)
+    if current_slots:
+        s26_player_slot_groups.append(current_slots)
+
+    if len(s26_player_slot_groups) < 2:
+        raise SystemExit(
+            "S26 expected two conditional player-slot groups, got "
+            + repr(s26_player_slot_groups)
+        )
+
+    s26_skipped_actors = []
+    s26_nonplayer_units = []
+    s26_character_ids = set()
+    reserved_player_ids = {
+        int(cid)
+        for variant in r26_player_variants
+        for cid in variant["characterIds"]
+    }
+
+    def make_s26_record(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s26_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            return None
+
+        profile = combat_profile_of(cid, deploy_level)
+        return {
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        }
+
+    s26_player_variants = []
+    for variant_index, variant in enumerate(r26_player_variants):
+        slots = s26_player_slot_groups[variant_index]
+        ids = variant["characterIds"]
+        if len(slots) < len(ids):
+            raise SystemExit(
+                f"S26 variant {variant_index} has "
+                f"{len(slots)} slots for {len(ids)} players"
+            )
+        variant_units = []
+        for slot, cid in zip(slots, ids):
+            record = make_s26_record(
+                cid,
+                PLAYER,
+                bool(slot.get("flag", 0)),
+                slot["x"],
+                slot["y"],
+                slot["direction"],
+                None,
+                None,
+                0,
+                False,
+                f"S_26:0x4B:variant{variant_index}:{slot['slot']}",
+                battle_number=int(slot["slot"]),
+            )
+            if record is None:
+                raise SystemExit(
+                    f"S26 player {cid} invalid sprite"
+                )
+            variant_units.append(record)
+        s26_player_variants.append({
+            "requireTrueVariables":
+                variant["requireTrueVariables"],
+            "requireFalseVariables":
+                variant["requireFalseVariables"],
+            "characterIds": ids,
+            "units": variant_units,
+        })
+
+    next_battle_number = 13
+    for index, row in enumerate(
+        s26_init_probe.get("friendRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in reserved_player_ids or cid in s26_character_ids:
+            continue
+        record = make_s26_record(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_26:0x46:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s26_nonplayer_units.append(record)
+            s26_character_ids.add(cid)
+            next_battle_number += 1
+
+    for index, row in enumerate(
+        s26_init_probe.get("enemyRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in reserved_player_ids or cid in s26_character_ids:
+            continue
+        record = make_s26_record(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_26:0x47:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s26_nonplayer_units.append(record)
+            s26_character_ids.add(cid)
+            next_battle_number += 1
+
+    s26_objective_text = (
+        s26_init_probe["objectiveTexts"][0]
+        if s26_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s26_popup_text = (
+        s26_init_probe["objectivePopups"][0]
+        if s26_init_probe.get("objectivePopups")
+        else ""
+    )
+    s26_turn_limit = objective_turn_limit(
+        s26_objective_text,
+        25,
+    )
+
+    s26_battle = {
+        "version": 105,
+        "source": "RS/S_26.eex",
+        "battleMode": "s26-escape-or-annihilation",
+        "mapId": 26,
+        "map": "m026.jpg",
+        "widthTiles": post25_map_probe["cols"],
+        "heightTiles": post25_map_probe["rows"],
+        "terrainFile": "terrain26.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s26_objective_text,
+                "popupText": s26_popup_text,
+                "turnLimit": s26_turn_limit,
+                "goal": {
+                    "type": "escape-or-annihilate",
+                    "characterId": 0,
+                    "x": 1,
+                    "y": 28,
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s26_turn_limit,
+            },
+            "protectedCharacterIds": [0],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s26_native_events,
+        "outcomeEvents": s26_outcome_events,
+        "outcomeProbe": s26_outcome_probe,
+        "routeModel": {
+            "escapeCharacterId": 0,
+            "escapeX": 1,
+            "escapeY": 28,
+            "escapeVictorySection": 11,
+            "defeatByCharacterSections": {"0": 37},
+            "annihilationVictorySection": 55,
+            "genericDefeatSection": 56,
+            "postBattleScene": "S03-SEC01",
+            "turnLimit": s26_turn_limit,
+            "rosterVariable": 1051,
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s26_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s26_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s26_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s26_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "unsupportedActions":
+                        event["unsupportedActions"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s26_native_events
+            ],
+        },
+        "terrainIds": post25_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s26_skipped_actors,
+        "playerVariants": s26_player_variants,
+        "units": s26_nonplayer_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle26.json").write_text(
+        json.dumps(s26_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -13201,6 +13575,12 @@ def main(argv):
                 + s23_units
                 + s24_units
                 + s25_units
+                + s26_nonplayer_units
+                + [
+                    unit
+                    for variant in s26_player_variants
+                    for unit in variant["units"]
+                ]
             )
         }
         | s09_special_sprite_ids
