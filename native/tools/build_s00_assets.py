@@ -7290,6 +7290,10 @@ def main(argv):
             and sd[0] == expected_spc and sd[1] >= expected_spc
         )
 
+    def objective_turn_limit(text, fallback):
+        match = re.search(r"(\d+)턴", text or "")
+        return int(match.group(1)) if match else fallback
+
     r28 = next_r_after27_blob
     s28 = next_s_after27_blob
     r28_story = compile_r28_story(r28)
