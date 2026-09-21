@@ -8639,7 +8639,164 @@ public class MapView extends View {
                             : battleResultText);
             return;
         }
-        endBattle(true, "S_27 원본 승리 흐름 완료");
+        if (r28StoryScenes != null && r28StoryScenes.length() > 0) {
+            startR28Story();
+        } else {
+            endBattle(true, "S_27 원본 승리 흐름 완료");
+        }
+    }
+
+    private void startR28Story() {
+        outcomeFlowActive = false;
+        r28StoryActive = true;
+        r28StorySceneIndex = 0;
+        s28Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR28StoryScene();
+    }
+
+    private void startR28StoryScene() {
+        if (!r28StoryActive || r28StoryScenes == null) {
+            return;
+        }
+        if (r28StorySceneIndex >= r28StoryScenes.length()) {
+            r28StoryActive = false;
+            s28Ready = true;
+            enterS28Battle();
+            return;
+        }
+
+        JSONObject scene = r28StoryScenes.optJSONObject(
+                r28StorySceneIndex);
+        if (scene == null) {
+            r28StorySceneIndex++;
+            startR28StoryScene();
+            return;
+        }
+
+        prepareScriptActionSequence(scene.optJSONArray("actions"));
+        int sceneNumber = scene.optInt("scene", r28StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_28 Scene " + sceneNumber
+                + ("departure".equals(kind) ? " · 출전" : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR28StoryScene() {
+        r28StorySceneIndex++;
+        startR28StoryScene();
+    }
+
+    private void enterS28Battle() {
+        try {
+            loadS28Battle(getContext());
+            lastCombatMessage = "R_28 완료 · S_28 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            r28StoryActive = false;
+            endBattle(
+                    false,
+                    "S_28 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS28Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle28.json",
+                28,
+                "m028.jpg",
+                "terrain28.bin");
+    }
+
+    private void startS28VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "양양 탈출 · S_28 원본 승리 조건");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s28Victory";
+        battleVictory = true;
+        battleResultText = "양양 탈출 · S_28 원본 승리 조건";
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_28 승리 정산";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS28DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s28Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_28 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS28PostBattleCleanup() {
+        outcomeStage = "s28PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS28Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_28 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS28Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_28 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+        endBattle(true, "S_28 원본 승리 흐름 완료");
     }
 
 
@@ -8647,6 +8804,60 @@ public class MapView extends View {
         if (currentBattleIndex == 28) {
             return "S_28";
         }
+        if (currentBattleIndex == 28) {
+            BattleUnit liuBei = findUnitByCharacterId(0);
+            if (liuBei != null && !liuBei.isAlive()) {
+                startS28DefeatOutcome(
+                        0,
+                        liuBei.name + " 체포/사망 · 원본 패배 조건");
+                return;
+            }
+
+            BattleUnit specialNpc = findUnitByCharacterId(338);
+            if (specialNpc != null && !specialNpc.isAlive()) {
+                startS28DefeatOutcome(
+                        338,
+                        specialNpc.name + " 사망 · 원본 패배 조건");
+                return;
+            }
+
+            BattleUnit caiMao = findUnitByCharacterId(156);
+            if (caiMao != null && !caiMao.isAlive()) {
+                startS28DefeatOutcome(
+                        156,
+                        caiMao.name + " 사망 · 원본 패배 조건");
+                return;
+            }
+
+            if (scenarioVariables.getOrDefault(9, 0) != 0
+                    && battlePhase != 2) {
+                battlePhase = 2;
+                turnLimit = phase2TurnLimit;
+                if (phase2ObjectiveText != null
+                        && !phase2ObjectiveText.isEmpty()) {
+                    objectiveText = phase2ObjectiveText;
+                }
+                if (phase2PopupText != null
+                        && !phase2PopupText.isEmpty()) {
+                    objectivePopupText = phase2PopupText;
+                }
+            }
+
+            if (round > turnLimit) {
+                startS28DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+
+            if (scenarioVariables.getOrDefault(0, 0) != 0) {
+                startS28VictoryOutcome();
+                return;
+            }
+
+            return;
+        }
+
         if (currentBattleIndex == 27) {
             return "S_27";
         }
