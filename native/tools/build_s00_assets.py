@@ -5932,19 +5932,59 @@ def main(argv):
 
     r24_probe = build_next_scenario_probe("R_24.eex", r24)
     s24_probe = build_next_scenario_probe("S_24.eex", s24)
+    r24_story = compile_r24_story(r24)
     s24_init_probe = {
         "found": s24 is not None,
         "validEex": bool(s24 and s24.startswith(b"EEX")),
         "map": map24_probe,
     }
     s24_event_probe = []
+    s24_native_events = []
     s24_outcome_probe = {}
     s24_route_probe = {}
+    s24_outcome_events = {
+        "victory": {"supported": False, "actions": []},
+        "defeatByCharacter": {},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
+    s24_route_model = {
+        "escortActivationVariable": 4,
+        "victoryAreaCharacters": [1, 327],
+        "victoryArea": None,
+        "victorySection": 102,
+        "defeatByCharacterSections": {"1": 83, "327": 84},
+        "genericDefeatSection": 103,
+        "postBattleScene": "S03-SEC01",
+    }
     if s24 and s24.startswith(b"EEX"):
         s24_scenes = parse_scenario_tree(s24)
         s24_init_probe = probe_s01_initialization(s24)
         s24_init_probe["map"] = map24_probe
         s24_event_probe = extract_scene2_native_events(s24_scenes)
+        s24_native_events = [
+            event for event in s24_event_probe
+            if event["section"] not in {83, 84, 102, 103}
+        ]
+        s24_outcome_events = {
+            "victory": compile_scenario_section_actions(
+                s24_scenes, 2, 102
+            ),
+            "defeatByCharacter": {
+                "1": compile_scenario_section_actions(
+                    s24_scenes, 2, 83
+                ),
+                "327": compile_scenario_section_actions(
+                    s24_scenes, 2, 84
+                ),
+            },
+            "genericDefeat": compile_scenario_section_actions(
+                s24_scenes, 2, 103
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s24_scenes, 3, 1
+            ),
+        }
         s24_outcome_probe = probe_battle_outcome_candidates(s24_scenes)
         s24_route_probe = probe_selected_scenario_sections(
             s24_scenes,
@@ -5959,6 +5999,24 @@ def main(argv):
                 (3, 1),
             ],
         )
+        s24_flat = flatten_scenario_nodes(s24_scenes)
+        s24_victory_area = next(
+            (
+                {
+                    "x1": int(row["params"][0]),
+                    "y1": int(row["params"][1]),
+                    "x2": int(row["params"][2]),
+                    "y2": int(row["params"][3]),
+                }
+                for row in s24_flat
+                if row["scene"] == 2
+                and row["commandId"] == 0x5B
+                and len(row["params"]) >= 5
+                and int(row["params"][4]) == 0
+            ),
+            None,
+        )
+        s24_route_model["victoryArea"] = s24_victory_area
 
     post_s23_probe = {
         "R_24.eex": r24_probe,
