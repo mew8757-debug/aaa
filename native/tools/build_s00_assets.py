@@ -2508,6 +2508,16 @@ def compile_r_story_leaf(node):
     if cid == 0x07:
         return {"type": "deploymentTest"}
 
+    if cid == 0x4B and len(params) >= 5:
+        return {
+            "type": "deploymentSlot",
+            "slot": int(params[0]),
+            "x": int(params[1]),
+            "y": int(params[2]),
+            "direction": int(params[3]),
+            "flag": int(params[4]),
+        }
+
     if cid == 0x0D:
         return {"type": "sceneEnd"}
 
@@ -2555,6 +2565,31 @@ def compile_r_story_node(node):
     params = node["params"]
 
     if node["children"]:
+        if cid == 0x04 and params:
+            actions = []
+            unsupported = []
+            for child in node["children"]:
+                action, child_unsupported = compile_r_story_node(child)
+                unsupported.extend(child_unsupported)
+                if action is not None:
+                    actions.append(action)
+            match_yes = int(params[0]) != 0
+            return ({
+                "type": "choice",
+                "options": ["예", "아니오"],
+                "cases": [
+                    {
+                        "value": 1,
+                        "actions": actions if match_yes else [],
+                    },
+                    {
+                        "value": 2,
+                        "actions": [] if match_yes else actions,
+                    },
+                ],
+                "inquiryTest": True,
+            }, unsupported)
+
         if cid == 0x12:
             raw = ""
             if params and isinstance(params[0], str):
@@ -3002,6 +3037,80 @@ def compile_r24_story(blob):
         14,
         "S_24.eex",
     )
+
+
+def compile_r25_story(blob):
+    return compile_r_story(
+        blob,
+        "R_25.eex",
+        16,
+        17,
+        "S_25.eex",
+    )
+
+
+def extract_r25_departure_players(blob):
+    # R25 Scene 17 exposes nine S25 slots. Liu Bei is the implicit
+    # continuing leader; 0x06 carries fixed members and 0x2D exposes the
+    # remaining selectable members in source order.
+    roster = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return roster, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 17:
+        return roster, selectable
+
+    departure = scenes[16]
+    fixed = []
+    candidates = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed
+                    ):
+                        fixed.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in candidates
+                ):
+                    candidates.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed:
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    for cid in candidates:
+        if cid not in selectable:
+            selectable.append(cid)
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    return roster[:9], selectable
 
 
 def extract_r23_departure_players(blob):
@@ -6221,6 +6330,62 @@ def main(argv):
         post_s24_probe["nextSOutcomeProbe"] = (
             probe_battle_outcome_candidates(post24_scenes)
         )
+
+    # R25 -> S25 continuation discovered by the v4.60 inventory probe.
+    if (
+        next_r_after24 is None
+        or int(next_r_after24["number"]) != 25
+        or next_s_after24 is None
+        or int(next_s_after24["number"]) != 25
+    ):
+        raise SystemExit(
+            "Expected R_25/S_25 after S24, got "
+            + repr({
+                "nextR": next_r_after24,
+                "nextS": next_s_after24,
+            })
+        )
+
+    r25 = next_r_after24_blob
+    s25 = next_s_after24_blob
+    r25_probe = build_next_scenario_probe("R_25.eex", r25)
+    s25_probe = build_next_scenario_probe("S_25.eex", s25)
+    r25_story = compile_r25_story(r25)
+    s25_player_ids, r25_selectable_ids = (
+        extract_r25_departure_players(r25)
+    )
+
+    s25_init_probe = probe_s01_initialization(s25)
+    s25_init_probe["map"] = post24_map_probe
+    s25_scenes = parse_scenario_tree(s25)
+    s25_event_probe = extract_scene2_native_events(s25_scenes)
+    s25_terminal_sections = {10, 11, 16, 17}
+    s25_native_events = [
+        event for event in s25_event_probe
+        if event["section"] not in s25_terminal_sections
+    ]
+    s25_outcome_events = {
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                s25_scenes, 2, 10
+            ),
+            "337": compile_scenario_section_actions(
+                s25_scenes, 2, 11
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s25_scenes, 2, 16
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s25_scenes, 2, 17
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s25_scenes, 3, 1
+        ),
+    }
+    s25_outcome_probe = probe_battle_outcome_candidates(
+        s25_scenes
+    )
 
     s21_native_events = []
     s21_outcome_events = {
@@ -12378,6 +12543,8 @@ def main(argv):
         "outcomeEvents": s24_outcome_events,
         "outcomeProbe": s24_outcome_probe,
         "postS24Probe": post_s24_probe,
+        "r25Story": r25_story,
+        "s25InitProbe": s25_init_probe,
         "routeModel": {
             "carriageFoundSection": 3,
             "routeSections": [22, 23],
@@ -12434,6 +12601,265 @@ def main(argv):
     }
     (battle_dir / "battle24.json").write_text(
         json.dumps(s24_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # R25 -> S25: original nine-slot continuation battle.
+    if not post24_map_probe.get("valid"):
+        raise SystemExit(
+            "M025 map probe invalid: " + repr(post24_map_probe)
+        )
+    if not r25_story.get("supported"):
+        raise SystemExit(
+            "R25 story unsupported: "
+            + repr(r25_story.get("unsupportedActionIds", []))
+        )
+
+    expected_s25_players = [0, 1, 2, 4, 17, 25, 27, 190, 191]
+    if s25_player_ids != expected_s25_players:
+        raise SystemExit(
+            "R25 departure roster unexpected: "
+            + repr({
+                "actual": s25_player_ids,
+                "expected": expected_s25_players,
+                "selectable": r25_selectable_ids,
+            })
+        )
+
+    s25_slots = sorted(
+        s25_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(s25_slots) != len(s25_player_ids):
+        raise SystemExit(
+            "S25 roster/slot mismatch: "
+            + repr({
+                "players": s25_player_ids,
+                "slots": s25_slots,
+            })
+        )
+
+    s25_units = []
+    s25_skipped_actors = []
+    s25_character_ids = set()
+
+    def make_s25_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        if cid in s25_character_ids:
+            return False
+
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s25_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            print(f"skip S25 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s25_units.append({
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        s25_character_ids.add(cid)
+        return True
+
+    for slot, cid in zip(s25_slots, s25_player_ids):
+        if not make_s25_unit(
+            cid,
+            PLAYER,
+            bool(slot.get("flag", 0)),
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_25:0x4B:{slot['slot']}",
+            battle_number=int(slot["slot"]),
+        ):
+            raise SystemExit(
+                f"S25 player {cid} duplicate or invalid sprite"
+            )
+
+    next_battle_number = len(s25_slots)
+    for index, row in enumerate(
+        s25_init_probe.get("friendRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s25_character_ids:
+            continue
+        if make_s25_unit(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_25:0x46:{index}",
+            battle_number=next_battle_number,
+        ):
+            next_battle_number += 1
+
+    for index, row in enumerate(
+        s25_init_probe.get("enemyRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s25_character_ids:
+            continue
+        if make_s25_unit(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_25:0x47:{index}",
+            battle_number=next_battle_number,
+        ):
+            next_battle_number += 1
+
+    s25_objective_text = (
+        s25_init_probe["objectiveTexts"][0]
+        if s25_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s25_popup_text = (
+        s25_init_probe["objectivePopups"][0]
+        if s25_init_probe.get("objectivePopups")
+        else ""
+    )
+    s25_turn_limit = objective_turn_limit(
+        s25_objective_text,
+        15,
+    )
+
+    s25_battle = {
+        "version": 102,
+        "source": "RS/S_25.eex",
+        "battleMode": "enemy-annihilation",
+        "mapId": 25,
+        "map": "m025.jpg",
+        "widthTiles": post24_map_probe["cols"],
+        "heightTiles": post24_map_probe["rows"],
+        "terrainFile": "terrain25.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s25_objective_text,
+                "popupText": s25_popup_text,
+                "turnLimit": s25_turn_limit,
+                "goal": {"type": "enemy-annihilation"},
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": s25_turn_limit,
+            },
+            "protectedCharacterIds": [0, 337],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+                {"characterId": 337, "name": name_of(337)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s25_native_events,
+        "outcomeEvents": s25_outcome_events,
+        "outcomeProbe": s25_outcome_probe,
+        "routeModel": {
+            "victorySection": 16,
+            "defeatByCharacterSections": {
+                "0": 10,
+                "337": 11,
+            },
+            "genericDefeatSection": 17,
+            "postBattleScene": "S03-SEC01",
+            "turnLimit": s25_turn_limit,
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s25_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s25_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s25_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s25_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "unsupportedActions":
+                        event["unsupportedActions"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s25_native_events
+            ],
+        },
+        "terrainIds": post24_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s25_skipped_actors,
+        "r25PlayerIds": s25_player_ids,
+        "r25SelectableIds": r25_selectable_ids,
+        "units": s25_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle25.json").write_text(
+        json.dumps(s25_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -12555,6 +12981,7 @@ def main(argv):
                 + s22_units
                 + s23_units
                 + s24_units
+                + s25_units
             )
         }
         | s09_special_sprite_ids
