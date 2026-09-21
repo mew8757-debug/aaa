@@ -7575,18 +7575,39 @@ def main(argv):
         off = 0xD2800 + cid * 2
         return int.from_bytes(exe[off:off + 2], "little")
 
+    def sprite_record_payload(desc, blob, expected):
+        if desc is None:
+            return None
+        unpacked, stored, offset = desc
+        prefix = 0
+        if unpacked == expected:
+            prefix = 0
+        elif unpacked == expected + 2:
+            prefix = 2
+        else:
+            return None
+        if stored < expected + prefix:
+            return None
+        start = offset + prefix
+        payload = blob[start:start + expected]
+        if len(payload) != expected:
+            return None
+        return payload
+
     def sprite_record_valid(sid):
         expected_mov = 48 * 48 * 11
         expected_atk = 64 * 64 * 12
         expected_spc = 48 * 48 * 5
-        md = be_desc(mov, sid)
-        ad = be_desc(atk, sid)
-        sd = be_desc(spc, sid)
         return (
-            md is not None and ad is not None and sd is not None
-            and md[0] == expected_mov and md[1] >= expected_mov
-            and ad[0] == expected_atk and ad[1] >= expected_atk
-            and sd[0] == expected_spc and sd[1] >= expected_spc
+            sprite_record_payload(
+                be_desc(mov, sid), mov, expected_mov
+            ) is not None
+            and sprite_record_payload(
+                be_desc(atk, sid), atk, expected_atk
+            ) is not None
+            and sprite_record_payload(
+                be_desc(spc, sid), spc, expected_spc
+            ) is not None
         )
 
     def objective_turn_limit(text, fallback):
@@ -15912,14 +15933,13 @@ def main(argv):
             desc = be_desc(blob, sid)
             if desc is None:
                 raise SystemExit(f"Missing {label} sprite {sid}")
-            unpacked, stored, offset = desc
-            if unpacked != expected or stored < expected:
+            payload = sprite_record_payload(desc, blob, expected)
+            if payload is None:
+                unpacked, stored, offset = desc
                 raise SystemExit(
-                    f"Unexpected {label} sid={sid}: {unpacked}/{stored}/{offset}"
+                    f"Unexpected {label} sid={sid}: "
+                    f"{unpacked}/{stored}/{offset}"
                 )
-            payload = blob[offset:offset + expected]
-            if len(payload) != expected:
-                raise SystemExit(f"Truncated {label} sid={sid}")
             (sprite_dir / f"{label}_{sid:03d}.bin").write_bytes(payload)
 
     pdesc = be_desc(pal, 0)
