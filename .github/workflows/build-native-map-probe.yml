@@ -76,7 +76,7 @@ jobs:
           else
             gh release create native-battle-v4.64 "${OUT}" --draft \
               --title "PRIVATE - 성삼국지 Native Battle v4.64" \
-              --notes "Native v4.64는 S25 승리 후 R_26 Scene1~8 + Scene9 출전 흐름을 이어 재생하고 S_26 전투로 실제 진입합니다. R26 변수1051에 따라 원본 13인/12인 출전 배치를 선택하며, M026 36x30/terrain26과 원본 우군·적군·증원을 패키징합니다. S26 Section9의 0x1F 카메라 이동을 실행하고, 유비(0)가 (1,28)에 도착하는 탈출 승리 Section11과 적군 전멸 Section55를 각각 원본 정산으로 처리합니다. 유비 사망 Section37, 25턴/일반 패배 Section56, Scene3 정리도 연결합니다. 공개 배포하지 마세요." \\
+              --notes "Native v4.64는 S25 승리 후 R_26 Scene1~8 + Scene9 출전 흐름을 이어 재생하고 S_26 전투로 실제 진입합니다. R26 변수1051에 따라 원본 13인/12인 출전 배치를 선택하며, M026 36x30/terrain26과 원본 우군·적군·증원을 패키징합니다. S26 Section9의 0x1F 카메라 이동을 실행하고, 유비(0)가 (1,28)에 도착하는 탈출 승리 Section11과 적군 전멸 Section55를 각각 원본 정산으로 처리합니다. 유비 사망 Section37, 25턴/일반 패배 Section56, Scene3 정리도 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
