@@ -11949,6 +11949,7 @@ def main(argv):
             "R_24.eex": r24_probe,
             "S_24.eex": s24_probe,
         },
+        "r24Story": r24_story,
         "postS23Probe": post_s23_probe,
         "routeModel": {
             "targetCharacterId": 36,
