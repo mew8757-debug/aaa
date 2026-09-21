@@ -10,7 +10,7 @@
 - 원작 전투/이벤트/맵 동작을 보존
 - 터치 입력, 화면 비율, 저장 경로는 Android에 맞게 재설계
 
-## 현재 구현 상태 (v4.71)
+## 현재 구현 상태 (v4.76)
 
 - 실제 첫 전투 맵 `map/m000.jpg` 네이티브 렌더링
 - `RS/S_00.eex`의 플레이어/우군/적군 초기 배치 반영
@@ -510,3 +510,12 @@
 - `currentBattleLabel()`에 남아 있던 중복 S28 승패 검사 블록 제거
 - S28 승패 검사는 `checkBattleState()` 단일 위치에서만 실행
 - Java `missing return value` 컴파일 회귀 최종 제거
+
+
+## v4.76 S28 이후 자동 탐색
+
+- S28 승리 이후 원본 ZIP에서 28보다 큰 첫 R/S 파일을 자동 탐색
+- 다음 R/S의 Scene/Section/명령 구조와 다음 R 마지막 출전 Scene 명령을 compact status에 기록
+- 다음 S 초기 배치·Scene2 이벤트 지원률·승패 후보를 자동 진단
+- 다음 S 번호에 맞는 mNNN.jpg와 Hexzmap entry를 검증하고 probe 자산으로 패키징
+- 결과를 `v4.76-next28.json`에 기록해 R29/S29 연속 플레이 구현 근거로 사용
