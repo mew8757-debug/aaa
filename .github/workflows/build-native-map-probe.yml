@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.57.1
+name: Build Native Android Battle v4.58
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.57.1 APK
+      - name: Build native v4.58 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.57.1.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.58.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.57.1 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.57.1 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.58 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.58 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.57.1 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.57.1" \
-              --notes "Native v4.57.1은 v4.57의 S23 이후 R24/S24 probe를 유지하면서 S24 핵심 미지원 Section 3/22/23과 승패 Section 83/84/102/103, Scene3 정리의 전체 원본 트리를 build-status에 추가 기록합니다. 0x04 문의 테스트와 0x4C 변형의 정확한 실행 의미를 확정한 뒤 v4.58에서 R24→S24 실제 연속 플레이로 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.58 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.58" \
+              --notes "Native v4.58은 S23 승리 뒤 R24 14개 Scene을 원본 순서로 재생하고 S24 호송전에 실제 진입합니다. S24 0x04 문의 테스트는 예/아니오 즉시 선택으로 실행하며, 0x4C mode1은 전장번호 기반 숨은 무장 등장으로 처리합니다. 전장번호 1은 원본 Section 22/23 문맥과 플레이어 슬롯을 대조해 손건(29)으로 검증했습니다. S24는 마차 발견 전 10턴, Section 3 이후 관우·마차 하북 도착 80턴 목표로 전환하며 원본 승패 Section 83/84/102/103과 Scene3 정리를 사용합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.57.1 build status
+      - name: Record v4.58 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -2423,7 +2423,7 @@ jobs:
           post_s20 = s20_compact.get("postS20Probe", {})
           next_21 = s20_compact.get("nextScenarioProbe", {})
           r21_small = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "status": os.environ["BUILD_STATUS"],
               "r21": next_21.get("R_21.eex", {}),
               "s21": next_21.get("S_21.eex", {}),
@@ -2444,7 +2444,7 @@ jobs:
               ),
               "battle21": compact.get("s21Battle", {}),
           }
-          Path("native/build-status/v4.57.1-r21.json").write_text(
+          Path("native/build-status/v4.58-r21.json").write_text(
               json.dumps(
                   r21_small,
                   ensure_ascii=False,
@@ -2457,7 +2457,7 @@ jobs:
           post_s21 = s21_compact.get("postS21Probe", {})
           next_22 = s21_compact.get("nextScenarioProbe", {})
           r22_small = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "status": os.environ["BUILD_STATUS"],
               "r22": next_22.get("R_22.eex", {}),
               "s22": next_22.get("S_22.eex", {}),
@@ -2476,7 +2476,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57.1-r22.json").write_text(
+          Path("native/build-status/v4.58-r22.json").write_text(
               json.dumps(
                   r22_small,
                   ensure_ascii=False,
@@ -2489,7 +2489,7 @@ jobs:
           post_s22 = s22_compact.get("postS22Probe", {})
           next_23 = s22_compact.get("nextScenarioProbe", {})
           r23_small = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "status": os.environ["BUILD_STATUS"],
               "r23": next_23.get("R_23.eex", {}),
               "s23": next_23.get("S_23.eex", {}),
@@ -2521,7 +2521,7 @@ jobs:
               ),
               "battle23": compact.get("s23Battle", {}),
           }
-          Path("native/build-status/v4.57.1-r23.json").write_text(
+          Path("native/build-status/v4.58-r23.json").write_text(
               json.dumps(
                   r23_small,
                   ensure_ascii=False,
@@ -2534,7 +2534,7 @@ jobs:
           post_s23 = s23_compact.get("postS23Probe", {})
           next_24 = s23_compact.get("nextScenarioProbe", {})
           r24_small = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "status": os.environ["BUILD_STATUS"],
               "r24": next_24.get("R_24.eex", {}),
               "s24": next_24.get("S_24.eex", {}),
@@ -2553,7 +2553,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57.1-r24.json").write_text(
+          Path("native/build-status/v4.58-r24.json").write_text(
               json.dumps(
                   r24_small,
                   ensure_ascii=False,
@@ -2569,7 +2569,7 @@ jobs:
           post_s19 = s19_compact.get("postS19Probe", {})
           next_20 = s19_compact.get("nextScenarioProbe", {})
           r20_small = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "status": os.environ["BUILD_STATUS"],
               "r20": next_20.get("R_20.eex", {}),
               "s20": next_20.get("S_20.eex", {}),
@@ -2588,7 +2588,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57.1-r20.json").write_text(
+          Path("native/build-status/v4.58-r20.json").write_text(
               json.dumps(
                   r20_small,
                   ensure_ascii=False,
@@ -2601,7 +2601,7 @@ jobs:
           post_s18 = s18_compact.get("postS18Probe", {})
           next_19 = s18_compact.get("nextScenarioProbe", {})
           r19_small = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "status": os.environ["BUILD_STATUS"],
               "r19": next_19.get("R_19.eex", {}),
               "s19": next_19.get("S_19.eex", {}),
@@ -2620,7 +2620,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57.1-r19.json").write_text(
+          Path("native/build-status/v4.58-r19.json").write_text(
               json.dumps(
                   r19_small,
                   ensure_ascii=False,
@@ -2632,12 +2632,12 @@ jobs:
 
           s22_compact = compact.get("s22Battle", {})
           r22_small = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "status": os.environ["BUILD_STATUS"],
               "r22Story": battle21.get("r22Story", {}) if battle21_path.exists() else {},
               "battle22": s22_compact,
           }
-          Path("native/build-status/v4.57.1-r22.json").write_text(
+          Path("native/build-status/v4.58-r22.json").write_text(
               json.dumps(
                   r22_small,
                   ensure_ascii=False,
@@ -2646,7 +2646,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.57.1-summary.json").write_text(
+          Path("native/build-status/v4.58-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -2659,7 +2659,7 @@ jobs:
           post_s17 = s17_compact.get("postS17Probe", {})
           next_probe = s17_compact.get("nextScenarioProbe", {})
           r18_small = {
-              "version": "4.57.1",
+              "version": "4.58.0",
               "status": os.environ["BUILD_STATUS"],
               "r18": next_probe.get("R_18.eex", {}),
               "s18": next_probe.get("S_18.eex", {}),
@@ -2679,7 +2679,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57.1-r18.json").write_text(
+          Path("native/build-status/v4.58-r18.json").write_text(
               json.dumps(
                   r18_small,
                   ensure_ascii=False,
@@ -2688,7 +2688,74 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.57.1.json").write_text(
+
+          battle24_path = Path(
+              "native/android-map-probe/app/src/main/assets/battle/battle24.json"
+          )
+          if battle24_path.exists():
+              battle24 = json.loads(
+                  battle24_path.read_text(encoding="utf-8")
+              )
+              r24_story = {}
+              battle23_path_for_story = Path(
+                  "native/android-map-probe/app/src/main/assets/battle/battle23.json"
+              )
+              if battle23_path_for_story.exists():
+                  battle23_story = json.loads(
+                      battle23_path_for_story.read_text(encoding="utf-8")
+                  )
+                  r24_story = battle23_story.get("r24Story", {})
+              status["s24Battle"] = {
+                  "source": battle24.get("source"),
+                  "battleMode": battle24.get("battleMode"),
+                  "map": battle24.get("map"),
+                  "widthTiles": battle24.get("widthTiles"),
+                  "heightTiles": battle24.get("heightTiles"),
+                  "unitCount": len(battle24.get("units", [])),
+                  "playerCount": sum(
+                      1 for u in battle24.get("units", [])
+                      if u.get("faction") == "player"
+                  ),
+                  "allyCount": sum(
+                      1 for u in battle24.get("units", [])
+                      if u.get("faction") == "ally"
+                  ),
+                  "enemyCount": sum(
+                      1 for u in battle24.get("units", [])
+                      if u.get("faction") == "enemy"
+                  ),
+                  "battleNumberMap": [
+                      {
+                          "battleNumber": u.get("battleNumber"),
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                          "visible": u.get("visible"),
+                      }
+                      for u in battle24.get("units", [])
+                      if u.get("battleNumber", -1) >= 0
+                  ],
+                  "battleObjectives": battle24.get(
+                      "battleObjectives",
+                      {},
+                  ),
+                  "battleEventSummary": battle24.get(
+                      "battleEventSummary",
+                      {},
+                  ),
+                  "routeModel": battle24.get("routeModel", {}),
+                  "outcomeProbe": battle24.get("outcomeProbe", {}),
+                  "r24Story": {
+                      "supported": r24_story.get("supported"),
+                      "sceneCount": r24_story.get("sceneCount"),
+                      "unsupportedActionIds": r24_story.get(
+                          "unsupportedActionIds",
+                          [],
+                      ),
+                      "nextBattle": r24_story.get("nextBattle"),
+                  },
+              }
+
+          Path("native/build-status/v4.58.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -2696,11 +2763,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.57.1.json native/build-status/v4.57.1-summary.json native/build-status/v4.57.1-r18.json native/build-status/v4.57.1-r19.json native/build-status/v4.57.1-r20.json native/build-status/v4.57.1-r21.json native/build-status/v4.57.1-r22.json native/build-status/v4.57.1-r23.json native/build-status/v4.57.1-r24.json
+          git add native/build-status/v4.58.json native/build-status/v4.58-summary.json native/build-status/v4.58-r18.json native/build-status/v4.58-r19.json native/build-status/v4.58-r20.json native/build-status/v4.58-r21.json native/build-status/v4.58-r22.json native/build-status/v4.58-r23.json native/build-status/v4.58-r24.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.57.1 build status"
+          git commit -m "Record native v4.58 build status"
           git push
