@@ -61,6 +61,14 @@ jobs:
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
+      - name: Upload v4.91 APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeongSamgukji-Native-Battle-v4.91
+          path: native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Publish private draft APK
         env:
           GH_TOKEN: ${{ github.token }}
