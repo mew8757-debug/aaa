@@ -5897,12 +5897,26 @@ def main(argv):
     }
     s24_event_probe = []
     s24_outcome_probe = {}
+    s24_route_probe = {}
     if s24 and s24.startswith(b"EEX"):
         s24_scenes = parse_scenario_tree(s24)
         s24_init_probe = probe_s01_initialization(s24)
         s24_init_probe["map"] = map24_probe
         s24_event_probe = extract_scene2_native_events(s24_scenes)
         s24_outcome_probe = probe_battle_outcome_candidates(s24_scenes)
+        s24_route_probe = probe_selected_scenario_sections(
+            s24_scenes,
+            [
+                (2, 3),
+                (2, 22),
+                (2, 23),
+                (2, 83),
+                (2, 84),
+                (2, 102),
+                (2, 103),
+                (3, 1),
+            ],
+        )
 
     post_s23_probe = {
         "R_24.eex": r24_probe,
@@ -5926,6 +5940,7 @@ def main(argv):
             ],
         },
         "S24OutcomeProbe": s24_outcome_probe,
+        "S24RouteProbe": s24_route_probe,
     }
 
     s21_native_events = []
