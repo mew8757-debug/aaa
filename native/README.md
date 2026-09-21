@@ -610,3 +610,13 @@
 - 다음 S 초기 배치·Scene2 이벤트 지원률·승패 후보를 자동 진단
 - 다음 S 번호에 맞는 mNNN.jpg와 Hexzmap 지형을 검증하고 probe 자산으로 미리 패키징
 - 결과를 `v4.85-next31.json`에 기록해 R32/S32 연속 플레이 구현 근거로 사용
+
+
+## v4.86 R32 → S32 네이티브 연결
+
+- S31 승리 뒤 R_32.eex 3개 Scene을 네이티브 스토리로 연속 재생
+- S_32.eex 강제 출전 0x4A에서 원본 3인 roster를 자동 복원
+- m032.jpg(40×40)와 terrain32.bin을 네이티브 전장에 연결
+- Scene2 원본 이벤트를 컴파일하고 승리 trigger를 원본 조건으로 평가
+- 조운/간옹 사망 및 70턴 초과 패배 Section과 Scene3 후처리를 원본 흐름으로 연결
+- 빌드 검증 결과를 `native/build-status/v4.86-s32.json`에 기록
