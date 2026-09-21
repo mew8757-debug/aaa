@@ -1,6 +1,6 @@
 {
   "version": "4.84.0",
-  "status": "failure",
+  "status": "success",
   "found": true,
   "source": "RS/S_28.eex",
   "battleMode": "s28-xiangyang-escape",
@@ -559,10 +559,10 @@
     "victory"
   ],
   "r28Story": {
-    "supported": null,
-    "sceneCount": null,
+    "supported": true,
+    "sceneCount": 15,
     "unsupportedActionIds": [],
-    "nextBattle": null
+    "nextBattle": "S_28.eex"
   },
   "skippedActors": []
 }
