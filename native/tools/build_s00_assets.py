@@ -11949,6 +11949,8 @@ def main(argv):
             "R_24.eex": r24_probe,
             "S_24.eex": s24_probe,
         },
+        "r24Story": r24_story,
+        "s24InitProbe": s24_init_probe,
         "postS23Probe": post_s23_probe,
         "routeModel": {
             "targetCharacterId": 36,
@@ -12000,6 +12002,258 @@ def main(argv):
     }
     (battle_dir / "battle23.json").write_text(
         json.dumps(s23_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+    # R24 -> S24 playable escort battle.
+    if not map24_probe.get("valid"):
+        raise SystemExit("M024 map probe invalid: " + repr(map24_probe))
+    if not r24_story.get("supported"):
+        raise SystemExit(
+            "R24 story unsupported: "
+            + repr(r24_story.get("unsupportedActionIds", []))
+        )
+    if s24_player_ids != [1, 29]:
+        raise SystemExit(
+            "S24 forced roster unexpected: " + repr(s24_player_ids)
+        )
+
+    s24_slots = sorted(
+        s24_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(s24_slots) != len(s24_player_ids):
+        raise SystemExit(
+            "S24 roster/slot mismatch: "
+            + repr({
+                "players": s24_player_ids,
+                "slots": s24_slots,
+            })
+        )
+
+    s24_units = []
+    s24_skipped_actors = []
+
+    def make_s24_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s24_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            print(f"skip S24 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s24_units.append({
+            "characterId": int(cid),
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    for slot, cid in zip(s24_slots, s24_player_ids):
+        # 0x4C mode 1 addresses runtime battle numbers. In S24,
+        # battle number 1 is the second player slot (Sun Qian), as
+        # confirmed by Sections 22/23 immediately acting/dialoguing as 29.
+        if not make_s24_unit(
+            cid,
+            PLAYER,
+            False,
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_24:0x4B:{slot['slot']}",
+            battle_number=int(slot["slot"]),
+        ):
+            raise SystemExit(
+                f"S24 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s24_init_probe.get("friendRecords", [])):
+        make_s24_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_24:0x46:{index}",
+        )
+
+    for index, row in enumerate(s24_init_probe.get("enemyRecords", [])):
+        make_s24_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_24:0x47:{index}",
+        )
+
+    s24_objective_text = (
+        s24_init_probe["objectiveTexts"][0]
+        if s24_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s24_popup_text = (
+        s24_init_probe["objectivePopups"][0]
+        if s24_init_probe.get("objectivePopups")
+        else ""
+    )
+    s24_turn_limit = objective_turn_limit(s24_objective_text, 10)
+    s24_route_objective = (
+        "승리 조건\n★·관우와 마차가 하북에 도착.\n\n"
+        "패배 조건\n☆·관우 사망.\n☆·마차 격퇴.\n☆·80턴 초과."
+    )
+
+    s24_battle = {
+        "version": 99,
+        "source": "RS/S_24.eex",
+        "battleMode": "s24-carriage-escort",
+        "mapId": 24,
+        "map": "m024.jpg",
+        "widthTiles": map24_probe["cols"],
+        "heightTiles": map24_probe["rows"],
+        "terrainFile": "terrain24.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s24_objective_text,
+                "popupText": s24_popup_text,
+                "turnLimit": s24_turn_limit,
+                "goal": {
+                    "type": "find-carriage",
+                    "characterId": 327,
+                    "name": name_of(327),
+                },
+            },
+            "phase2": {
+                "objectiveText": s24_route_objective,
+                "popupText": "하북에 도착하라",
+                "turnLimit": 80,
+                "goal": {
+                    "type": "escort-area",
+                    "characterIds": [1, 327],
+                    "x1": 0,
+                    "y1": 0,
+                    "x2": 22,
+                    "y2": 2,
+                },
+            },
+            "protectedCharacterIds": [1, 327],
+            "protectedCharacters": [
+                {"characterId": 1, "name": name_of(1)},
+                {"characterId": 327, "name": name_of(327)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s24_native_events,
+        "outcomeEvents": s24_outcome_events,
+        "outcomeProbe": s24_outcome_probe,
+        "routeModel": {
+            "carriageFoundSection": 3,
+            "routeSections": [22, 23],
+            "routeVariables": [17, 18],
+            "acceptEscortVariable": 150,
+            "manualCarriageDirectionVariable": 160,
+            "victoryArea": {
+                "x1": 0,
+                "y1": 0,
+                "x2": 22,
+                "y2": 2,
+                "characterIds": [1, 327],
+            },
+            "victorySection": 102,
+            "defeatByCharacterSections": {
+                "1": 83,
+                "327": 84,
+            },
+            "genericDefeatSection": 103,
+            "postBattleScene": "S03-SEC01",
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s24_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s24_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s24_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s24_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s24_native_events
+            ],
+        },
+        "terrainIds": map24_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s24_skipped_actors,
+        "r24PlayerIds": s24_player_ids,
+        "units": s24_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle24.json").write_text(
+        json.dumps(s24_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -12120,6 +12374,7 @@ def main(argv):
                 + s21_units
                 + s22_units
                 + s23_units
+                + s24_units
             )
         }
         | s09_special_sprite_ids
