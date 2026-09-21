@@ -3328,49 +3328,67 @@ jobs:
                   ),
               })
           
-battle30_path = Path(
-    "native/android-map-probe/app/src/main/assets/battle/battle30.json"
-)
-if battle30_path.exists():
-    battle30 = json.loads(battle30_path.read_text(encoding="utf-8"))
-    compact["s30Battle"] = {
-        "found": True,
-        "source": battle30.get("source"),
-        "battleMode": battle30.get("battleMode"),
-        "map": battle30.get("map"),
-        "widthTiles": battle30.get("widthTiles"),
-        "heightTiles": battle30.get("heightTiles"),
-        "units": [
-            {
-                "characterId": u.get("characterId"),
-                "name": u.get("name"),
-                "faction": u.get("faction"),
-                "visible": u.get("visible"),
-                "x": u.get("x"),
-                "y": u.get("y"),
-            }
-            for u in battle30.get("units", [])
-        ],
-        "objectives": battle30.get("battleObjectives", {}),
-        "routeModel": battle30.get("routeModel", {}),
-        "eventSummary": battle30.get("battleEventSummary", {}),
-        "outcomeKeys": sorted(
-            battle30.get("outcomeEvents", {}).keys()
-        ),
-        "skippedActors": battle30.get("skippedActors", []),
-        "r30Story": {
-            "supported": battle30.get("r30Story", {}).get("supported"),
-            "sceneCount": battle30.get("r30Story", {}).get("sceneCount"),
-            "unsupportedActionIds": battle30.get(
-                "r30Story", {}
-            ).get("unsupportedActionIds", []),
-            "nextBattle": battle30.get("r30Story", {}).get("nextBattle"),
-        },
-    }
-else:
-    compact["s30Battle"] = {"found": False}
+          battle30_path = Path(
+              "native/android-map-probe/app/src/main/assets/battle/battle30.json"
+          )
+          s30_compact = {
+              "version": "4.81.0",
+              "status": os.environ["BUILD_STATUS"],
+              "found": battle30_path.exists(),
+          }
+          if battle30_path.exists():
+              battle30 = json.loads(
+                  battle30_path.read_text(encoding="utf-8")
+              )
+              s30_compact.update({
+                  "source": battle30.get("source"),
+                  "battleMode": battle30.get("battleMode"),
+                  "map": battle30.get("map"),
+                  "widthTiles": battle30.get("widthTiles"),
+                  "heightTiles": battle30.get("heightTiles"),
+                  "units": [
+                      {
+                          "characterId": u.get("characterId"),
+                          "name": u.get("name"),
+                          "faction": u.get("faction"),
+                          "visible": u.get("visible"),
+                          "x": u.get("x"),
+                          "y": u.get("y"),
+                      }
+                      for u in battle30.get("units", [])
+                  ],
+                  "objectives": battle30.get("battleObjectives", {}),
+                  "routeModel": battle30.get("routeModel", {}),
+                  "eventSummary": battle30.get("battleEventSummary", {}),
+                  "outcomeKeys": sorted(
+                      battle30.get("outcomeEvents", {}).keys()
+                  ),
+                  "skippedActors": battle30.get("skippedActors", []),
+                  "r30Story": {
+                      "supported": battle30.get(
+                          "r30Story", {}
+                      ).get("supported"),
+                      "sceneCount": battle30.get(
+                          "r30Story", {}
+                      ).get("sceneCount"),
+                      "unsupportedActionIds": battle30.get(
+                          "r30Story", {}
+                      ).get("unsupportedActionIds", []),
+                      "nextBattle": battle30.get(
+                          "r30Story", {}
+                      ).get("nextBattle"),
+                  },
+              })
+          Path("native/build-status/v4.81-s30.json").write_text(
+              json.dumps(
+                  s30_compact,
+                  ensure_ascii=False,
+                  indent=2,
+              ) + "\n",
+              encoding="utf-8",
+          )
 
-Path("native/build-status/v4.81-next29.json").write_text(
+          Path("native/build-status/v4.81-next29.json").write_text(
               json.dumps(
                   post29_compact,
                   ensure_ascii=False,
@@ -3422,7 +3440,7 @@ Path("native/build-status/v4.81-next29.json").write_text(
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.81.json native/build-status/v4.81-summary.json native/build-status/v4.81-r18.json native/build-status/v4.81-r19.json native/build-status/v4.81-r20.json native/build-status/v4.81-r21.json native/build-status/v4.81-r22.json native/build-status/v4.81-r23.json native/build-status/v4.81-r24.json native/build-status/v4.81-next.json native/build-status/v4.81-r25.json native/build-status/v4.81-next25.json native/build-status/v4.81-r26.json native/build-status/v4.81-next26.json native/build-status/v4.81-s27-route.json native/build-status/v4.81-r27.json native/build-status/v4.81-next27.json native/build-status/v4.81-s28.json native/build-status/v4.81-next28.json native/build-status/v4.81-s29.json native/build-status/v4.81-next29.json
+          git add native/build-status/v4.81.json native/build-status/v4.81-summary.json native/build-status/v4.81-r18.json native/build-status/v4.81-r19.json native/build-status/v4.81-r20.json native/build-status/v4.81-r21.json native/build-status/v4.81-r22.json native/build-status/v4.81-r23.json native/build-status/v4.81-r24.json native/build-status/v4.81-next.json native/build-status/v4.81-r25.json native/build-status/v4.81-next25.json native/build-status/v4.81-r26.json native/build-status/v4.81-next26.json native/build-status/v4.81-s27-route.json native/build-status/v4.81-r27.json native/build-status/v4.81-next27.json native/build-status/v4.81-s28.json native/build-status/v4.81-next28.json native/build-status/v4.81-s29.json native/build-status/v4.81-next29.json native/build-status/v4.81-s30.json
 
           if git diff --cached --quiet; then
             exit 0
