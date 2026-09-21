@@ -4142,6 +4142,58 @@ def main(argv):
             else None
         )
 
+        next_r_after24 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 24
+            ),
+            None,
+        )
+        next_s_after24 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 24
+            ),
+            None,
+        )
+        next_r_after24_blob = (
+            read_member_by_basename(
+                game1,
+                next_r_after24["filename"],
+            )
+            if next_r_after24
+            else None
+        )
+        next_s_after24_blob = (
+            read_member_by_basename(
+                game1,
+                next_s_after24["filename"],
+            )
+            if next_s_after24
+            else None
+        )
+        next_s_after24_map_name = (
+            f"m{next_s_after24['number']:03d}.jpg"
+            if next_s_after24
+            else None
+        )
+        next_s_after24_map_bytes = (
+            read_member_by_basename(
+                game2,
+                next_s_after24_map_name,
+            )
+            if next_s_after24_map_name
+            else None
+        )
+        if (
+            next_s_after24_map_bytes is None
+            and next_s_after24_map_name
+        ):
+            next_s_after24_map_bytes = read_member_by_basename(
+                game1,
+                next_s_after24_map_name,
+            )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -4978,6 +5030,61 @@ def main(argv):
             })
         except Exception as exc:
             map24_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    post24_map_probe = {
+        "filename": next_s_after24_map_name,
+        "found": next_s_after24_map_bytes is not None,
+        "hexzmapEntry": (
+            next_s_after24["number"]
+            if next_s_after24
+            else None
+        ),
+    }
+    if (
+        next_s_after24
+        and next_s_after24_map_bytes is not None
+    ):
+        try:
+            post24_map_width, post24_map_height = jpeg_dimensions(
+                next_s_after24_map_bytes
+            )
+            if (
+                post24_map_width % 48 != 0
+                or post24_map_height % 48 != 0
+            ):
+                raise ValueError(
+                    "post-S24 map dimensions not divisible by 48: "
+                    f"{post24_map_width}x{post24_map_height}"
+                )
+            post24_map_cols = post24_map_width // 48
+            post24_map_rows = post24_map_height // 48
+            post24_terrain_cells = extract_hexzmap_cells(
+                hexz,
+                next_s_after24["number"],
+                post24_map_cols,
+                post24_map_rows,
+            )
+            (map_dir / next_s_after24_map_name).write_bytes(
+                next_s_after24_map_bytes
+            )
+            (
+                battle_dir
+                / f"terrain{next_s_after24['number']}.bin"
+            ).write_bytes(post24_terrain_cells)
+            post24_map_probe.update({
+                "valid": True,
+                "width": post24_map_width,
+                "height": post24_map_height,
+                "cols": post24_map_cols,
+                "rows": post24_map_rows,
+                "terrainCellCount": len(post24_terrain_cells),
+                "terrainIds": sorted(set(post24_terrain_cells)),
+            })
+        except Exception as exc:
+            post24_map_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -6042,6 +6149,78 @@ def main(argv):
         },
         "S24PlayerIds": s24_player_ids,
     }
+
+    post_s24_probe = {
+        "inventoryAfter24": [
+            row
+            for row in rs_inventory
+            if row["number"] > 24
+        ],
+        "nextR": (
+            {
+                **next_r_after24,
+                "probe": build_next_scenario_probe(
+                    next_r_after24["filename"],
+                    next_r_after24_blob,
+                ),
+            }
+            if next_r_after24
+            else None
+        ),
+        "nextS": (
+            {
+                **next_s_after24,
+                "probe": build_next_scenario_probe(
+                    next_s_after24["filename"],
+                    next_s_after24_blob,
+                ),
+            }
+            if next_s_after24
+            else None
+        ),
+        "nextMap": post24_map_probe,
+        "nextSInit": (
+            probe_s01_initialization(next_s_after24_blob)
+            if next_s_after24_blob
+            else None
+        ),
+        "nextSEventSummary": None,
+        "nextSOutcomeProbe": None,
+    }
+    if (
+        next_s_after24_blob
+        and next_s_after24_blob.startswith(b"EEX")
+    ):
+        post24_scenes = parse_scenario_tree(
+            next_s_after24_blob
+        )
+        post24_events = extract_scene2_native_events(
+            post24_scenes
+        )
+        post_s24_probe["nextSEventSummary"] = {
+            "candidateCount": len(post24_events),
+            "coreSupportedCount": sum(
+                1
+                for event in post24_events
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                }
+                for event in post24_events
+                if not event["coreSupported"]
+            ],
+        }
+        post_s24_probe["nextSOutcomeProbe"] = (
+            probe_battle_outcome_candidates(post24_scenes)
+        )
 
     s21_native_events = []
     s21_outcome_events = {
@@ -12198,6 +12377,7 @@ def main(argv):
         "battleEvents": s24_native_events,
         "outcomeEvents": s24_outcome_events,
         "outcomeProbe": s24_outcome_probe,
+        "postS24Probe": post_s24_probe,
         "routeModel": {
             "carriageFoundSection": 3,
             "routeSections": [22, 23],
