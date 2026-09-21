@@ -1515,7 +1515,7 @@ public class MapView extends View {
 
         String header;
         if (r25StoryActive) {
-            header = "Native v4.61 | R_25 Scene "
+            header = "Native v4.62 | R_25 Scene "
                     + Math.min(
                     r25StorySceneIndex + 1,
                     r25StoryScenes == null
@@ -1525,7 +1525,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r24StoryActive) {
-            header = "Native v4.61 | R_24 Scene "
+            header = "Native v4.62 | R_24 Scene "
                     + Math.min(
                     r24StorySceneIndex + 1,
                     r24StoryScenes == null
@@ -1535,7 +1535,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r23StoryActive) {
-            header = "Native v4.61 | R_23 Scene "
+            header = "Native v4.62 | R_23 Scene "
                     + Math.min(
                     r23StorySceneIndex + 1,
                     r23StoryScenes == null
@@ -1545,7 +1545,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r22StoryActive) {
-            header = "Native v4.61 | R_22 Scene "
+            header = "Native v4.62 | R_22 Scene "
                     + Math.min(
                     r22StorySceneIndex + 1,
                     r22StoryScenes == null
@@ -1555,7 +1555,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r21StoryActive) {
-            header = "Native v4.61 | R_21 Scene "
+            header = "Native v4.62 | R_21 Scene "
                     + Math.min(
                     r21StorySceneIndex + 1,
                     r21StoryScenes == null
@@ -1565,7 +1565,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r20StoryActive) {
-            header = "Native v4.61 | R_20 Scene "
+            header = "Native v4.62 | R_20 Scene "
                     + Math.min(
                     r20StorySceneIndex + 1,
                     r20StoryScenes == null
@@ -1575,7 +1575,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r19StoryActive) {
-            header = "Native v4.61 | R_19 Scene "
+            header = "Native v4.62 | R_19 Scene "
                     + Math.min(
                     r19StorySceneIndex + 1,
                     r19StoryScenes == null
@@ -1585,7 +1585,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r18StoryActive) {
-            header = "Native v4.61 | R_18 Scene "
+            header = "Native v4.62 | R_18 Scene "
                     + Math.min(
                     r18StorySceneIndex + 1,
                     r18StoryScenes == null
@@ -1595,7 +1595,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r17StoryActive) {
-            header = "Native v4.61 | R_17 Scene "
+            header = "Native v4.62 | R_17 Scene "
                     + Math.min(
                     r17StorySceneIndex + 1,
                     r17StoryScenes == null
@@ -1605,7 +1605,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r16StoryActive) {
-            header = "Native v4.61 | R_16 Scene "
+            header = "Native v4.62 | R_16 Scene "
                     + Math.min(
                     r16StorySceneIndex + 1,
                     r16StoryScenes == null
@@ -1615,7 +1615,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r15StoryActive) {
-            header = "Native v4.61 | R_15 Scene "
+            header = "Native v4.62 | R_15 Scene "
                     + Math.min(
                     r15StorySceneIndex + 1,
                     r15StoryScenes == null
@@ -1625,7 +1625,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r14StoryActive) {
-            header = "Native v4.61 | R_14 Scene "
+            header = "Native v4.62 | R_14 Scene "
                     + Math.min(
                     r14StorySceneIndex + 1,
                     r14StoryScenes == null
@@ -1635,7 +1635,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r13StoryActive) {
-            header = "Native v4.61 | R_13 Scene "
+            header = "Native v4.62 | R_13 Scene "
                     + Math.min(
                     r13StorySceneIndex + 1,
                     r13StoryScenes == null
@@ -1645,7 +1645,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r01StoryActive) {
-            header = "Native v4.61 | R_01 Scene "
+            header = "Native v4.62 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1655,7 +1655,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.61 | R_02 Scene "
+            header = "Native v4.62 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1665,7 +1665,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.61 | R_03 Scene "
+            header = "Native v4.62 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1675,7 +1675,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r12StoryActive) {
-            header = "Native v4.61 | R_12 Scene "
+            header = "Native v4.62 | R_12 Scene "
                     + Math.min(
                     r12StorySceneIndex + 1,
                     r12StoryScenes == null
@@ -1685,7 +1685,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r11StoryActive) {
-            header = "Native v4.61 | R_11 Scene "
+            header = "Native v4.62 | R_11 Scene "
                     + Math.min(
                     r11StorySceneIndex + 1,
                     r11StoryScenes == null
@@ -1695,7 +1695,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r10StoryActive) {
-            header = "Native v4.61 | R_10 Scene "
+            header = "Native v4.62 | R_10 Scene "
                     + Math.min(
                     r10StorySceneIndex + 1,
                     r10StoryScenes == null
@@ -1705,7 +1705,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r09StoryActive) {
-            header = "Native v4.61 | R_09 Scene "
+            header = "Native v4.62 | R_09 Scene "
                     + Math.min(
                     r09StorySceneIndex + 1,
                     r09StoryScenes == null
@@ -1715,7 +1715,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r08StoryActive) {
-            header = "Native v4.61 | R_08 Scene "
+            header = "Native v4.62 | R_08 Scene "
                     + Math.min(
                     r08StorySceneIndex + 1,
                     r08StoryScenes == null
@@ -1725,7 +1725,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.61 | R_07 Scene "
+            header = "Native v4.62 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1735,7 +1735,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.61 | R_06 Scene "
+            header = "Native v4.62 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1745,7 +1745,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.61 | R_05 Scene "
+            header = "Native v4.62 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1755,7 +1755,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.61 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.62 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
