@@ -525,6 +525,12 @@ def native_action_from_node(node):
     if cid == 0x4C and len(params) >= 3 and int(params[0]) == 0:
         return {"type": "reveal", "characterId": int(params[1])}
 
+    if cid == 0x4C and len(params) >= 3 and int(params[0]) == 1:
+        return {
+            "type": "revealBattleNumber",
+            "battleNumber": int(params[2]),
+        }
+
     if cid == 0x4E and len(params) >= 11:
         return {
             "type": "aiPolicy",
@@ -1005,6 +1011,48 @@ def compile_native_action_tree(node):
     nested_count = 1 if node["children"] else 0
     cid = node["commandId"]
     params = node["params"]
+
+    # 0x04 询问测试: ask Yes/No now, then execute the nested body
+    # when the answer matches param0 (1=Yes, 0=No).
+    if node["children"] and cid == 0x04 and params:
+        child_actions = []
+        unsupported_ids = []
+        unsupported_actions = []
+        total_nested = nested_count
+        for child in node["children"]:
+            (
+                child_action,
+                child_unsupported_ids,
+                child_unsupported_actions,
+                child_nested,
+            ) = compile_native_action_tree(child)
+            total_nested += child_nested
+            unsupported_ids.extend(child_unsupported_ids)
+            unsupported_actions.extend(child_unsupported_actions)
+            if child_action is not None:
+                child_actions.append(child_action)
+
+        match_yes = int(params[0]) != 0
+        return (
+            {
+                "type": "choice",
+                "options": ["예", "아니오"],
+                "cases": [
+                    {
+                        "value": 1,
+                        "actions": child_actions if match_yes else [],
+                    },
+                    {
+                        "value": 2,
+                        "actions": [] if match_yes else child_actions,
+                    },
+                ],
+                "inquiryTest": True,
+            },
+            unsupported_ids,
+            unsupported_actions,
+            total_nested,
+        )
 
     if node["children"] and cid == 0x12:
         raw = ""
@@ -2943,6 +2991,16 @@ def compile_r23_story(blob):
         7,
         8,
         "S_23.eex",
+    )
+
+
+def compile_r24_story(blob):
+    return compile_r_story(
+        blob,
+        "R_24.eex",
+        13,
+        14,
+        "S_24.eex",
     )
 
 
@@ -5890,19 +5948,51 @@ def main(argv):
 
     r24_probe = build_next_scenario_probe("R_24.eex", r24)
     s24_probe = build_next_scenario_probe("S_24.eex", s24)
+    r24_story = compile_r24_story(r24)
+    s24_player_ids = extract_counted_forced_roster(s24)
     s24_init_probe = {
         "found": s24 is not None,
         "validEex": bool(s24 and s24.startswith(b"EEX")),
         "map": map24_probe,
     }
     s24_event_probe = []
+    s24_native_events = []
     s24_outcome_probe = {}
     s24_route_probe = {}
+    s24_outcome_events = {
+        "defeatByCharacter": {},
+        "victory": {"supported": False, "actions": []},
+        "genericDefeat": {"supported": False, "actions": []},
+        "postBattle": {"supported": False, "actions": []},
+    }
     if s24 and s24.startswith(b"EEX"):
         s24_scenes = parse_scenario_tree(s24)
         s24_init_probe = probe_s01_initialization(s24)
         s24_init_probe["map"] = map24_probe
         s24_event_probe = extract_scene2_native_events(s24_scenes)
+        s24_native_events = [
+            event for event in s24_event_probe
+            if event["section"] not in {83, 84, 102, 103}
+        ]
+        s24_outcome_events = {
+            "defeatByCharacter": {
+                "1": compile_scenario_section_actions(
+                    s24_scenes, 2, 83
+                ),
+                "327": compile_scenario_section_actions(
+                    s24_scenes, 2, 84
+                ),
+            },
+            "victory": compile_scenario_section_actions(
+                s24_scenes, 2, 102
+            ),
+            "genericDefeat": compile_scenario_section_actions(
+                s24_scenes, 2, 103
+            ),
+            "postBattle": compile_scenario_section_actions(
+                s24_scenes, 3, 1
+            ),
+        }
         s24_outcome_probe = probe_battle_outcome_candidates(s24_scenes)
         s24_route_probe = probe_selected_scenario_sections(
             s24_scenes,
@@ -5941,6 +6031,16 @@ def main(argv):
         },
         "S24OutcomeProbe": s24_outcome_probe,
         "S24RouteProbe": s24_route_probe,
+        "R24Story": {
+            "supported": r24_story.get("supported"),
+            "sceneCount": r24_story.get("sceneCount"),
+            "unsupportedActionIds": r24_story.get(
+                "unsupportedActionIds",
+                [],
+            ),
+            "nextBattle": r24_story.get("nextBattle"),
+        },
+        "S24PlayerIds": s24_player_ids,
     }
 
     s21_native_events = []
