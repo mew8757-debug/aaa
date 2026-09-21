@@ -7824,7 +7824,164 @@ public class MapView extends View {
                             : battleResultText);
             return;
         }
+        if (r24StoryScenes != null && r24StoryScenes.length() > 0) {
+            startR24Story();
+            return;
+        }
         endBattle(true, "S_23 원본 승리 흐름 완료");
+    }
+
+    private void startR24Story() {
+        outcomeFlowActive = false;
+        r24StoryActive = true;
+        r24StorySceneIndex = 0;
+        s24Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR24StoryScene();
+    }
+
+    private void startR24StoryScene() {
+        if (!r24StoryActive || r24StoryScenes == null) {
+            return;
+        }
+        if (r24StorySceneIndex >= r24StoryScenes.length()) {
+            r24StoryActive = false;
+            s24Ready = true;
+            enterS24Battle();
+            return;
+        }
+
+        JSONObject scene = r24StoryScenes.optJSONObject(
+                r24StorySceneIndex);
+        if (scene == null) {
+            r24StorySceneIndex++;
+            startR24StoryScene();
+            return;
+        }
+
+        prepareScriptActionSequence(scene.optJSONArray("actions"));
+        int sceneNumber = scene.optInt("scene", r24StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_24 Scene " + sceneNumber
+                + ("departure".equals(kind) ? " · 출전" : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR24StoryScene() {
+        r24StorySceneIndex++;
+        startR24StoryScene();
+    }
+
+    private void enterS24Battle() {
+        try {
+            loadS24Battle(getContext());
+            lastCombatMessage = "R_24 완료 · S_24 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            r24StoryActive = false;
+            endBattle(
+                    false,
+                    "S_24 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS24Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle24.json",
+                24,
+                "m024.jpg",
+                "terrain24.bin");
+    }
+
+    private void startS24VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "관우와 마차 하북 도착 · 원본 승리 조건");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s24Victory";
+        battleVictory = true;
+        battleResultText = "관우와 마차 하북 도착 · 원본 승리 조건";
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_24 승리 정산";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS24DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s24Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_24 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS24PostBattleCleanup() {
+        outcomeStage = "s24PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS24Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_24 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS24Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_24 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+        endBattle(true, "S_24 원본 승리 흐름 완료");
     }
 
     private String currentBattleLabel() {
