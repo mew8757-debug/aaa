@@ -4481,6 +4481,12 @@ def main(argv):
                 next_s_after26_map_name,
             )
 
+        r28 = read_member_by_basename(game1, "R_28.eex")
+        s28 = read_member_by_basename(game1, "S_28.eex")
+        map28_bytes = read_member_by_basename(game2, "m028.jpg")
+        if map28_bytes is None:
+            map28_bytes = read_member_by_basename(game1, "m028.jpg")
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -5484,6 +5490,47 @@ def main(argv):
             })
         except Exception as exc:
             post26_map_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
+    map28_probe = {
+        "filename": "m028.jpg",
+        "found": map28_bytes is not None,
+        "hexzmapEntry": 28,
+    }
+    if map28_bytes is not None:
+        try:
+            map28_width, map28_height = jpeg_dimensions(map28_bytes)
+            if map28_width % 48 != 0 or map28_height % 48 != 0:
+                raise ValueError(
+                    f"m028 dimensions not divisible by 48: "
+                    f"{map28_width}x{map28_height}"
+                )
+            map28_cols = map28_width // 48
+            map28_rows = map28_height // 48
+            terrain28_cells = extract_hexzmap_cells(
+                hexz,
+                28,
+                map28_cols,
+                map28_rows,
+            )
+            (map_dir / "m028.jpg").write_bytes(map28_bytes)
+            (battle_dir / "terrain28.bin").write_bytes(
+                terrain28_cells
+            )
+            map28_probe.update({
+                "valid": True,
+                "width": map28_width,
+                "height": map28_height,
+                "cols": map28_cols,
+                "rows": map28_rows,
+                "terrainCellCount": len(terrain28_cells),
+                "terrainIds": sorted(set(terrain28_cells)),
+            })
+        except Exception as exc:
+            map28_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -14015,6 +14062,112 @@ def main(argv):
         15,
     )
 
+    r28_probe = build_next_scenario_probe("R_28.eex", r28)
+    s28_probe = build_next_scenario_probe("S_28.eex", s28)
+    s28_init_probe = (
+        probe_s01_initialization(s28)
+        if s28 is not None
+        else None
+    )
+    s28_event_summary = None
+    s28_outcome_probe = None
+    s28_route_probe = None
+    if s28 is not None and s28.startswith(b"EEX"):
+        s28_scenes = parse_scenario_tree(s28)
+        s28_events = extract_scene2_native_events(s28_scenes)
+        s28_event_summary = {
+            "candidateCount": len(s28_events),
+            "coreSupportedCount": sum(
+                1 for event in s28_events
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                }
+                for event in s28_events
+                if not event["coreSupported"]
+            ],
+        }
+        s28_outcome_probe = probe_battle_outcome_candidates(
+            s28_scenes
+        )
+        s28_flat = flatten_scenario_nodes(s28_scenes)
+        route_sections = sorted({
+            (2, row["section"])
+            for row in s28_flat
+            if row["scene"] == 2
+            and (
+                row["commandId"] in {
+                    0x25, 0x26, 0x2E, 0x36,
+                    0x3F, 0x40, 0x41, 0x42, 0x43,
+                    0x5B, 0x5D,
+                }
+                or row["commandId"] in {0x05, 0x0B}
+            )
+        })
+        s28_route_probe = probe_selected_scenario_sections(
+            s28_scenes,
+            route_sections,
+        )
+
+    r28_departure_probe = None
+    if r28 is not None and r28.startswith(b"EEX"):
+        r28_scenes = parse_scenario_tree(r28)
+        if r28_scenes:
+            departure_scene_number = len(r28_scenes)
+            departure_flat = flatten_scenario_nodes(
+                [r28_scenes[-1]]
+            )
+            r28_departure_probe = {
+                "scene": departure_scene_number,
+                "sectionCount": len(
+                    r28_scenes[-1]["sections"]
+                ),
+                "commands": [
+                    {
+                        "section": row["section"],
+                        "depth": row["depth"],
+                        "commandId": row["commandId"],
+                        "commandHex": f"0x{row['commandId']:02X}",
+                        "params": row["params"],
+                    }
+                    for row in departure_flat
+                    if row["commandId"] in {
+                        0x05, 0x06, 0x07, 0x0D,
+                        0x11, 0x12, 0x13, 0x2D,
+                        0x4B,
+                    }
+                ],
+            }
+
+    post_s27_probe = {
+        "nextR": {
+            "kind": "R",
+            "number": 28,
+            "filename": "R_28.eex",
+            "probe": r28_probe,
+        },
+        "nextS": {
+            "kind": "S",
+            "number": 28,
+            "filename": "S_28.eex",
+            "probe": s28_probe,
+        },
+        "nextMap": map28_probe,
+        "nextSInit": s28_init_probe,
+        "nextSEventSummary": s28_event_summary,
+        "nextSOutcomeProbe": s28_outcome_probe,
+        "nextSRouteProbe": s28_route_probe,
+        "nextRDepartureProbe": r28_departure_probe,
+    }
+
     s27_battle = {
         "version": 109,
         "source": "RS/S_27.eex",
@@ -14057,6 +14210,7 @@ def main(argv):
         "battleEvents": s27_native_events,
         "outcomeEvents": s27_outcome_events,
         "outcomeProbe": s27_outcome_probe,
+        "postS27Probe": post_s27_probe,
         "routeModel": {
             "lureTransitionVariables": [6, 8],
             "conditionalZhaoYunDefeatCharacterId": 4,
