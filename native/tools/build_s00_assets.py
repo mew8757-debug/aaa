@@ -3137,6 +3137,81 @@ def compile_r33_story(blob):
     )
 
 
+def compile_r34_story(blob):
+    return compile_r_story(
+        blob,
+        "R_34.eex",
+        19,
+        20,
+        "S_34.eex",
+    )
+
+
+def extract_r34_departure_players(blob, slot_count):
+    # R34 Scene20 uses Liu Bei as the continuing leader. Section 2 carries
+    # the original fixed mode-1 deployment list and Sections 2-10 expose
+    # selectable members through 0x2D. Preserve source order and fill the
+    # ten S34 deployment slots without inventing members.
+    roster = [0]
+    selectable = []
+    seen = {0}
+    if blob is None or not blob.startswith(b"EEX"):
+        return roster[:slot_count], selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 20:
+        return roster[:slot_count], selectable
+
+    departure = scenes[19]
+    fixed = []
+    candidates = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+            if (
+                cid == 0x06
+                and len(params) >= 3
+                and isinstance(params[0], int)
+                and int(params[0]) == 1
+            ):
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed
+                    ):
+                        fixed.append(int(value))
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in candidates
+                ):
+                    candidates.append(int(value))
+            stack.extend(node["children"])
+
+    for cid in fixed:
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+    for cid in candidates:
+        if cid not in selectable:
+            selectable.append(cid)
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    return roster[:slot_count], selectable
+
+
 def extract_r31_departure_players(blob, slot_count):
     # R31 Scene 19 uses Liu Bei as the continuing leader, then a mode-1
     # 0x06 list plus 0x2D selectable candidates. Preserve source order,
