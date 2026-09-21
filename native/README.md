@@ -10,7 +10,7 @@
 - 원작 전투/이벤트/맵 동작을 보존
 - 터치 입력, 화면 비율, 저장 경로는 Android에 맞게 재설계
 
-## 현재 구현 상태 (v4.81)
+## 현재 구현 상태 (v4.82)
 
 - 실제 첫 전투 맵 `map/m000.jpg` 네이티브 렌더링
 - `RS/S_00.eex`의 플레이어/우군/적군 초기 배치 반영
@@ -368,7 +368,7 @@
 
 ## 다음 완료 기준
 
-**S28 승리 뒤 실제 다음 R/S를 자동 탐색해 R29/S29 연속 플레이로 확장하는 것.**
+**S30 완료 뒤 실제 다음 R/S를 자동 탐색해 후속 시나리오 연속 플레이로 확장하는 것.**
 
 - S22 종료 뒤 원본 `R_23.eex` / `S_23.eex` 존재·Scene/Section/명령 구조 자동 진단
 - `M023` 존재 시 JPEG 크기와 Hexzmap entry23 지형을 probe 자산으로 패키징
@@ -572,3 +572,13 @@
 - 유기 탈출의 정확한 position/area trigger를 native event에서 자동 찾아 `routeModel.escapeTriggerCandidates`로 기록
 - 다음 단계에서 이 routeModel을 Android 상태기에 연결해 `S29 → R30 → S30` 연속 플레이를 완성
 
+
+
+## v4.82 R30 → S30 연속 플레이
+
+- S29 승리 후 `R_30.eex` Scene 1~26 스토리와 Scene 27 출전 흐름을 실제 재생
+- R30 완료 직후 `battle30.json` / M030 / `terrain30.bin`을 로드해 S30 전투 진입
+- S30 `routeModel.escapeTriggerCandidates`에서 유기(151)의 원본 탈출 좌표 `(1,18)`을 런타임에서 직접 읽음
+- 유기가 `(1,18)`에 도달하면 원본 Section24 승리 정산, 적군 전멸도 원본 대체 승리조건으로 처리
+- 유기 사망은 Section18, 20턴 초과/아군전멸/일반패배는 Section25 흐름으로 처리
+- S30 Scene3 전투 후 정리까지 기존 outcome 실행기로 연결
