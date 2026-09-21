@@ -3135,7 +3135,7 @@ jobs:
                       "nextRDepartureProbe"
                   ),
               }
-          Path("native/build-status/v4.71-next27.json native/build-status/v4.71-s28.json").write_text(
+          Path("native/build-status/v4.71-next27.json").write_text(
               json.dumps(
                   post27_compact,
                   ensure_ascii=False,
@@ -3241,7 +3241,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.71.json native/build-status/v4.71-summary.json native/build-status/v4.71-r18.json native/build-status/v4.71-r19.json native/build-status/v4.71-r20.json native/build-status/v4.71-r21.json native/build-status/v4.71-r22.json native/build-status/v4.71-r23.json native/build-status/v4.71-r24.json native/build-status/v4.71-next.json native/build-status/v4.71-r25.json native/build-status/v4.71-next25.json native/build-status/v4.71-r26.json native/build-status/v4.71-next26.json native/build-status/v4.71-s27-route.json native/build-status/v4.71-r27.json native/build-status/v4.71-next27.json
+          git add native/build-status/v4.71.json native/build-status/v4.71-summary.json native/build-status/v4.71-r18.json native/build-status/v4.71-r19.json native/build-status/v4.71-r20.json native/build-status/v4.71-r21.json native/build-status/v4.71-r22.json native/build-status/v4.71-r23.json native/build-status/v4.71-r24.json native/build-status/v4.71-next.json native/build-status/v4.71-r25.json native/build-status/v4.71-next25.json native/build-status/v4.71-r26.json native/build-status/v4.71-next26.json native/build-status/v4.71-s27-route.json native/build-status/v4.71-r27.json native/build-status/v4.71-next27.json native/build-status/v4.71-s28.json
 
           if git diff --cached --quiet; then
             exit 0
