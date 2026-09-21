@@ -2978,6 +2978,16 @@ def compile_r23_story(blob):
     )
 
 
+def compile_r24_story(blob):
+    return compile_r_story(
+        blob,
+        "R_24.eex",
+        13,
+        14,
+        "S_24.eex",
+    )
+
+
 def extract_r23_departure_players(blob):
     fixed = [0]
     selectable = []
