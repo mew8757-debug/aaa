@@ -4579,6 +4579,58 @@ def main(argv):
                 next_s_after27_map_name,
             )
 
+        next_r_after28 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 28
+            ),
+            None,
+        )
+        next_s_after28 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 28
+            ),
+            None,
+        )
+        next_r_after28_blob = (
+            read_member_by_basename(
+                game1,
+                next_r_after28["filename"],
+            )
+            if next_r_after28
+            else None
+        )
+        next_s_after28_blob = (
+            read_member_by_basename(
+                game1,
+                next_s_after28["filename"],
+            )
+            if next_s_after28
+            else None
+        )
+        next_s_after28_map_name = (
+            f"m{next_s_after28['number']:03d}.jpg"
+            if next_s_after28
+            else None
+        )
+        next_s_after28_map_bytes = (
+            read_member_by_basename(
+                game2,
+                next_s_after28_map_name,
+            )
+            if next_s_after28_map_name
+            else None
+        )
+        if (
+            next_s_after28_map_bytes is None
+            and next_s_after28_map_name
+        ):
+            next_s_after28_map_bytes = read_member_by_basename(
+                game1,
+                next_s_after28_map_name,
+            )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -5419,6 +5471,16 @@ def main(argv):
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
+    post28_map_probe = {
+        "filename": next_s_after28_map_name,
+        "found": next_s_after28_map_bytes is not None,
+        "hexzmapEntry": (
+            next_s_after28["number"]
+            if next_s_after28
+            else None
+        ),
+    }
+
     post27_map_probe = {
         "filename": next_s_after27_map_name,
         "found": next_s_after27_map_bytes is not None,
@@ -5638,6 +5700,52 @@ def main(argv):
             })
         except Exception as exc:
             post27_map_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    if (
+        next_s_after28
+        and next_s_after28_map_bytes is not None
+    ):
+        try:
+            post28_map_width, post28_map_height = jpeg_dimensions(
+                next_s_after28_map_bytes
+            )
+            if (
+                post28_map_width % 48 != 0
+                or post28_map_height % 48 != 0
+            ):
+                raise ValueError(
+                    "post-S28 map dimensions not divisible by 48: "
+                    f"{post28_map_width}x{post28_map_height}"
+                )
+            post28_map_cols = post28_map_width // 48
+            post28_map_rows = post28_map_height // 48
+            post28_terrain_cells = extract_hexzmap_cells(
+                hexz,
+                next_s_after28["number"],
+                post28_map_cols,
+                post28_map_rows,
+            )
+            (map_dir / next_s_after28_map_name).write_bytes(
+                next_s_after28_map_bytes
+            )
+            (
+                battle_dir
+                / f"terrain{next_s_after28['number']}.bin"
+            ).write_bytes(post28_terrain_cells)
+            post28_map_probe.update({
+                "valid": True,
+                "width": post28_map_width,
+                "height": post28_map_height,
+                "cols": post28_map_cols,
+                "rows": post28_map_rows,
+                "terrainCellCount": len(post28_terrain_cells),
+                "terrainIds": sorted(set(post28_terrain_cells)),
+            })
+        except Exception as exc:
+            post28_map_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -7594,6 +7702,105 @@ def main(argv):
         "units": s28_units,
         "openingEvents": [],
     }
+    post_s28_probe = {
+        "inventoryAfter28": [
+            row for row in rs_inventory if row["number"] > 28
+        ],
+        "nextR": (
+            {
+                **next_r_after28,
+                "probe": build_next_scenario_probe(
+                    next_r_after28["filename"],
+                    next_r_after28_blob,
+                ),
+            }
+            if next_r_after28
+            else None
+        ),
+        "nextS": (
+            {
+                **next_s_after28,
+                "probe": build_next_scenario_probe(
+                    next_s_after28["filename"],
+                    next_s_after28_blob,
+                ),
+            }
+            if next_s_after28
+            else None
+        ),
+        "nextMap": post28_map_probe,
+        "nextSInit": (
+            probe_s01_initialization(next_s_after28_blob)
+            if next_s_after28_blob
+            else None
+        ),
+        "nextSEventSummary": None,
+        "nextSOutcomeProbe": None,
+        "nextRDepartureProbe": None,
+    }
+
+    if (
+        next_s_after28_blob
+        and next_s_after28_blob.startswith(b"EEX")
+    ):
+        post28_scenes = parse_scenario_tree(next_s_after28_blob)
+        post28_events = extract_scene2_native_events(post28_scenes)
+        post_s28_probe["nextSEventSummary"] = {
+            "candidateCount": len(post28_events),
+            "coreSupportedCount": sum(
+                1 for event in post28_events
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                }
+                for event in post28_events
+                if not event["coreSupported"]
+            ],
+        }
+        post_s28_probe["nextSOutcomeProbe"] = (
+            probe_battle_outcome_candidates(post28_scenes)
+        )
+
+    if (
+        next_r_after28_blob
+        and next_r_after28_blob.startswith(b"EEX")
+    ):
+        post28_r_scenes = parse_scenario_tree(next_r_after28_blob)
+        if post28_r_scenes:
+            departure_scene_number = len(post28_r_scenes)
+            departure_flat = flatten_scenario_nodes(
+                [post28_r_scenes[-1]]
+            )
+            post_s28_probe["nextRDepartureProbe"] = {
+                "scene": departure_scene_number,
+                "sectionCount": len(
+                    post28_r_scenes[-1]["sections"]
+                ),
+                "commands": [
+                    {
+                        "section": row["section"],
+                        "depth": row["depth"],
+                        "commandId": row["commandId"],
+                        "commandHex": f"0x{row['commandId']:02X}",
+                        "params": row["params"],
+                    }
+                    for row in departure_flat
+                    if row["commandId"] in {
+                        0x04, 0x05, 0x06, 0x07, 0x0B, 0x0D,
+                        0x11, 0x12, 0x13, 0x2D, 0x4B, 0x77,
+                    }
+                ],
+            }
+
+    s28_battle["postS28Probe"] = post_s28_probe
     (battle_dir / "battle28.json").write_text(
         json.dumps(s28_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
