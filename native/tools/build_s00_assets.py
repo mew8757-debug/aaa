@@ -12089,7 +12089,7 @@ def main(argv):
         if not make_s24_unit(
             cid,
             PLAYER,
-            False,
+            int(slot["slot"]) != 0,
             slot["x"],
             slot["y"],
             slot["direction"],
