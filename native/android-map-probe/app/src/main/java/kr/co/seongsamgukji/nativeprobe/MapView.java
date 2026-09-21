@@ -8161,35 +8161,6 @@ public class MapView extends View {
         if (currentBattleIndex == 25) {
             return "S_25";
         }
-        if (currentBattleIndex == 25) {
-            for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS25DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-
-            if (round > turnLimit) {
-                startS25DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-            if (!hasAnyAliveFriendly()) {
-                startS25DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-            if (!hasAnyAliveEnemy()) {
-                startS25VictoryOutcome();
-            }
-            return;
-        }
-
         if (currentBattleIndex == 24) {
             return "S_24";
         }
@@ -9324,6 +9295,35 @@ public class MapView extends View {
             return;
         }
 
+
+        if (currentBattleIndex == 25) {
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS25DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+
+            if (round > turnLimit) {
+                startS25DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS25DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveEnemy()) {
+                startS25VictoryOutcome();
+            }
+            return;
+        }
 
         if (currentBattleIndex == 24) {
             if (firedBattleSections.contains(3) && battlePhase != 2) {
