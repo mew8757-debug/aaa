@@ -6331,6 +6331,62 @@ def main(argv):
             probe_battle_outcome_candidates(post24_scenes)
         )
 
+    # R25 -> S25 continuation discovered by the v4.60 inventory probe.
+    if (
+        next_r_after24 is None
+        or int(next_r_after24["number"]) != 25
+        or next_s_after24 is None
+        or int(next_s_after24["number"]) != 25
+    ):
+        raise SystemExit(
+            "Expected R_25/S_25 after S24, got "
+            + repr({
+                "nextR": next_r_after24,
+                "nextS": next_s_after24,
+            })
+        )
+
+    r25 = next_r_after24_blob
+    s25 = next_s_after24_blob
+    r25_probe = build_next_scenario_probe("R_25.eex", r25)
+    s25_probe = build_next_scenario_probe("S_25.eex", s25)
+    r25_story = compile_r25_story(r25)
+    s25_player_ids, r25_selectable_ids = (
+        extract_r25_departure_players(r25)
+    )
+
+    s25_init_probe = probe_s01_initialization(s25)
+    s25_init_probe["map"] = post24_map_probe
+    s25_scenes = parse_scenario_tree(s25)
+    s25_event_probe = extract_scene2_native_events(s25_scenes)
+    s25_terminal_sections = {10, 11, 16, 17}
+    s25_native_events = [
+        event for event in s25_event_probe
+        if event["section"] not in s25_terminal_sections
+    ]
+    s25_outcome_events = {
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                s25_scenes, 2, 10
+            ),
+            "337": compile_scenario_section_actions(
+                s25_scenes, 2, 11
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s25_scenes, 2, 16
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s25_scenes, 2, 17
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s25_scenes, 3, 1
+        ),
+    }
+    s25_outcome_probe = probe_battle_outcome_candidates(
+        s25_scenes
+    )
+
     s21_native_events = []
     s21_outcome_events = {
         "defeatByCharacter": {},
