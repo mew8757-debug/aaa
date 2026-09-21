@@ -41,6 +41,7 @@ public class BattleUnit {
     public long attackUntil;
     public boolean moved;
     public boolean acted;
+    public int battleNumber;
     public int aiPolicy;
     public int aiTargetCharacterId;
     public int aiTargetX;
@@ -114,6 +115,7 @@ public class BattleUnit {
         this.attackUntil = 0L;
         this.moved = false;
         this.acted = false;
+        this.battleNumber = -1;
         this.aiPolicy = 1;
         this.aiTargetCharacterId = -1;
         this.aiTargetX = -1;
