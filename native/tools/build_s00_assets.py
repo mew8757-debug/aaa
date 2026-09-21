@@ -6560,6 +6560,51 @@ def main(argv):
             probe_battle_outcome_candidates(post25_scenes)
         )
 
+        post25_flat = flatten_scenario_nodes(post25_scenes)
+        post25_route_sections = sorted({
+            (2, row["section"])
+            for row in post25_flat
+            if row["scene"] == 2
+            and row["depth"] == 0
+            and row["commandId"] in {
+                0x25, 0x26, 0x42, 0x43
+            }
+        })
+        post25_route_sections.append((2, 9))
+        post_s25_probe["nextSRouteProbe"] = (
+            probe_selected_scenario_sections(
+                post25_scenes,
+                sorted(set(post25_route_sections)),
+            )
+        )
+
+        departure_probe = []
+        if (
+            next_r_after25_blob
+            and next_r_after25_blob.startswith(b"EEX")
+        ):
+            r26_scenes = parse_scenario_tree(next_r_after25_blob)
+            if len(r26_scenes) >= 9:
+                departure_flat = flatten_scenario_nodes(
+                    [r26_scenes[8]]
+                )
+                departure_probe = [
+                    {
+                        "section": row["section"],
+                        "depth": row["depth"],
+                        "commandId": row["commandId"],
+                        "commandHex": f"0x{row['commandId']:02X}",
+                        "params": row["params"],
+                        "childCommandIds": row["childCommandIds"],
+                    }
+                    for row in departure_flat
+                    if row["commandId"] in {
+                        0x04, 0x05, 0x06, 0x07,
+                        0x0B, 0x2D, 0x4B, 0x77
+                    }
+                ]
+        post_s25_probe["nextRDepartureProbe"] = departure_probe
+
     s21_native_events = []
     s21_outcome_events = {
         "defeatByCharacter": {},
