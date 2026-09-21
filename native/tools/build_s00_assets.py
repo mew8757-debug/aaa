@@ -12369,6 +12369,7 @@ def main(argv):
                 + s21_units
                 + s22_units
                 + s23_units
+                + s24_units
             )
         }
         | s09_special_sprite_ids
