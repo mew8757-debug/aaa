@@ -8804,6 +8804,7 @@ public class MapView extends View {
         if (currentBattleIndex == 28) {
             return "S_28";
         }
+
         if (currentBattleIndex == 28) {
             BattleUnit liuBei = findUnitByCharacterId(0);
             if (liuBei != null && !liuBei.isAlive()) {
