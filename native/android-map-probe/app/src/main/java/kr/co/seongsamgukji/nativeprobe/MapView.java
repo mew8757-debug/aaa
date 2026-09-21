@@ -203,6 +203,7 @@ public class MapView extends View {
     private JSONArray r28StoryScenes;
     private JSONArray r29StoryScenes;
     private JSONArray r30StoryScenes;
+    private JSONArray r31StoryScenes;
     private JSONObject s10AttackVictoryEvents;
     private JSONObject s26VictoryByRouteEvents;
     private JSONObject s18VictoryOutcomeEvents;
@@ -247,6 +248,7 @@ public class MapView extends View {
     private boolean r28StoryActive = false;
     private boolean r29StoryActive = false;
     private boolean r30StoryActive = false;
+    private boolean r31StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
@@ -276,6 +278,7 @@ public class MapView extends View {
     private boolean s28Ready = false;
     private boolean s29Ready = false;
     private boolean s30Ready = false;
+    private boolean s31Ready = false;
     private boolean s10DefenseRoute = false;
     private boolean s12AnnihilationRoute = false;
     private int s12RetreatVariable = 2;
@@ -323,6 +326,7 @@ public class MapView extends View {
     private int r28StorySceneIndex = 0;
     private int r29StorySceneIndex = 0;
     private int r30StorySceneIndex = 0;
+    private int r31StorySceneIndex = 0;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -641,12 +645,12 @@ public class MapView extends View {
                         -1);
             }
         }
-        if (currentBattleIndex == 30) {
+        if (currentBattleIndex == 30 || currentBattleIndex == 31) {
             JSONObject routeModel = battle.optJSONObject("routeModel");
             if (routeModel != null) {
                 rescueCharacterId = routeModel.optInt(
                         "targetCharacterId",
-                        151);
+                        currentBattleIndex == 31 ? 0 : 151);
                 JSONArray candidates = routeModel.optJSONArray(
                         "escapeTriggerCandidates");
                 if (candidates != null && candidates.length() > 0) {
@@ -1030,6 +1034,7 @@ public class MapView extends View {
         r28StoryScenes = null;
         r29StoryScenes = null;
         r30StoryScenes = null;
+        r31StoryScenes = null;
         s10AttackVictoryEvents = null;
         s26VictoryByRouteEvents = null;
         s18VictoryOutcomeEvents = null;
@@ -1267,6 +1272,11 @@ public class MapView extends View {
                 && r30Story.optBoolean("supported", false)) {
             r30StoryScenes = r30Story.optJSONArray("scenes");
         }
+        JSONObject r31Story = battle.optJSONObject("r31Story");
+        if (r31Story != null
+                && r31Story.optBoolean("supported", false)) {
+            r31StoryScenes = r31Story.optJSONArray("scenes");
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -1299,6 +1309,7 @@ public class MapView extends View {
         r28StoryActive = false;
         r29StoryActive = false;
         r30StoryActive = false;
+        r31StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
@@ -1328,6 +1339,7 @@ public class MapView extends View {
         s28Ready = false;
         s29Ready = false;
         s30Ready = false;
+        s31Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
@@ -1357,6 +1369,7 @@ public class MapView extends View {
         r28StorySceneIndex = 0;
         r29StorySceneIndex = 0;
         r30StorySceneIndex = 0;
+        r31StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
@@ -1653,8 +1666,18 @@ public class MapView extends View {
         }
 
         String header;
-        if (r30StoryActive) {
-            header = "Native v4.82 | R_30 Scene "
+        if (r31StoryActive) {
+            header = "Native v4.84 | R_31 Scene "
+                    + Math.min(
+                    r31StorySceneIndex + 1,
+                    r31StoryScenes == null
+                            ? 1
+                            : r31StoryScenes.length())
+                    + (storyTitle.isEmpty()
+                    ? ""
+                    : " · " + storyTitle);
+        } else if (r30StoryActive) {
+            header = "Native v4.84 | R_30 Scene "
                     + Math.min(
                     r30StorySceneIndex + 1,
                     r30StoryScenes == null
@@ -1664,7 +1687,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r29StoryActive) {
-            header = "Native v4.82 | R_29 Scene "
+            header = "Native v4.84 | R_29 Scene "
                     + Math.min(
                     r29StorySceneIndex + 1,
                     r29StoryScenes == null
@@ -1674,7 +1697,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r28StoryActive) {
-            header = "Native v4.82 | R_28 Scene "
+            header = "Native v4.84 | R_28 Scene "
                     + Math.min(
                     r28StorySceneIndex + 1,
                     r28StoryScenes == null
@@ -1684,7 +1707,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r27StoryActive) {
-            header = "Native v4.82 | R_27 Scene "
+            header = "Native v4.84 | R_27 Scene "
                     + Math.min(
                     r27StorySceneIndex + 1,
                     r27StoryScenes == null
@@ -1694,7 +1717,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r26StoryActive) {
-            header = "Native v4.82 | R_26 Scene "
+            header = "Native v4.84 | R_26 Scene "
                     + Math.min(
                     r26StorySceneIndex + 1,
                     r26StoryScenes == null
@@ -1704,7 +1727,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r25StoryActive) {
-            header = "Native v4.82 | R_25 Scene "
+            header = "Native v4.84 | R_25 Scene "
                     + Math.min(
                     r25StorySceneIndex + 1,
                     r25StoryScenes == null
@@ -1714,7 +1737,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r24StoryActive) {
-            header = "Native v4.82 | R_24 Scene "
+            header = "Native v4.84 | R_24 Scene "
                     + Math.min(
                     r24StorySceneIndex + 1,
                     r24StoryScenes == null
@@ -1724,7 +1747,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r23StoryActive) {
-            header = "Native v4.82 | R_23 Scene "
+            header = "Native v4.84 | R_23 Scene "
                     + Math.min(
                     r23StorySceneIndex + 1,
                     r23StoryScenes == null
@@ -1734,7 +1757,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r22StoryActive) {
-            header = "Native v4.82 | R_22 Scene "
+            header = "Native v4.84 | R_22 Scene "
                     + Math.min(
                     r22StorySceneIndex + 1,
                     r22StoryScenes == null
@@ -1744,7 +1767,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r21StoryActive) {
-            header = "Native v4.82 | R_21 Scene "
+            header = "Native v4.84 | R_21 Scene "
                     + Math.min(
                     r21StorySceneIndex + 1,
                     r21StoryScenes == null
@@ -1754,7 +1777,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r20StoryActive) {
-            header = "Native v4.82 | R_20 Scene "
+            header = "Native v4.84 | R_20 Scene "
                     + Math.min(
                     r20StorySceneIndex + 1,
                     r20StoryScenes == null
@@ -1764,7 +1787,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r19StoryActive) {
-            header = "Native v4.82 | R_19 Scene "
+            header = "Native v4.84 | R_19 Scene "
                     + Math.min(
                     r19StorySceneIndex + 1,
                     r19StoryScenes == null
@@ -1774,7 +1797,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r18StoryActive) {
-            header = "Native v4.82 | R_18 Scene "
+            header = "Native v4.84 | R_18 Scene "
                     + Math.min(
                     r18StorySceneIndex + 1,
                     r18StoryScenes == null
@@ -1784,7 +1807,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r17StoryActive) {
-            header = "Native v4.82 | R_17 Scene "
+            header = "Native v4.84 | R_17 Scene "
                     + Math.min(
                     r17StorySceneIndex + 1,
                     r17StoryScenes == null
@@ -1794,7 +1817,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r16StoryActive) {
-            header = "Native v4.82 | R_16 Scene "
+            header = "Native v4.84 | R_16 Scene "
                     + Math.min(
                     r16StorySceneIndex + 1,
                     r16StoryScenes == null
@@ -1804,7 +1827,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r15StoryActive) {
-            header = "Native v4.82 | R_15 Scene "
+            header = "Native v4.84 | R_15 Scene "
                     + Math.min(
                     r15StorySceneIndex + 1,
                     r15StoryScenes == null
@@ -1814,7 +1837,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r14StoryActive) {
-            header = "Native v4.82 | R_14 Scene "
+            header = "Native v4.84 | R_14 Scene "
                     + Math.min(
                     r14StorySceneIndex + 1,
                     r14StoryScenes == null
@@ -1824,7 +1847,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r13StoryActive) {
-            header = "Native v4.82 | R_13 Scene "
+            header = "Native v4.84 | R_13 Scene "
                     + Math.min(
                     r13StorySceneIndex + 1,
                     r13StoryScenes == null
@@ -1834,7 +1857,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r01StoryActive) {
-            header = "Native v4.82 | R_01 Scene "
+            header = "Native v4.84 | R_01 Scene "
                     + Math.min(
                     r01StorySceneIndex + 1,
                     r01StoryScenes == null
@@ -1844,7 +1867,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r02StoryActive) {
-            header = "Native v4.82 | R_02 Scene "
+            header = "Native v4.84 | R_02 Scene "
                     + Math.min(
                     r02StorySceneIndex + 1,
                     r02StoryScenes == null
@@ -1854,7 +1877,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r03StoryActive) {
-            header = "Native v4.82 | R_03 Scene "
+            header = "Native v4.84 | R_03 Scene "
                     + Math.min(
                     r03StorySceneIndex + 1,
                     r03StoryScenes == null
@@ -1864,7 +1887,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r12StoryActive) {
-            header = "Native v4.82 | R_12 Scene "
+            header = "Native v4.84 | R_12 Scene "
                     + Math.min(
                     r12StorySceneIndex + 1,
                     r12StoryScenes == null
@@ -1874,7 +1897,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r11StoryActive) {
-            header = "Native v4.82 | R_11 Scene "
+            header = "Native v4.84 | R_11 Scene "
                     + Math.min(
                     r11StorySceneIndex + 1,
                     r11StoryScenes == null
@@ -1884,7 +1907,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r10StoryActive) {
-            header = "Native v4.82 | R_10 Scene "
+            header = "Native v4.84 | R_10 Scene "
                     + Math.min(
                     r10StorySceneIndex + 1,
                     r10StoryScenes == null
@@ -1894,7 +1917,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r09StoryActive) {
-            header = "Native v4.82 | R_09 Scene "
+            header = "Native v4.84 | R_09 Scene "
                     + Math.min(
                     r09StorySceneIndex + 1,
                     r09StoryScenes == null
@@ -1904,7 +1927,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r08StoryActive) {
-            header = "Native v4.82 | R_08 Scene "
+            header = "Native v4.84 | R_08 Scene "
                     + Math.min(
                     r08StorySceneIndex + 1,
                     r08StoryScenes == null
@@ -1914,7 +1937,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r07StoryActive) {
-            header = "Native v4.82 | R_07 Scene "
+            header = "Native v4.84 | R_07 Scene "
                     + Math.min(
                     r07StorySceneIndex + 1,
                     r07StoryScenes == null
@@ -1924,7 +1947,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r06StoryActive) {
-            header = "Native v4.82 | R_06 Scene "
+            header = "Native v4.84 | R_06 Scene "
                     + Math.min(
                     r06StorySceneIndex + 1,
                     r06StoryScenes == null
@@ -1934,7 +1957,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r05StoryActive) {
-            header = "Native v4.82 | R_05 Scene "
+            header = "Native v4.84 | R_05 Scene "
                     + Math.min(
                     r05StorySceneIndex + 1,
                     r05StoryScenes == null
@@ -1944,7 +1967,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else {
-            header = "Native v4.82 | " + round + "/" + turnLimit + "턴 "
+            header = "Native v4.84 | " + round + "/" + turnLimit + "턴 "
                     + (playerTurn ? "아군" : "적군")
                     + " | 단계 " + battlePhase
                     + " | 아군 " + playerCount
@@ -9192,11 +9215,171 @@ public class MapView extends View {
                             : battleResultText);
             return;
         }
+        if (r31StoryScenes != null && r31StoryScenes.length() > 0) {
+            startR31Story();
+            return;
+        }
         endBattle(true, "S_30 원본 승리 흐름 완료");
+    }
+
+    private void startR31Story() {
+        outcomeFlowActive = false;
+        r31StoryActive = true;
+        r31StorySceneIndex = 0;
+        s31Ready = false;
+        battleEnded = false;
+        playerTurn = false;
+        selectedUnit = null;
+        selectedX = -1;
+        selectedY = -1;
+        storyTitle = "";
+        storyLocation = "";
+        clearReachable();
+        startR31StoryScene();
+    }
+
+    private void startR31StoryScene() {
+        if (!r31StoryActive || r31StoryScenes == null) {
+            return;
+        }
+        if (r31StorySceneIndex >= r31StoryScenes.length()) {
+            r31StoryActive = false;
+            s31Ready = true;
+            enterS31Battle();
+            return;
+        }
+
+        JSONObject scene = r31StoryScenes.optJSONObject(
+                r31StorySceneIndex);
+        if (scene == null) {
+            r31StorySceneIndex++;
+            startR31StoryScene();
+            return;
+        }
+
+        prepareScriptActionSequence(scene.optJSONArray("actions"));
+        int sceneNumber = scene.optInt("scene", r31StorySceneIndex + 1);
+        String kind = scene.optString("kind", "story");
+        lastCombatMessage = "R_31 Scene " + sceneNumber
+                + ("departure".equals(kind) ? " · 출전" : " · 스토리");
+        combatMessageUntil = SystemClock.uptimeMillis() + 1400L;
+        invalidate();
+    }
+
+    private void finishR31StoryScene() {
+        r31StorySceneIndex++;
+        startR31StoryScene();
+    }
+
+    private void enterS31Battle() {
+        try {
+            loadS31Battle(getContext());
+            lastCombatMessage = "R_31 완료 · S_31 전투 개시";
+            combatMessageUntil = SystemClock.uptimeMillis() + 1800L;
+            invalidate();
+        } catch (Exception e) {
+            r31StoryActive = false;
+            endBattle(
+                    false,
+                    "S_31 로드 실패 · "
+                            + e.getClass().getSimpleName());
+        }
+    }
+
+    private void loadS31Battle(Context context) throws Exception {
+        loadFollowupBattle(
+                context,
+                "battle31.json",
+                31,
+                "m031.jpg",
+                "terrain31.bin");
+    }
+
+    private void startS31VictoryOutcome() {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+        if (victoryOutcomeActions == null
+                || victoryOutcomeActions.length() == 0) {
+            endBattle(true, "유비 퇴각 · S_31 원본 승리 조건");
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s31Victory";
+        battleVictory = true;
+        battleResultText = "유비 퇴각 · S_31 원본 승리 조건";
+        stopBattleForOutcome();
+        prepareScriptActionSequence(victoryOutcomeActions);
+        lastCombatMessage = "원본 S_31 승리 정산";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
+        invalidate();
+    }
+
+    private void startS31DefeatOutcome(
+            int characterId,
+            String fallbackReason) {
+        if (battleEnded || outcomeFlowActive) {
+            return;
+        }
+
+        JSONArray actions = null;
+        if (s01DefeatOutcomeEvents != null && characterId >= 0) {
+            JSONObject entry = s01DefeatOutcomeEvents.optJSONObject(
+                    String.valueOf(characterId));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null && s01GenericDefeatActions != null) {
+            actions = s01GenericDefeatActions;
+        }
+        if (actions == null || actions.length() == 0) {
+            endBattle(false, fallbackReason);
+            return;
+        }
+
+        outcomeFlowActive = true;
+        outcomeStage = "s31Defeat";
+        battleVictory = false;
+        battleResultText = fallbackReason;
+        stopBattleForOutcome();
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_31 패배 연출";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1500L;
+        invalidate();
+    }
+
+    private void startS31PostBattleCleanup() {
+        outcomeStage = "s31PostBattle";
+        if (postBattleOutcomeActions == null
+                || postBattleOutcomeActions.length() == 0) {
+            finishS31Outcome();
+            return;
+        }
+        prepareScriptActionSequence(postBattleOutcomeActions);
+        lastCombatMessage = "원본 S_31 전투 후 정리";
+        combatMessageUntil = SystemClock.uptimeMillis() + 1200L;
+    }
+
+    private void finishS31Outcome() {
+        outcomeFlowActive = false;
+        if (!battleVictory) {
+            endBattle(
+                    false,
+                    battleResultText == null || battleResultText.isEmpty()
+                            ? "S_31 원본 패배 흐름 완료"
+                            : battleResultText);
+            return;
+        }
+        endBattle(true, "S_31 원본 승리 흐름 완료");
     }
 
 
     private String currentBattleLabel() {
+        if (currentBattleIndex == 31) {
+            return "S_31";
+        }
         if (currentBattleIndex == 30) {
             return "S_30";
         }
@@ -9634,6 +9817,16 @@ public class MapView extends View {
                 finishS30Outcome();
                 return;
             }
+            if ("s31Victory".equals(outcomeStage)
+                    || "s31Defeat".equals(outcomeStage)) {
+                startS31PostBattleCleanup();
+                invalidate();
+                return;
+            }
+            if ("s31PostBattle".equals(outcomeStage)) {
+                finishS31Outcome();
+                return;
+            }
         }
 
         if (r01StoryActive) {
@@ -9750,6 +9943,20 @@ public class MapView extends View {
         }
         if (r30StoryActive) {
             finishR30StoryScene();
+            return;
+        }
+        if (r31StoryActive) {
+            finishR31StoryScene();
+            return;
+        }
+
+        if (currentBattleIndex == 31
+                && scriptedBattleFailure
+                && !outcomeFlowActive) {
+            scriptedBattleFailure = false;
+            startS31DefeatOutcome(
+                    -1,
+                    "원본 전장 이벤트 패배 조건");
             return;
         }
 
@@ -10453,11 +10660,47 @@ public class MapView extends View {
                 || r28StoryActive
                 || r29StoryActive
                 || r30StoryActive
+                || r31StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
             return;
         }
 
+
+        if (currentBattleIndex == 31) {
+            BattleUnit liuBei = findUnitByCharacterId(
+                    rescueCharacterId >= 0 ? rescueCharacterId : 0);
+            if (liuBei != null && !liuBei.isAlive()) {
+                startS31DefeatOutcome(
+                        0,
+                        liuBei.name + " 사망 · 원본 패배 조건");
+                return;
+            }
+
+            if (round > turnLimit) {
+                startS31DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+
+            if (liuBei != null
+                    && liuBei.isAlive()
+                    && rescueGoalX >= 0
+                    && rescueGoalY >= 0
+                    && liuBei.x == rescueGoalX
+                    && liuBei.y == rescueGoalY) {
+                startS31VictoryOutcome();
+                return;
+            }
+
+            if (!hasAnyAliveFriendly()) {
+                startS31DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+            }
+            return;
+        }
 
         if (currentBattleIndex == 30) {
             BattleUnit liuQi = findUnitByCharacterId(

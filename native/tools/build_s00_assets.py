@@ -3107,6 +3107,99 @@ def compile_r30_story(blob):
     )
 
 
+def compile_r31_story(blob):
+    return compile_r_story(
+        blob,
+        "R_31.eex",
+        18,
+        19,
+        "S_31.eex",
+    )
+
+
+def extract_r31_departure_players(blob, slot_count):
+    # R31 Scene 19 uses Liu Bei as the continuing leader, then a mode-1
+    # 0x06 list plus 0x2D selectable candidates. Preserve source order,
+    # deduplicate, and take exactly the original S31 slot count.
+    roster = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return roster[:slot_count], selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 19:
+        return roster[:slot_count], selectable
+
+    departure = scenes[18]
+    fixed = []
+    candidates = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if (
+                cid == 0x06
+                and len(params) >= 3
+                and isinstance(params[0], int)
+                and int(params[0]) == 1
+            ):
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed
+                    ):
+                        fixed.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in candidates
+                ):
+                    candidates.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed:
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    for cid in candidates:
+        if cid not in selectable:
+            selectable.append(cid)
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    return roster[:slot_count], selectable
+
+
+def action_tree_contains_type(actions, wanted):
+    for action in actions or []:
+        if not isinstance(action, dict):
+            continue
+        if action.get("type") in wanted:
+            return True
+        if action_tree_contains_type(action.get("actions", []), wanted):
+            return True
+        for case in action.get("cases", []) or []:
+            if action_tree_contains_type(case.get("actions", []), wanted):
+                return True
+    return False
+
+
 def extract_forced_player_roster(blob, slot_count):
     if blob is None or not blob.startswith(b"EEX"):
         return []
@@ -8768,7 +8861,7 @@ def main(argv):
         })
 
     s30_battle = {
-        "version": 124,
+        "version": 125,
         "source": "RS/S_30.eex",
         "battleMode": "s30-liuqi-escape",
         "mapId": 30,
@@ -9092,6 +9185,358 @@ def main(argv):
             }
 
     s30_battle["postS30Probe"] = post_s30_probe
+    (battle_dir / "battle30.json").write_text(
+        json.dumps(s30_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+    r31 = next_r_after30_blob
+    s31 = next_s_after30_blob
+    r31_story = compile_r31_story(r31)
+
+    if (
+        next_r_after30 is None
+        or int(next_r_after30["number"]) != 31
+        or next_s_after30 is None
+        or int(next_s_after30["number"]) != 31
+    ):
+        raise SystemExit(
+            "Expected R_31/S_31 after S30, got "
+            + repr({
+                "nextR": next_r_after30,
+                "nextS": next_s_after30,
+            })
+        )
+    if not post30_map_probe.get("valid"):
+        raise SystemExit(
+            "M031 map probe invalid: " + repr(post30_map_probe)
+        )
+    if not r31_story.get("supported"):
+        raise SystemExit(
+            "R31 story unsupported: "
+            + repr(r31_story.get("unsupportedActionIds", []))
+        )
+
+    s31_init_probe = probe_s01_initialization(s31)
+    s31_init_probe["map"] = post30_map_probe
+    s31_scenes = parse_scenario_tree(s31)
+    s31_event_probe = extract_scene2_native_events(s31_scenes)
+
+    s31_escape_candidates = []
+    for event in s31_event_probe:
+        matching = [
+            trigger for trigger in event.get("triggers", [])
+            if (
+                trigger.get("type") in {"position", "area"}
+                and int(trigger.get("personCode", -1)) == 0
+            )
+        ]
+        if (
+            matching
+            and action_tree_contains_type(
+                event.get("actions", []),
+                {"battleEndMarker"},
+            )
+        ):
+            s31_escape_candidates.append({
+                "section": event["section"],
+                "triggers": matching,
+                "actions": event.get("actions", []),
+                "requireTrueVariables":
+                    event.get("requireTrueVariables", []),
+                "requireFalseVariables":
+                    event.get("requireFalseVariables", []),
+            })
+
+    if len(s31_escape_candidates) != 1:
+        raise SystemExit(
+            "Expected exactly one S31 Liu Bei retreat victory event: "
+            + repr(s31_escape_candidates)
+        )
+
+    s31_victory_section = int(
+        s31_escape_candidates[0]["section"]
+    )
+    s31_terminal_sections = {
+        18,
+        47,
+        s31_victory_section,
+    }
+    s31_native_events = [
+        event for event in s31_event_probe
+        if event["section"] not in s31_terminal_sections
+    ]
+    s31_outcome_events = {
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                s31_scenes, 2, 18
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s31_scenes,
+            2,
+            s31_victory_section,
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s31_scenes, 2, 47
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s31_scenes, 3, 1
+        ),
+    }
+    s31_outcome_probe = probe_battle_outcome_candidates(s31_scenes)
+
+    s31_slots = sorted(
+        s31_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    s31_player_ids, s31_selectable_players = (
+        extract_r31_departure_players(
+            r31,
+            len(s31_slots),
+        )
+    )
+    if len(s31_player_ids) != len(s31_slots):
+        raise SystemExit(
+            "S31 roster/slot mismatch: "
+            + repr({
+                "players": s31_player_ids,
+                "slots": s31_slots,
+                "selectable": s31_selectable_players,
+            })
+        )
+
+    s31_units = []
+    s31_skipped_actors = []
+    s31_character_ids = set()
+
+    def make_s31_record(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s31_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            return None
+        profile = combat_profile_of(cid, deploy_level)
+        return {
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        }
+
+    for slot, cid in zip(s31_slots, s31_player_ids):
+        record = make_s31_record(
+            cid,
+            PLAYER,
+            bool(slot.get("flag", 0)),
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_31:R31:slot:{slot['slot']}",
+            battle_number=int(slot["slot"]),
+        )
+        if record is None:
+            raise SystemExit(f"S31 player {cid} invalid sprite")
+        s31_units.append(record)
+        s31_character_ids.add(int(cid))
+
+    next_battle_number = len(s31_units)
+    for index, row in enumerate(
+        s31_init_probe.get("friendRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s31_character_ids:
+            continue
+        record = make_s31_record(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_31:0x46:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s31_units.append(record)
+            s31_character_ids.add(cid)
+            next_battle_number += 1
+
+    for index, row in enumerate(
+        s31_init_probe.get("enemyRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s31_character_ids:
+            continue
+        record = make_s31_record(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_31:0x47:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s31_units.append(record)
+            s31_character_ids.add(cid)
+            next_battle_number += 1
+
+    s31_objective_text = (
+        s31_init_probe["objectiveTexts"][0]
+        if s31_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s31_popup_text = (
+        s31_init_probe["objectivePopups"][0]
+        if s31_init_probe.get("objectivePopups")
+        else ""
+    )
+    s31_turn_limit = objective_turn_limit(
+        s31_objective_text,
+        20,
+    )
+
+    s31_battle = {
+        "version": 125,
+        "source": "RS/S_31.eex",
+        "battleMode": "s31-liubei-retreat",
+        "mapId": 31,
+        "map": "m031.jpg",
+        "widthTiles": post30_map_probe["cols"],
+        "heightTiles": post30_map_probe["rows"],
+        "terrainFile": "terrain31.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s31_objective_text,
+                "popupText": s31_popup_text,
+                "turnLimit": s31_turn_limit,
+                "goal": {
+                    "type": "liubei-retreat",
+                    "targetCharacterId": 0,
+                },
+            },
+            "phase2": {
+                "objectiveText": s31_objective_text,
+                "popupText": s31_popup_text,
+                "turnLimit": s31_turn_limit,
+            },
+            "protectedCharacterIds": [0],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s31_native_events,
+        "outcomeEvents": s31_outcome_events,
+        "outcomeProbe": s31_outcome_probe,
+        "routeModel": {
+            "targetCharacterId": 0,
+            "victorySection": s31_victory_section,
+            "genericDefeatSection": 47,
+            "defeatByCharacterSections": {"0": 18},
+            "postBattleScene": "S03-SEC01",
+            "turnLimit": s31_turn_limit,
+            "escapeTriggerCandidates": s31_escape_candidates,
+            "annihilationVictory": False,
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s31_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s31_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s31_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s31_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported":
+                        event["nestedSupported"],
+                }
+                for event in s31_native_events
+            ],
+        },
+        "terrainIds": post30_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s31_skipped_actors,
+        "playerRoster": {
+            "characterIds": s31_player_ids,
+            "selectableCandidates": s31_selectable_players,
+            "source": "R_31 Scene19 source-order 0x06 + 0x2D",
+        },
+        "units": s31_units,
+        "openingEvents": [],
+        "r31Story": r31_story,
+    }
+
+    s30_battle["r31Story"] = r31_story
+    (battle_dir / "battle31.json").write_text(
+        json.dumps(s31_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     (battle_dir / "battle30.json").write_text(
         json.dumps(s30_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -16491,6 +16936,7 @@ def main(argv):
                     for unit in variant["units"]
                 ]
                 + s30_units
+                + s31_units
             )
         }
         | s09_special_sprite_ids
