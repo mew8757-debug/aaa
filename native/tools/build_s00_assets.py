@@ -4303,6 +4303,58 @@ def main(argv):
                 next_s_after24_map_name,
             )
 
+        next_r_after25 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 25
+            ),
+            None,
+        )
+        next_s_after25 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 25
+            ),
+            None,
+        )
+        next_r_after25_blob = (
+            read_member_by_basename(
+                game1,
+                next_r_after25["filename"],
+            )
+            if next_r_after25
+            else None
+        )
+        next_s_after25_blob = (
+            read_member_by_basename(
+                game1,
+                next_s_after25["filename"],
+            )
+            if next_s_after25
+            else None
+        )
+        next_s_after25_map_name = (
+            f"m{next_s_after25['number']:03d}.jpg"
+            if next_s_after25
+            else None
+        )
+        next_s_after25_map_bytes = (
+            read_member_by_basename(
+                game2,
+                next_s_after25_map_name,
+            )
+            if next_s_after25_map_name
+            else None
+        )
+        if (
+            next_s_after25_map_bytes is None
+            and next_s_after25_map_name
+        ):
+            next_s_after25_map_bytes = read_member_by_basename(
+                game1,
+                next_s_after25_map_name,
+            )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -5143,6 +5195,16 @@ def main(argv):
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
+    post25_map_probe = {
+        "filename": next_s_after25_map_name,
+        "found": next_s_after25_map_bytes is not None,
+        "hexzmapEntry": (
+            next_s_after25["number"]
+            if next_s_after25
+            else None
+        ),
+    }
+
     post24_map_probe = {
         "filename": next_s_after24_map_name,
         "found": next_s_after24_map_bytes is not None,
@@ -5194,6 +5256,45 @@ def main(argv):
             })
         except Exception as exc:
             post24_map_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    if (
+        next_s_after25
+        and next_s_after25_map_bytes is not None
+    ):
+        try:
+            post25_map_width, post25_map_height = jpeg_dimensions(
+                next_s_after25_map_bytes
+            )
+            if (
+                post25_map_width % 48 != 0
+                or post25_map_height % 48 != 0
+            ):
+                raise ValueError(
+                    "post-S25 map dimensions not divisible by 48: "
+                    f"{post25_map_width}x{post25_map_height}"
+                )
+            post25_map_cols = post25_map_width // 48
+            post25_map_rows = post25_map_height // 48
+            post25_terrain_cells = extract_hexzmap_cells(
+                hexz,
+                next_s_after25["number"],
+                post25_map_cols,
+                post25_map_rows,
+            )
+            post25_map_probe.update({
+                "valid": True,
+                "width": post25_map_width,
+                "height": post25_map_height,
+                "cols": post25_map_cols,
+                "rows": post25_map_rows,
+                "terrainCellCount": len(post25_terrain_cells),
+                "terrainIds": sorted(set(post25_terrain_cells)),
+            })
+        except Exception as exc:
+            post25_map_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -6386,6 +6487,78 @@ def main(argv):
     s25_outcome_probe = probe_battle_outcome_candidates(
         s25_scenes
     )
+
+    post_s25_probe = {
+        "inventoryAfter25": [
+            row
+            for row in rs_inventory
+            if row["number"] > 25
+        ],
+        "nextR": (
+            {
+                **next_r_after25,
+                "probe": build_next_scenario_probe(
+                    next_r_after25["filename"],
+                    next_r_after25_blob,
+                ),
+            }
+            if next_r_after25
+            else None
+        ),
+        "nextS": (
+            {
+                **next_s_after25,
+                "probe": build_next_scenario_probe(
+                    next_s_after25["filename"],
+                    next_s_after25_blob,
+                ),
+            }
+            if next_s_after25
+            else None
+        ),
+        "nextMap": post25_map_probe,
+        "nextSInit": (
+            probe_s01_initialization(next_s_after25_blob)
+            if next_s_after25_blob
+            else None
+        ),
+        "nextSEventSummary": None,
+        "nextSOutcomeProbe": None,
+    }
+    if (
+        next_s_after25_blob
+        and next_s_after25_blob.startswith(b"EEX")
+    ):
+        post25_scenes = parse_scenario_tree(
+            next_s_after25_blob
+        )
+        post25_events = extract_scene2_native_events(
+            post25_scenes
+        )
+        post_s25_probe["nextSEventSummary"] = {
+            "candidateCount": len(post25_events),
+            "coreSupportedCount": sum(
+                1
+                for event in post25_events
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                }
+                for event in post25_events
+                if not event["coreSupported"]
+            ],
+        }
+        post_s25_probe["nextSOutcomeProbe"] = (
+            probe_battle_outcome_candidates(post25_scenes)
+        )
 
     s21_native_events = []
     s21_outcome_events = {
@@ -12810,6 +12983,7 @@ def main(argv):
         "battleEvents": s25_native_events,
         "outcomeEvents": s25_outcome_events,
         "outcomeProbe": s25_outcome_probe,
+        "postS25Probe": post_s25_probe,
         "routeModel": {
             "victorySection": 16,
             "defeatByCharacterSections": {
