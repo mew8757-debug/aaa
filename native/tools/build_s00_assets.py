@@ -10065,7 +10065,7 @@ def main(argv):
     )
 
     s32_battle = {
-        "version": 128,
+        "version": 129,
         "source": "RS/S_32.eex",
         "battleMode": "s32-find-ladies",
         "mapId": 32,
@@ -10190,6 +10190,7 @@ def main(argv):
             else None
         ),
         "nextSEventSummary": None,
+        "nextSRouteEvents": None,
         "nextSOutcomeProbe": None,
         "nextRDepartureProbe": None,
     }
@@ -10213,6 +10214,75 @@ def main(argv):
                 if not event["coreSupported"]
             ],
         }
+
+        def collect_route_action_info(actions):
+            action_types = []
+            details = []
+            stack = list(actions or [])
+            while stack:
+                action = stack.pop()
+                if not isinstance(action, dict):
+                    continue
+                action_type = action.get("type")
+                if action_type:
+                    action_types.append(str(action_type))
+                if action_type in {
+                    "setVariable",
+                    "objective",
+                    "objectivePopup",
+                    "battleEndMarker",
+                    "battleFailureMarker",
+                    "scenarioJump",
+                    "turnLimit",
+                    "reveal",
+                    "hide",
+                    "retreat",
+                    "move",
+                    "setAi",
+                    "loot",
+                }:
+                    detail = {"type": action_type}
+                    for key, value in action.items():
+                        if key in {"type", "actions", "cases"}:
+                            continue
+                        if isinstance(value, str):
+                            detail[key] = value[:500]
+                        elif isinstance(value, (int, float, bool)) or value is None:
+                            detail[key] = value
+                        elif (
+                            isinstance(value, list)
+                            and len(value) <= 20
+                            and all(
+                                isinstance(item, (int, float, bool, str))
+                                or item is None
+                                for item in value
+                            )
+                        ):
+                            detail[key] = value
+                    details.append(detail)
+                stack.extend(action.get("actions", []) or [])
+                for case in action.get("cases", []) or []:
+                    if isinstance(case, dict):
+                        stack.extend(case.get("actions", []) or [])
+            return sorted(set(action_types)), details
+
+        route_events = []
+        for event in post32_events:
+            action_types, action_details = collect_route_action_info(
+                event.get("actions", [])
+            )
+            route_events.append({
+                "section": event["section"],
+                "coreSupported": event["coreSupported"],
+                "requireTrueVariables":
+                    event.get("requireTrueVariables", []),
+                "requireFalseVariables":
+                    event.get("requireFalseVariables", []),
+                "triggers": event.get("triggers", []),
+                "actionTypes": action_types,
+                "routeActions": action_details,
+            })
+        post_s32_probe["nextSRouteEvents"] = route_events
         post_s32_probe["nextSOutcomeProbe"] = (
             probe_battle_outcome_candidates(post32_scenes)
         )
