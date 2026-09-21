@@ -1968,7 +1968,16 @@ public class MapView extends View {
                 || r18StoryActive
                 || r19StoryActive
                 || r20StoryActive
-                || r21StoryActive) {
+                || r21StoryActive
+                || r22StoryActive
+                || r23StoryActive
+                || r24StoryActive
+                || r25StoryActive
+                || r26StoryActive
+                || r27StoryActive
+                || r28StoryActive
+                || r29StoryActive
+                || r30StoryActive) {
             String status = "원본 " + currentStoryLabel()
                     + " 스토리 재생 중";
             if (!storyLocation.isEmpty()) {
@@ -2044,6 +2053,15 @@ public class MapView extends View {
                 && !r19StoryActive
                 && !r20StoryActive
                 && !r21StoryActive
+                && !r22StoryActive
+                && !r23StoryActive
+                && !r24StoryActive
+                && !r25StoryActive
+                && !r26StoryActive
+                && !r27StoryActive
+                && !r28StoryActive
+                && !r29StoryActive
+                && !r30StoryActive
                 && selectedUnit != null) {
             String terrainInfo = "";
             if (inBounds(selectedX, selectedY)) {
@@ -4346,6 +4364,18 @@ public class MapView extends View {
 
 
     private String currentStoryLabel() {
+        if (r30StoryActive) {
+            return "R_30";
+        }
+        if (r29StoryActive) {
+            return "R_29";
+        }
+        if (r28StoryActive) {
+            return "R_28";
+        }
+        if (r27StoryActive) {
+            return "R_27";
+        }
         if (r26StoryActive) {
             return "R_26";
         }
