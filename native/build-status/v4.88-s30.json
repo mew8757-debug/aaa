@@ -1,0 +1,754 @@
+{
+  "version": "4.88.0",
+  "status": "success",
+  "found": true,
+  "source": "RS/S_30.eex",
+  "battleMode": "s30-liuqi-escape",
+  "map": "m030.jpg",
+  "widthTiles": 24,
+  "heightTiles": 20,
+  "units": [
+    {
+      "characterId": 151,
+      "name": "유기",
+      "faction": "player",
+      "visible": false,
+      "x": 1,
+      "y": 1
+    },
+    {
+      "characterId": 33,
+      "name": "이적",
+      "faction": "player",
+      "visible": false,
+      "x": 1,
+      "y": 0
+    },
+    {
+      "characterId": 11,
+      "name": "위연",
+      "faction": "player",
+      "visible": false,
+      "x": 18,
+      "y": 7
+    },
+    {
+      "characterId": 7,
+      "name": "황충",
+      "faction": "ally",
+      "visible": false,
+      "x": 22,
+      "y": 19
+    },
+    {
+      "characterId": 30,
+      "name": "탁응",
+      "faction": "ally",
+      "visible": false,
+      "x": 23,
+      "y": 19
+    },
+    {
+      "characterId": 548,
+      "name": "두목1",
+      "faction": "enemy",
+      "visible": false,
+      "x": 7,
+      "y": 1
+    },
+    {
+      "characterId": 536,
+      "name": "산적1",
+      "faction": "enemy",
+      "visible": false,
+      "x": 7,
+      "y": 0
+    },
+    {
+      "characterId": 537,
+      "name": "산적2",
+      "faction": "enemy",
+      "visible": false,
+      "x": 8,
+      "y": 0
+    },
+    {
+      "characterId": 538,
+      "name": "산적3",
+      "faction": "enemy",
+      "visible": false,
+      "x": 8,
+      "y": 1
+    },
+    {
+      "characterId": 539,
+      "name": "산적4",
+      "faction": "enemy",
+      "visible": false,
+      "x": 9,
+      "y": 0
+    },
+    {
+      "characterId": 540,
+      "name": "산적5",
+      "faction": "enemy",
+      "visible": false,
+      "x": 9,
+      "y": 1
+    },
+    {
+      "characterId": 466,
+      "name": "무도가1",
+      "faction": "enemy",
+      "visible": false,
+      "x": 1,
+      "y": 0
+    },
+    {
+      "characterId": 467,
+      "name": "무도가2",
+      "faction": "enemy",
+      "visible": false,
+      "x": 2,
+      "y": 0
+    },
+    {
+      "characterId": 469,
+      "name": "무도가4",
+      "faction": "enemy",
+      "visible": false,
+      "x": 1,
+      "y": 1
+    },
+    {
+      "characterId": 470,
+      "name": "무도가5",
+      "faction": "enemy",
+      "visible": false,
+      "x": 2,
+      "y": 1
+    },
+    {
+      "characterId": 549,
+      "name": "두목2",
+      "faction": "enemy",
+      "visible": false,
+      "x": 7,
+      "y": 9
+    },
+    {
+      "characterId": 544,
+      "name": "산적9",
+      "faction": "enemy",
+      "visible": false,
+      "x": 6,
+      "y": 9
+    },
+    {
+      "characterId": 545,
+      "name": "산적10",
+      "faction": "enemy",
+      "visible": false,
+      "x": 7,
+      "y": 8
+    },
+    {
+      "characterId": 546,
+      "name": "산적11",
+      "faction": "enemy",
+      "visible": false,
+      "x": 6,
+      "y": 8
+    },
+    {
+      "characterId": 547,
+      "name": "산적12",
+      "faction": "enemy",
+      "visible": false,
+      "x": 5,
+      "y": 9
+    },
+    {
+      "characterId": 550,
+      "name": "두목3",
+      "faction": "enemy",
+      "visible": false,
+      "x": 23,
+      "y": 8
+    },
+    {
+      "characterId": 712,
+      "name": "해적1",
+      "faction": "enemy",
+      "visible": false,
+      "x": 23,
+      "y": 6
+    },
+    {
+      "characterId": 713,
+      "name": "해적2",
+      "faction": "enemy",
+      "visible": false,
+      "x": 23,
+      "y": 7
+    },
+    {
+      "characterId": 714,
+      "name": "해적3",
+      "faction": "enemy",
+      "visible": false,
+      "x": 23,
+      "y": 9
+    },
+    {
+      "characterId": 715,
+      "name": "해적4",
+      "faction": "enemy",
+      "visible": false,
+      "x": 23,
+      "y": 10
+    },
+    {
+      "characterId": 472,
+      "name": "무도가7",
+      "faction": "enemy",
+      "visible": false,
+      "x": 3,
+      "y": 10
+    },
+    {
+      "characterId": 473,
+      "name": "무도가8",
+      "faction": "enemy",
+      "visible": false,
+      "x": 3,
+      "y": 11
+    },
+    {
+      "characterId": 474,
+      "name": "무도가9",
+      "faction": "enemy",
+      "visible": false,
+      "x": 3,
+      "y": 12
+    },
+    {
+      "characterId": 475,
+      "name": "무도가10",
+      "faction": "enemy",
+      "visible": false,
+      "x": 2,
+      "y": 10
+    },
+    {
+      "characterId": 476,
+      "name": "무도가11",
+      "faction": "enemy",
+      "visible": false,
+      "x": 2,
+      "y": 11
+    }
+  ],
+  "objectives": {
+    "phase1": {
+      "objectiveText": "승리 조건\n★·유기 탈출.\n★·모든 적군 섬멸!\n\n패배 조건\n☆·유기 사망.\n☆·20턴 초과.",
+      "popupText": "유기를 탈출시켜라!",
+      "turnLimit": 20,
+      "goal": {
+        "type": "liuqi-escape-or-annihilation",
+        "targetCharacterId": 151
+      }
+    },
+    "phase2": {
+      "objectiveText": "승리 조건\n★·유기 탈출.\n★·모든 적군 섬멸!\n\n패배 조건\n☆·유기 사망.\n☆·20턴 초과.",
+      "popupText": "유기를 탈출시켜라!",
+      "turnLimit": 20
+    },
+    "protectedCharacterIds": [
+      151
+    ],
+    "protectedCharacters": [
+      {
+        "characterId": 151,
+        "name": "유기"
+      }
+    ],
+    "phase1TransitionEvents": []
+  },
+  "routeModel": {
+    "targetCharacterId": 151,
+    "victorySection": 24,
+    "genericDefeatSection": 25,
+    "defeatByCharacterSections": {
+      "151": 18
+    },
+    "postBattleScene": "S03-SEC01",
+    "turnLimit": 20,
+    "escapeTriggerCandidates": [
+      {
+        "section": 9,
+        "triggers": [
+          {
+            "type": "position",
+            "personCode": 151,
+            "x": 1,
+            "y": 18
+          }
+        ],
+        "actions": [
+          {
+            "type": "turn",
+            "characterId": 151,
+            "targetId": -1,
+            "direction": 1
+          },
+          {
+            "type": "action",
+            "characterId": 151,
+            "value": 9
+          },
+          {
+            "type": "dialogue",
+            "speaker": "유기",
+            "text": "큰 난리에도 살아남아 다행이다……"
+          },
+          {
+            "type": "turn",
+            "characterId": 33,
+            "targetId": 151,
+            "direction": -1
+          },
+          {
+            "type": "turn",
+            "characterId": 7,
+            "targetId": 151,
+            "direction": -1
+          },
+          {
+            "type": "turn",
+            "characterId": 11,
+            "targetId": 151,
+            "direction": -1
+          },
+          {
+            "type": "turn",
+            "characterId": 30,
+            "targetId": 151,
+            "direction": -1
+          },
+          {
+            "type": "hide",
+            "characterId": 151
+          },
+          {
+            "type": "dialogue",
+            "speaker": "이적",
+            "text": "(다행이다. 공자가 벗어나셨구나……)\n\n&위연\n(공자를 구했으니\n좌장군께 나아갈 때\n선물은 되겠지.)\n\n&황충\n(유 형주도 한 지역의 인물이건만\n자식은 이리도 무능하다니……)\n\n&탁응\n(한승이 유기를 구한 일을\n채모 등이 알면 꼭 미워하겠구나.)"
+          },
+          {
+            "type": "delay",
+            "value": 2
+          },
+          {
+            "type": "conditionalVariables",
+            "requireTrueVariables": [],
+            "requireFalseVariables": [
+              50
+            ],
+            "actions": [
+              {
+                "type": "loot",
+                "category": 0,
+                "slots": [
+                  {
+                    "itemId": 103,
+                    "level": 0
+                  },
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  },
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  }
+                ],
+                "ending": 0
+              }
+            ]
+          },
+          {
+            "type": "conditionalVariables",
+            "requireTrueVariables": [
+              50
+            ],
+            "requireFalseVariables": [],
+            "actions": [
+              {
+                "type": "loot",
+                "category": 0,
+                "slots": [
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  },
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  },
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  }
+                ],
+                "ending": 0
+              }
+            ]
+          },
+          {
+            "type": "battleEndMarker"
+          },
+          {
+            "type": "setVariable",
+            "variableId": 0,
+            "value": 1
+          },
+          {
+            "type": "setVariable",
+            "variableId": 630,
+            "value": 1
+          },
+          {
+            "type": "sceneEnd"
+          }
+        ],
+        "requireTrueVariables": [],
+        "requireFalseVariables": [
+          0
+        ]
+      }
+    ],
+    "annihilationVictory": true
+  },
+  "eventSummary": {
+    "candidateCount": 19,
+    "coreSupportedCount": 19,
+    "rawCandidateCount": 20,
+    "rawCoreSupportedCount": 20,
+    "sections": [
+      {
+        "section": 2,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 3,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 4,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 5,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 6,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 7,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 8,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 9,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 10,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 11,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 12,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 13,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 7,
+        "nestedSupported": true
+      },
+      {
+        "section": 14,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 7,
+        "nestedSupported": true
+      },
+      {
+        "section": 15,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 5,
+        "nestedSupported": true
+      },
+      {
+        "section": 16,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 17,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 19,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 22,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 23,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 3,
+        "nestedSupported": true
+      }
+    ]
+  },
+  "outcomeKeys": [
+    "defeatByCharacter",
+    "genericDefeat",
+    "postBattle",
+    "victory"
+  ],
+  "skippedActors": [],
+  "runtimeConnected": true,
+  "escapeGoal": {
+    "characterId": 151,
+    "candidates": [
+      {
+        "section": 9,
+        "triggers": [
+          {
+            "type": "position",
+            "personCode": 151,
+            "x": 1,
+            "y": 18
+          }
+        ],
+        "actions": [
+          {
+            "type": "turn",
+            "characterId": 151,
+            "targetId": -1,
+            "direction": 1
+          },
+          {
+            "type": "action",
+            "characterId": 151,
+            "value": 9
+          },
+          {
+            "type": "dialogue",
+            "speaker": "유기",
+            "text": "큰 난리에도 살아남아 다행이다……"
+          },
+          {
+            "type": "turn",
+            "characterId": 33,
+            "targetId": 151,
+            "direction": -1
+          },
+          {
+            "type": "turn",
+            "characterId": 7,
+            "targetId": 151,
+            "direction": -1
+          },
+          {
+            "type": "turn",
+            "characterId": 11,
+            "targetId": 151,
+            "direction": -1
+          },
+          {
+            "type": "turn",
+            "characterId": 30,
+            "targetId": 151,
+            "direction": -1
+          },
+          {
+            "type": "hide",
+            "characterId": 151
+          },
+          {
+            "type": "dialogue",
+            "speaker": "이적",
+            "text": "(다행이다. 공자가 벗어나셨구나……)\n\n&위연\n(공자를 구했으니\n좌장군께 나아갈 때\n선물은 되겠지.)\n\n&황충\n(유 형주도 한 지역의 인물이건만\n자식은 이리도 무능하다니……)\n\n&탁응\n(한승이 유기를 구한 일을\n채모 등이 알면 꼭 미워하겠구나.)"
+          },
+          {
+            "type": "delay",
+            "value": 2
+          },
+          {
+            "type": "conditionalVariables",
+            "requireTrueVariables": [],
+            "requireFalseVariables": [
+              50
+            ],
+            "actions": [
+              {
+                "type": "loot",
+                "category": 0,
+                "slots": [
+                  {
+                    "itemId": 103,
+                    "level": 0
+                  },
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  },
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  }
+                ],
+                "ending": 0
+              }
+            ]
+          },
+          {
+            "type": "conditionalVariables",
+            "requireTrueVariables": [
+              50
+            ],
+            "requireFalseVariables": [],
+            "actions": [
+              {
+                "type": "loot",
+                "category": 0,
+                "slots": [
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  },
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  },
+                  {
+                    "itemId": -1,
+                    "level": 0
+                  }
+                ],
+                "ending": 0
+              }
+            ]
+          },
+          {
+            "type": "battleEndMarker"
+          },
+          {
+            "type": "setVariable",
+            "variableId": 0,
+            "value": 1
+          },
+          {
+            "type": "setVariable",
+            "variableId": 630,
+            "value": 1
+          },
+          {
+            "type": "sceneEnd"
+          }
+        ],
+        "requireTrueVariables": [],
+        "requireFalseVariables": [
+          0
+        ]
+      }
+    ]
+  },
+  "r30Story": {
+    "supported": true,
+    "sceneCount": 27,
+    "unsupportedActionIds": [],
+    "nextBattle": "S_30.eex"
+  }
+}
