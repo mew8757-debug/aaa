@@ -5001,6 +5001,46 @@ def main(argv):
                 next_s_after31_map_name,
             )
 
+        next_r_after32 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 32
+            ),
+            None,
+        )
+        next_s_after32 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 32
+            ),
+            None,
+        )
+        next_r_after32_blob = (
+            read_member_by_basename(game1, next_r_after32["filename"])
+            if next_r_after32
+            else None
+        )
+        next_s_after32_blob = (
+            read_member_by_basename(game1, next_s_after32["filename"])
+            if next_s_after32
+            else None
+        )
+        next_s_after32_map_name = (
+            f"m{next_s_after32['number']:03d}.jpg"
+            if next_s_after32
+            else None
+        )
+        next_s_after32_map_bytes = (
+            read_member_by_basename(game2, next_s_after32_map_name)
+            if next_s_after32_map_name
+            else None
+        )
+        if next_s_after32_map_bytes is None and next_s_after32_map_name:
+            next_s_after32_map_bytes = read_member_by_basename(
+                game1,
+                next_s_after32_map_name,
+            )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -5841,6 +5881,14 @@ def main(argv):
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
+    post32_map_probe = {
+        "filename": next_s_after32_map_name,
+        "found": next_s_after32_map_bytes is not None,
+        "hexzmapEntry": (
+            next_s_after32["number"] if next_s_after32 else None
+        ),
+    }
+
     post31_map_probe = {
         "filename": next_s_after31_map_name,
         "found": next_s_after31_map_bytes is not None,
@@ -6276,6 +6324,45 @@ def main(argv):
             })
         except Exception as exc:
             post31_map_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    if next_s_after32 and next_s_after32_map_bytes is not None:
+        try:
+            post32_map_width, post32_map_height = jpeg_dimensions(
+                next_s_after32_map_bytes
+            )
+            if post32_map_width % 48 != 0 or post32_map_height % 48 != 0:
+                raise ValueError(
+                    "post-S32 map dimensions not divisible by 48: "
+                    f"{post32_map_width}x{post32_map_height}"
+                )
+            post32_map_cols = post32_map_width // 48
+            post32_map_rows = post32_map_height // 48
+            post32_terrain_cells = extract_hexzmap_cells(
+                hexz,
+                next_s_after32["number"],
+                post32_map_cols,
+                post32_map_rows,
+            )
+            (map_dir / next_s_after32_map_name).write_bytes(
+                next_s_after32_map_bytes
+            )
+            (battle_dir / f"terrain{next_s_after32['number']}.bin").write_bytes(
+                post32_terrain_cells
+            )
+            post32_map_probe.update({
+                "valid": True,
+                "width": post32_map_width,
+                "height": post32_map_height,
+                "cols": post32_map_cols,
+                "rows": post32_map_rows,
+                "terrainCellCount": len(post32_terrain_cells),
+                "terrainIds": sorted(set(post32_terrain_cells)),
+            })
+        except Exception as exc:
+            post32_map_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -9978,7 +10065,7 @@ def main(argv):
     )
 
     s32_battle = {
-        "version": 127,
+        "version": 128,
         "source": "RS/S_32.eex",
         "battleMode": "s32-find-ladies",
         "mapId": 32,
@@ -10070,6 +10157,91 @@ def main(argv):
         "r32Story": r32_story,
     }
 
+    post_s32_probe = {
+        "inventoryAfter32": [
+            row for row in rs_inventory if row["number"] > 32
+        ],
+        "nextR": (
+            {
+                **next_r_after32,
+                "probe": build_next_scenario_probe(
+                    next_r_after32["filename"],
+                    next_r_after32_blob,
+                ),
+            }
+            if next_r_after32
+            else None
+        ),
+        "nextS": (
+            {
+                **next_s_after32,
+                "probe": build_next_scenario_probe(
+                    next_s_after32["filename"],
+                    next_s_after32_blob,
+                ),
+            }
+            if next_s_after32
+            else None
+        ),
+        "nextMap": post32_map_probe,
+        "nextSInit": (
+            probe_s01_initialization(next_s_after32_blob)
+            if next_s_after32_blob
+            else None
+        ),
+        "nextSEventSummary": None,
+        "nextSOutcomeProbe": None,
+        "nextRDepartureProbe": None,
+    }
+
+    if next_s_after32_blob and next_s_after32_blob.startswith(b"EEX"):
+        post32_scenes = parse_scenario_tree(next_s_after32_blob)
+        post32_events = extract_scene2_native_events(post32_scenes)
+        post_s32_probe["nextSEventSummary"] = {
+            "candidateCount": len(post32_events),
+            "coreSupportedCount": sum(
+                1 for event in post32_events if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                }
+                for event in post32_events
+                if not event["coreSupported"]
+            ],
+        }
+        post_s32_probe["nextSOutcomeProbe"] = (
+            probe_battle_outcome_candidates(post32_scenes)
+        )
+
+    if next_r_after32_blob and next_r_after32_blob.startswith(b"EEX"):
+        post32_r_scenes = parse_scenario_tree(next_r_after32_blob)
+        if post32_r_scenes:
+            departure_scene_number = len(post32_r_scenes)
+            departure_flat = flatten_scenario_nodes([post32_r_scenes[-1]])
+            post_s32_probe["nextRDepartureProbe"] = {
+                "scene": departure_scene_number,
+                "sectionCount": len(post32_r_scenes[-1]["sections"]),
+                "commands": [
+                    {
+                        "section": row["section"],
+                        "depth": row["depth"],
+                        "commandId": row["commandId"],
+                        "commandHex": f"0x{row['commandId']:02X}",
+                        "params": row["params"],
+                    }
+                    for row in departure_flat
+                    if row["commandId"] in {
+                        0x04, 0x05, 0x06, 0x07, 0x0B, 0x0D,
+                        0x11, 0x12, 0x13, 0x2D, 0x4B, 0x77,
+                    }
+                ],
+            }
+
+    s32_battle["postS32Probe"] = post_s32_probe
     s31_battle["r32Story"] = r32_story
     (battle_dir / "battle32.json").write_text(
         json.dumps(s32_battle, ensure_ascii=False, indent=2),

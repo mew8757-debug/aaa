@@ -620,3 +620,12 @@
 - Scene2 원본 이벤트를 컴파일하고 승리 trigger를 원본 조건으로 평가
 - 조운/간옹 사망 및 70턴 초과 패배 Section과 Scene3 후처리를 원본 흐름으로 연결
 - 빌드 검증 결과를 `native/build-status/v4.86-s32.json`에 기록
+
+
+## v4.87 S32 이후 원본 경로 자동 탐색
+
+- S32 승리 이후 32보다 큰 첫 R/S 파일을 원본 ZIP에서 자동 탐색
+- 다음 R/S Scene/Section/명령 구조와 다음 R 마지막 출전 Scene 명령을 compact status에 기록
+- 다음 S 초기 배치, Scene2 이벤트 지원률, 승패 후보를 자동 진단
+- 다음 S 번호에 맞는 mNNN.jpg와 Hexzmap 지형을 검증하고 probe 자산으로 미리 패키징
+- 결과를 `native/build-status/v4.87-next32.json`에 기록해 R33/S33 연속 플레이 구현 근거로 사용
