@@ -8125,7 +8125,7 @@ def main(argv):
                 "deployLevel": deploy_level,
                 "deployJobLevel": deploy_job_level,
                 "aiPolicy": int(ai_policy),
-                "jobId": int(job_of(cid)),
+                "jobId": int(job_profile_of(cid)["jobId"]),
                 "spriteRecords": {
                     "mov": be_desc(mov, sid),
                     "atk": be_desc(atk, sid),
