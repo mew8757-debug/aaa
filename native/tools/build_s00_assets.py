@@ -2508,6 +2508,16 @@ def compile_r_story_leaf(node):
     if cid == 0x07:
         return {"type": "deploymentTest"}
 
+    if cid == 0x4B and len(params) >= 5:
+        return {
+            "type": "deploymentSlot",
+            "slot": int(params[0]),
+            "x": int(params[1]),
+            "y": int(params[2]),
+            "direction": int(params[3]),
+            "flag": int(params[4]),
+        }
+
     if cid == 0x0D:
         return {"type": "sceneEnd"}
 
@@ -2555,6 +2565,31 @@ def compile_r_story_node(node):
     params = node["params"]
 
     if node["children"]:
+        if cid == 0x04 and params:
+            actions = []
+            unsupported = []
+            for child in node["children"]:
+                action, child_unsupported = compile_r_story_node(child)
+                unsupported.extend(child_unsupported)
+                if action is not None:
+                    actions.append(action)
+            match_yes = int(params[0]) != 0
+            return ({
+                "type": "choice",
+                "options": ["예", "아니오"],
+                "cases": [
+                    {
+                        "value": 1,
+                        "actions": actions if match_yes else [],
+                    },
+                    {
+                        "value": 2,
+                        "actions": [] if match_yes else actions,
+                    },
+                ],
+                "inquiryTest": True,
+            }, unsupported)
+
         if cid == 0x12:
             raw = ""
             if params and isinstance(params[0], str):
@@ -3002,6 +3037,80 @@ def compile_r24_story(blob):
         14,
         "S_24.eex",
     )
+
+
+def compile_r25_story(blob):
+    return compile_r_story(
+        blob,
+        "R_25.eex",
+        16,
+        17,
+        "S_25.eex",
+    )
+
+
+def extract_r25_departure_players(blob):
+    # R25 Scene 17 exposes nine S25 slots. Liu Bei is the implicit
+    # continuing leader; 0x06 carries fixed members and 0x2D exposes the
+    # remaining selectable members in source order.
+    roster = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return roster, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 17:
+        return roster, selectable
+
+    departure = scenes[16]
+    fixed = []
+    candidates = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed
+                    ):
+                        fixed.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in candidates
+                ):
+                    candidates.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed:
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    for cid in candidates:
+        if cid not in selectable:
+            selectable.append(cid)
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    return roster[:9], selectable
 
 
 def extract_r23_departure_players(blob):
