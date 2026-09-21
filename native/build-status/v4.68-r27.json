@@ -1,0 +1,1189 @@
+{
+  "version": "4.68.0",
+  "status": "success",
+  "source": "RS/S_27.eex",
+  "battleMode": "s27-lure-then-annihilate",
+  "map": "m027.jpg",
+  "widthTiles": 20,
+  "heightTiles": 26,
+  "terrainIds": [
+    0,
+    1,
+    2,
+    4,
+    5,
+    21
+  ],
+  "playerVariants": [
+    {
+      "requireTrueVariables": [
+        1051
+      ],
+      "requireFalseVariables": [],
+      "characterIds": [
+        0,
+        1,
+        2,
+        4,
+        17,
+        26,
+        27,
+        28,
+        29,
+        25,
+        13,
+        15,
+        16
+      ],
+      "unitCount": 13
+    },
+    {
+      "requireTrueVariables": [],
+      "requireFalseVariables": [
+        1051
+      ],
+      "characterIds": [
+        0,
+        1,
+        2,
+        4,
+        17,
+        26,
+        27,
+        28,
+        29,
+        25,
+        13,
+        15
+      ],
+      "unitCount": 12
+    }
+  ],
+  "allyCount": 1,
+  "enemyCount": 39,
+  "visibleEnemyCount": 0,
+  "hiddenEnemyCount": 39,
+  "battleObjectives": {
+    "phase1": {
+      "objectiveText": "승리 조건\n★·적 유인!\n\n패배 조건\n☆·조운 사망.\n☆·15턴 초과.",
+      "popupText": "적을 유인하라!",
+      "turnLimit": 15,
+      "goal": {
+        "type": "event-driven-lure",
+        "transitionVariables": [
+          6,
+          8
+        ]
+      }
+    },
+    "phase2": {
+      "objectiveText": "승리 조건\n★·적군 격퇴!\n\n패배 조건\n☆·유비 사망.\n☆·15턴 초과.",
+      "popupText": "적군을 격퇴하라!",
+      "turnLimit": 15,
+      "goal": {
+        "type": "active-enemy-annihilation"
+      }
+    },
+    "protectedCharacterIds": [
+      0
+    ],
+    "protectedCharacters": [
+      {
+        "characterId": 0,
+        "name": "유비"
+      }
+    ],
+    "phase1TransitionEvents": []
+  },
+  "routeModel": {
+    "lureTransitionVariables": [
+      6,
+      8
+    ],
+    "conditionalZhaoYunDefeatCharacterId": 4,
+    "conditionalZhaoYunDefeatSection": 37,
+    "liuBeiDefeatSection": 26,
+    "victorySection": 51,
+    "genericDefeatSection": 52,
+    "postBattleScene": "S03-SEC01",
+    "turnLimit": 15,
+    "victoryRule": "after variable 6 or 8 is set, defeat all currently active enemy units"
+  },
+  "battleEventSummary": {
+    "candidateCount": 42,
+    "coreSupportedCount": 42,
+    "rawCandidateCount": 44,
+    "rawCoreSupportedCount": 44,
+    "sections": [
+      {
+        "section": 2,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 3,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 4,
+        "nestedSupported": true
+      },
+      {
+        "section": 4,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 5,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 6,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 7,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 8,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 5,
+        "nestedSupported": true
+      },
+      {
+        "section": 9,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 3,
+        "nestedSupported": true
+      },
+      {
+        "section": 10,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 3,
+        "nestedSupported": true
+      },
+      {
+        "section": 11,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 4,
+        "nestedSupported": true
+      },
+      {
+        "section": 12,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 6,
+        "nestedSupported": true
+      },
+      {
+        "section": 13,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 4,
+        "nestedSupported": true
+      },
+      {
+        "section": 14,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 6,
+        "nestedSupported": true
+      },
+      {
+        "section": 15,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 16,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 4,
+        "nestedSupported": true
+      },
+      {
+        "section": 17,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 18,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 19,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 22,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 23,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 3,
+        "nestedSupported": true
+      },
+      {
+        "section": 24,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 25,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 6,
+        "nestedSupported": true
+      },
+      {
+        "section": 27,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 28,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 29,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 30,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 32,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 35,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 36,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 38,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 39,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 40,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 41,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 42,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 43,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 44,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 45,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 46,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 47,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 48,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 49,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 50,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "unsupportedActions": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      }
+    ]
+  },
+  "outcomeProbe": {
+    "S02-SEC26": [
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 2,
+        "commandHex": "0x02",
+        "params": [
+          "증구价空"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 54,
+        "commandHex": "0x36",
+        "params": [
+          0,
+          7,
+          0,
+          2
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": [
+          80,
+          20,
+          27,
+          83,
+          105,
+          73,
+          14,
+          13,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 80,
+        "commandHex": "0x50",
+        "params": [
+          0,
+          9,
+          1,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 20,
+        "commandHex": "0x14",
+        "params": [
+          "&유비\n도원의 맹세가 여기서 끊기는가?"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 27,
+        "commandHex": "0x1B",
+        "params": [
+          0,
+          0
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 83,
+        "commandHex": "0x53",
+        "params": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          6,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 105,
+        "commandHex": "0x69",
+        "params": [
+          "유비가 죽어 아군이 패배했습니다."
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 73,
+        "commandHex": "0x49",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 14,
+        "commandHex": "0x0E",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 13,
+        "commandHex": "0x0D",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      }
+    ],
+    "S02-SEC37": [
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 2,
+        "commandHex": "0x02",
+        "params": [
+          "略暾价空"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 54,
+        "commandHex": "0x36",
+        "params": [
+          4,
+          7,
+          0,
+          2
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            6,
+            8
+          ]
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": [
+          80,
+          20,
+          27,
+          83,
+          105,
+          73,
+          14,
+          13,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 80,
+        "commandHex": "0x50",
+        "params": [
+          4,
+          9,
+          1,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 20,
+        "commandHex": "0x14",
+        "params": [
+          "&조운\n주공…… 이 몸이 가루가 되어도……\n알아주신 은혜를……\n갚기 어렵습니다……"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 27,
+        "commandHex": "0x1B",
+        "params": [
+          4,
+          0
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 83,
+        "commandHex": "0x53",
+        "params": [
+          0,
+          4,
+          0,
+          0,
+          0,
+          0,
+          6,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 105,
+        "commandHex": "0x69",
+        "params": [
+          "조운이 죽어 아군이 패배했습니다."
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 73,
+        "commandHex": "0x49",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 14,
+        "commandHex": "0x0E",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 13,
+        "commandHex": "0x0D",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      }
+    ],
+    "S02-SEC51": [
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 2,
+        "commandHex": "0x02",
+        "params": [
+          ""
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 66,
+        "commandHex": "0x42",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            0
+          ]
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": [
+          81,
+          1,
+          5,
+          1,
+          5,
+          73,
+          11,
+          11,
+          13,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 81,
+        "commandHex": "0x51",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 1,
+        "commandHex": "0x01",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            6
+          ],
+          []
+        ],
+        "childCommandIds": [
+          80,
+          20,
+          89,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "kind": "SubEvent",
+        "commandId": 80,
+        "commandHex": "0x50",
+        "params": [
+          0,
+          1,
+          1,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 2,
+        "kind": "SubEvent",
+        "commandId": 20,
+        "commandHex": "0x14",
+        "params": [
+          "&유비\n적이 물러났다!\n전군은 전장을 정리하고 산불을 꺼라!"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 2,
+        "kind": "SubEvent",
+        "commandId": 89,
+        "commandHex": "0x59",
+        "params": [
+          0,
+          99,
+          0,
+          103,
+          0,
+          89,
+          0,
+          0
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 2,
+        "kind": "SubEvent",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 1,
+        "commandHex": "0x01",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            6
+          ]
+        ],
+        "childCommandIds": [
+          20,
+          89,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "kind": "SubEvent",
+        "commandId": 20,
+        "commandHex": "0x14",
+        "params": [
+          "&유비\n(이기기는 했으나\n참으로 요행이었으니\n기뻐할 일은 아니다……)"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 2,
+        "kind": "SubEvent",
+        "commandId": 89,
+        "commandHex": "0x59",
+        "params": [
+          0,
+          98,
+          0,
+          100,
+          0,
+          89,
+          0,
+          0
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 2,
+        "kind": "SubEvent",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 73,
+        "commandHex": "0x49",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          0,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          627,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 13,
+        "commandHex": "0x0D",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      }
+    ],
+    "S02-SEC52": [
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 2,
+        "commandHex": "0x02",
+        "params": [
+          ""
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 67,
+        "commandHex": "0x43",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            1
+          ]
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": [
+          105,
+          73,
+          14,
+          11,
+          13,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 105,
+        "commandHex": "0x69",
+        "params": [
+          "유비가 하후돈에게 패배했습니다……"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 73,
+        "commandHex": "0x49",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 14,
+        "commandHex": "0x0E",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          1,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 13,
+        "commandHex": "0x0D",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      }
+    ],
+    "S03-SEC01": [
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 2,
+        "commandHex": "0x02",
+        "params": [
+          ""
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": [
+          36,
+          8,
+          29,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 36,
+        "commandHex": "0x24",
+        "params": [
+          255
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 8,
+        "commandHex": "0x08",
+        "params": [
+          0
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 29,
+        "commandHex": "0x1D",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      }
+    ]
+  },
+  "skippedActors": []
+}
