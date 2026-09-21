@@ -11003,6 +11003,334 @@ def main(argv):
 
     s33_battle["postS33Probe"] = post_s33_probe
     s32_battle["r33Story"] = r33_story
+
+    r34 = next_r_after33_blob
+    s34 = next_s_after33_blob
+    r34_story = compile_r34_story(r34)
+
+    if (
+        next_r_after33 is None
+        or int(next_r_after33["number"]) != 34
+        or next_s_after33 is None
+        or int(next_s_after33["number"]) != 34
+    ):
+        raise SystemExit(
+            "Expected R_34/S_34 after S33, got "
+            + repr({
+                "nextR": next_r_after33,
+                "nextS": next_s_after33,
+            })
+        )
+    if not post33_map_probe.get("valid"):
+        raise SystemExit(
+            "M034 map probe invalid: " + repr(post33_map_probe)
+        )
+    if not r34_story.get("supported"):
+        raise SystemExit(
+            "R34 story unsupported: "
+            + repr(r34_story.get("unsupportedActionIds", []))
+        )
+
+    s34_init_probe = probe_s01_initialization(s34)
+    s34_init_probe["map"] = post33_map_probe
+    s34_scenes = parse_scenario_tree(s34)
+    s34_event_probe = extract_scene2_native_events(s34_scenes)
+    s34_terminal_sections = {32, 33, 37, 38}
+    s34_native_events = [
+        event for event in s34_event_probe
+        if int(event["section"]) not in s34_terminal_sections
+    ]
+    if len(s34_event_probe) != 30 or any(
+        not event["coreSupported"] for event in s34_event_probe
+    ):
+        raise SystemExit(
+            "S34 Scene2 event support mismatch: "
+            + repr({
+                "count": len(s34_event_probe),
+                "unsupported": [
+                    event["section"] for event in s34_event_probe
+                    if not event["coreSupported"]
+                ],
+            })
+        )
+
+    s34_outcome_events = {
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                s34_scenes, 2, 32
+            ),
+            "151": compile_scenario_section_actions(
+                s34_scenes, 2, 33
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s34_scenes, 2, 37
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s34_scenes, 2, 38
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s34_scenes, 3, 1
+        ),
+    }
+    s34_outcome_probe = probe_battle_outcome_candidates(s34_scenes)
+
+    s34_slots = sorted(
+        s34_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    s34_player_ids, s34_selectable_players = (
+        extract_r34_departure_players(
+            r34,
+            len(s34_slots),
+        )
+    )
+    if len(s34_slots) != 10 or len(s34_player_ids) != 10:
+        raise SystemExit(
+            "S34 deployment mismatch: "
+            + repr({
+                "slots": s34_slots,
+                "players": s34_player_ids,
+                "selectable": s34_selectable_players,
+            })
+        )
+    if s34_player_ids[0] != 0 or 151 not in s34_player_ids:
+        raise SystemExit(
+            "S34 protected roster mismatch: "
+            + repr(s34_player_ids)
+        )
+
+    s34_units = []
+    s34_skipped_actors = []
+    s34_character_ids = set()
+
+    def make_s34_record(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s34_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            return None
+        profile = combat_profile_of(cid, deploy_level)
+        return {
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        }
+
+    for slot, cid in zip(s34_slots, s34_player_ids):
+        record = make_s34_record(
+            cid,
+            PLAYER,
+            bool(slot.get("flag", 0)),
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_34:R34:slot:{slot['slot']}",
+            battle_number=int(slot["slot"]),
+        )
+        if record is None:
+            raise SystemExit(f"S34 player {cid} invalid sprite")
+        s34_units.append(record)
+        s34_character_ids.add(int(cid))
+
+    next_battle_number = len(s34_units)
+    for index, row in enumerate(
+        s34_init_probe.get("friendRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid < 0 or cid in s34_character_ids:
+            continue
+        record = make_s34_record(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_34:0x46:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s34_units.append(record)
+            s34_character_ids.add(cid)
+            next_battle_number += 1
+
+    for index, row in enumerate(
+        s34_init_probe.get("enemyRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid < 0 or cid in s34_character_ids:
+            continue
+        record = make_s34_record(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_34:0x47:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s34_units.append(record)
+            s34_character_ids.add(cid)
+            next_battle_number += 1
+
+    s34_objective_text = (
+        s34_init_probe["objectiveTexts"][0]
+        if s34_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s34_popup_text = (
+        s34_init_probe["objectivePopups"][0]
+        if s34_init_probe.get("objectivePopups")
+        else ""
+    )
+    s34_turn_limit = objective_turn_limit(
+        s34_objective_text,
+        25,
+    )
+
+    s34_battle = {
+        "version": 132,
+        "source": "RS/S_34.eex",
+        "battleMode": "s34-annihilation",
+        "mapId": 34,
+        "map": "m034.jpg",
+        "widthTiles": post33_map_probe["cols"],
+        "heightTiles": post33_map_probe["rows"],
+        "terrainFile": "terrain34.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s34_objective_text,
+                "popupText": s34_popup_text,
+                "turnLimit": s34_turn_limit,
+                "goal": {
+                    "type": "enemy-annihilation",
+                },
+            },
+            "phase2": {
+                "objectiveText": s34_objective_text,
+                "popupText": s34_popup_text,
+                "turnLimit": s34_turn_limit,
+            },
+            "protectedCharacterIds": [0, 151],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+                {"characterId": 151, "name": name_of(151)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s34_native_events,
+        "outcomeEvents": s34_outcome_events,
+        "outcomeProbe": s34_outcome_probe,
+        "routeModel": {
+            "victorySection": 37,
+            "defeatByCharacterSections": {
+                "0": 32,
+                "151": 33,
+            },
+            "genericDefeatSection": 38,
+            "postBattleScene": "S03-SEC01",
+            "turnLimit": s34_turn_limit,
+            "annihilationVictory": True,
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s34_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s34_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s34_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s34_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported":
+                        event["nestedSupported"],
+                }
+                for event in s34_native_events
+            ],
+        },
+        "terrainIds": post33_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s34_skipped_actors,
+        "playerRoster": {
+            "characterIds": s34_player_ids,
+            "selectableCandidates": s34_selectable_players,
+            "source": "R_34 Scene20 source-order 0x06 + 0x2D",
+        },
+        "units": s34_units,
+        "openingEvents": [],
+        "r34Story": r34_story,
+    }
+
+    s33_battle["r34Story"] = r34_story
+    (battle_dir / "battle34.json").write_text(
+        json.dumps(s34_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     (battle_dir / "battle33.json").write_text(
         json.dumps(s33_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
