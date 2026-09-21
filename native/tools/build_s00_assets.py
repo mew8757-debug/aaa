@@ -7182,6 +7182,114 @@ def main(argv):
             }
 
 
+    # S28 is assembled before the legacy S00 roster block below.
+    # Define the shared character/sprite helpers here so late-scenario
+    # asset generation can use them without depending on source order.
+    def character_row(cid):
+        off = 0x18C + cid * 0x20
+        if off < 0 or off + 0x20 > len(data):
+            raise ValueError(f"character out of Data.e5 range: {cid}")
+        return off
+
+    def name_of(cid):
+        row = character_row(cid)
+        raw = data[row:row + 13].split(b"\0", 1)[0]
+        return raw.decode("cp949", "replace").strip() or f"인물{cid}"
+
+    def job_profile_of(cid):
+        row = character_row(cid)
+        job_id = data[row + 26]
+        family = detailed_job_to_family(job_id)
+        growth_off = JOB_GROWTH_BASE + job_id * JOB_GROWTH_STRIDE
+        if growth_off + JOB_GROWTH_STRIDE > len(data):
+            raise ValueError(f"job growth row out of range: {job_id}")
+        growth = data[growth_off:growth_off + JOB_GROWTH_STRIDE]
+        return {
+            "jobId": job_id,
+            "jobFamily": family,
+            "movePoints": int(growth[0]),
+            "attackRangeId": int(growth[1]),
+            "growthAttack": int(growth[2]),
+            "growthDefense": int(growth[3]),
+            "growthSpirit": int(growth[4]),
+            "growthBurst": int(growth[5]),
+            "growthMorale": int(growth[6]),
+            "growthHp": int(growth[7]),
+            "growthMp": int(growth[8]),
+        }
+
+    def combat_profile_of(cid, deploy_level):
+        row = character_row(cid)
+        job = job_profile_of(cid)
+
+        force = int(data[row + 18])
+        command = int(data[row + 19])
+        intelligence = int(data[row + 20])
+        agility = int(data[row + 21])
+        morale = int(data[row + 22])
+        initial_hp = int(u16(data, row + 23))
+        initial_mp = int(data[row + 25])
+        base_level = max(1, int(data[row + 27]))
+
+        level = (
+            int(deploy_level)
+            if isinstance(deploy_level, int) and deploy_level > 0
+            else base_level
+        )
+        level = max(1, min(level, 99))
+
+        attack_value = force // 2 + job["growthAttack"] * level
+        defense_value = command // 2 + job["growthDefense"] * level
+        spirit_value = intelligence // 2 + job["growthSpirit"] * level
+        burst_value = agility // 2 + job["growthBurst"] * level
+        morale_value = morale // 2 + job["growthMorale"] * level
+        hp_max = max(
+            1,
+            initial_hp + job["growthHp"] * max(0, level - base_level),
+        )
+        mp_max = max(
+            0,
+            initial_mp + job["growthMp"] * max(0, level - base_level),
+        )
+
+        return {
+            **job,
+            "level": level,
+            "baseLevel": base_level,
+            "force": force,
+            "command": command,
+            "intelligence": intelligence,
+            "agility": agility,
+            "morale": morale,
+            "initialHp": initial_hp,
+            "initialMp": initial_mp,
+            "attack": attack_value,
+            "defense": defense_value,
+            "spirit": spirit_value,
+            "burst": burst_value,
+            "moralePanel": morale_value,
+            "hpMax": hp_max,
+            "mpMax": mp_max,
+        }
+
+    def sprite_of(cid):
+        off = 0xD2800 + cid * 2
+        return int.from_bytes(exe[off:off + 2], "little")
+
+    def sprite_record_valid(sid):
+        expected_mov = 48 * 48 * 11
+        expected_atk = 64 * 64 * 12
+        expected_spc = 48 * 48 * 5
+        md = be_desc(mov, sid)
+        ad = be_desc(atk, sid)
+        sd = be_desc(spc, sid)
+        return (
+            md is not None and ad is not None and sd is not None
+            and md[0] == expected_mov and md[1] >= expected_mov
+            and ad[0] == expected_atk and ad[1] >= expected_atk
+            and sd[0] == expected_spc and sd[1] >= expected_spc
+        )
+
     r28 = next_r_after27_blob
     s28 = next_s_after27_blob
     r28_story = compile_r28_story(r28)
