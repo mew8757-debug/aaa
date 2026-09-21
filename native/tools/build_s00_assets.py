@@ -5051,6 +5051,46 @@ def main(argv):
                 next_s_after32_map_name,
             )
 
+        next_r_after33 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 33
+            ),
+            None,
+        )
+        next_s_after33 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 33
+            ),
+            None,
+        )
+        next_r_after33_blob = (
+            read_member_by_basename(game1, next_r_after33["filename"])
+            if next_r_after33
+            else None
+        )
+        next_s_after33_blob = (
+            read_member_by_basename(game1, next_s_after33["filename"])
+            if next_s_after33
+            else None
+        )
+        next_s_after33_map_name = (
+            f"m{next_s_after33['number']:03d}.jpg"
+            if next_s_after33
+            else None
+        )
+        next_s_after33_map_bytes = (
+            read_member_by_basename(game2, next_s_after33_map_name)
+            if next_s_after33_map_name
+            else None
+        )
+        if next_s_after33_map_bytes is None and next_s_after33_map_name:
+            next_s_after33_map_bytes = read_member_by_basename(
+                game1,
+                next_s_after33_map_name,
+            )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -5891,6 +5931,14 @@ def main(argv):
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
+    post33_map_probe = {
+        "filename": next_s_after33_map_name,
+        "found": next_s_after33_map_bytes is not None,
+        "hexzmapEntry": (
+            next_s_after33["number"] if next_s_after33 else None
+        ),
+    }
+
     post32_map_probe = {
         "filename": next_s_after32_map_name,
         "found": next_s_after32_map_bytes is not None,
@@ -6373,6 +6421,45 @@ def main(argv):
             })
         except Exception as exc:
             post32_map_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    if next_s_after33 and next_s_after33_map_bytes is not None:
+        try:
+            post33_map_width, post33_map_height = jpeg_dimensions(
+                next_s_after33_map_bytes
+            )
+            if post33_map_width % 48 != 0 or post33_map_height % 48 != 0:
+                raise ValueError(
+                    "post-S33 map dimensions not divisible by 48: "
+                    f"{post33_map_width}x{post33_map_height}"
+                )
+            post33_map_cols = post33_map_width // 48
+            post33_map_rows = post33_map_height // 48
+            post33_terrain_cells = extract_hexzmap_cells(
+                hexz,
+                next_s_after33["number"],
+                post33_map_cols,
+                post33_map_rows,
+            )
+            (map_dir / next_s_after33_map_name).write_bytes(
+                next_s_after33_map_bytes
+            )
+            (battle_dir / f"terrain{next_s_after33['number']}.bin").write_bytes(
+                post33_terrain_cells
+            )
+            post33_map_probe.update({
+                "valid": True,
+                "width": post33_map_width,
+                "height": post33_map_height,
+                "cols": post33_map_cols,
+                "rows": post33_map_rows,
+                "terrainCellCount": len(post33_terrain_cells),
+                "terrainIds": sorted(set(post33_terrain_cells)),
+            })
+        except Exception as exc:
+            post33_map_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -10589,7 +10676,7 @@ def main(argv):
     s33_turn_limit = 25
 
     s33_battle = {
-        "version": 130,
+        "version": 131,
         "source": "RS/S_33.eex",
         "battleMode": "s33-changban-bridge",
         "mapId": 33,
@@ -10685,6 +10772,161 @@ def main(argv):
         "r33Story": r33_story,
     }
 
+    post_s33_probe = {
+        "inventoryAfter33": [
+            row for row in rs_inventory if row["number"] > 33
+        ],
+        "nextR": (
+            {
+                **next_r_after33,
+                "probe": build_next_scenario_probe(
+                    next_r_after33["filename"],
+                    next_r_after33_blob,
+                ),
+            }
+            if next_r_after33
+            else None
+        ),
+        "nextS": (
+            {
+                **next_s_after33,
+                "probe": build_next_scenario_probe(
+                    next_s_after33["filename"],
+                    next_s_after33_blob,
+                ),
+            }
+            if next_s_after33
+            else None
+        ),
+        "nextMap": post33_map_probe,
+        "nextSInit": (
+            probe_s01_initialization(next_s_after33_blob)
+            if next_s_after33_blob
+            else None
+        ),
+        "nextSEventSummary": None,
+        "nextSRouteEvents": None,
+        "nextSOutcomeProbe": None,
+        "nextRDepartureProbe": None,
+    }
+
+    if next_s_after33_blob and next_s_after33_blob.startswith(b"EEX"):
+        post33_scenes = parse_scenario_tree(next_s_after33_blob)
+        post33_events = extract_scene2_native_events(post33_scenes)
+        post_s33_probe["nextSEventSummary"] = {
+            "candidateCount": len(post33_events),
+            "coreSupportedCount": sum(
+                1 for event in post33_events if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                }
+                for event in post33_events
+                if not event["coreSupported"]
+            ],
+        }
+
+        def collect_post33_route_action_info(actions):
+            action_types = []
+            details = []
+            stack = list(actions or [])
+            while stack:
+                action = stack.pop()
+                if not isinstance(action, dict):
+                    continue
+                action_type = action.get("type")
+                if action_type:
+                    action_types.append(str(action_type))
+                if action_type in {
+                    "setVariable",
+                    "objective",
+                    "objectivePopup",
+                    "battleEndMarker",
+                    "battleFailureMarker",
+                    "scenarioJump",
+                    "turnLimit",
+                    "reveal",
+                    "hide",
+                    "retreat",
+                    "move",
+                    "setAi",
+                    "loot",
+                }:
+                    detail = {"type": action_type}
+                    for key, value in action.items():
+                        if key in {"type", "actions", "cases"}:
+                            continue
+                        if isinstance(value, str):
+                            detail[key] = value[:500]
+                        elif isinstance(value, (int, float, bool)) or value is None:
+                            detail[key] = value
+                        elif (
+                            isinstance(value, list)
+                            and len(value) <= 20
+                            and all(
+                                isinstance(item, (int, float, bool, str))
+                                or item is None
+                                for item in value
+                            )
+                        ):
+                            detail[key] = value
+                    details.append(detail)
+                stack.extend(action.get("actions", []) or [])
+                for case in action.get("cases", []) or []:
+                    if isinstance(case, dict):
+                        stack.extend(case.get("actions", []) or [])
+            return sorted(set(action_types)), details
+
+        post33_route_events = []
+        for event in post33_events:
+            action_types, action_details = collect_post33_route_action_info(
+                event.get("actions", [])
+            )
+            post33_route_events.append({
+                "section": event["section"],
+                "coreSupported": event["coreSupported"],
+                "requireTrueVariables":
+                    event.get("requireTrueVariables", []),
+                "requireFalseVariables":
+                    event.get("requireFalseVariables", []),
+                "triggers": event.get("triggers", []),
+                "actionTypes": action_types,
+                "routeActions": action_details,
+            })
+        post_s33_probe["nextSRouteEvents"] = post33_route_events
+        post_s33_probe["nextSOutcomeProbe"] = (
+            probe_battle_outcome_candidates(post33_scenes)
+        )
+
+    if next_r_after33_blob and next_r_after33_blob.startswith(b"EEX"):
+        post33_r_scenes = parse_scenario_tree(next_r_after33_blob)
+        if post33_r_scenes:
+            departure_scene_number = len(post33_r_scenes)
+            departure_flat = flatten_scenario_nodes([post33_r_scenes[-1]])
+            post_s33_probe["nextRDepartureProbe"] = {
+                "scene": departure_scene_number,
+                "sectionCount": len(post33_r_scenes[-1]["sections"]),
+                "commands": [
+                    {
+                        "section": row["section"],
+                        "depth": row["depth"],
+                        "commandId": row["commandId"],
+                        "commandHex": f"0x{row['commandId']:02X}",
+                        "params": row["params"],
+                    }
+                    for row in departure_flat
+                    if row["commandId"] in {
+                        0x04, 0x05, 0x06, 0x07, 0x0B, 0x0D,
+                        0x11, 0x12, 0x13, 0x2D, 0x4B, 0x77,
+                    }
+                ],
+            }
+
+    s33_battle["postS33Probe"] = post_s33_probe
     s32_battle["r33Story"] = r33_story
     (battle_dir / "battle33.json").write_text(
         json.dumps(s33_battle, ensure_ascii=False, indent=2),
