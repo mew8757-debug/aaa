@@ -525,6 +525,12 @@ def native_action_from_node(node):
     if cid == 0x4C and len(params) >= 3 and int(params[0]) == 0:
         return {"type": "reveal", "characterId": int(params[1])}
 
+    if cid == 0x4C and len(params) >= 3 and int(params[0]) == 1:
+        return {
+            "type": "revealBattleNumber",
+            "battleNumber": int(params[2]),
+        }
+
     if cid == 0x4E and len(params) >= 11:
         return {
             "type": "aiPolicy",
@@ -1107,6 +1113,32 @@ def compile_native_action_tree(node):
                 {
                     "type": "sequence",
                     "actions": child_actions,
+                },
+                unsupported_ids,
+                unsupported_actions,
+                total_nested,
+            )
+
+        # 0x04 inquiry test. The legacy editor checkbox is labelled
+        # "选是": param=1 runs the child block when "Yes" is chosen,
+        # param=0 runs it when "No" is chosen. Compile it to the same
+        # native choice model used by 0x12/0x13.
+        if cid == 0x04 and params:
+            child_case = 1 if int(params[0]) != 0 else 2
+            return (
+                {
+                    "type": "choice",
+                    "options": ["예", "아니오"],
+                    "cases": [
+                        {
+                            "value": child_case,
+                            "actions": child_actions,
+                        },
+                        {
+                            "value": 2 if child_case == 1 else 1,
+                            "actions": [],
+                        },
+                    ],
                 },
                 unsupported_ids,
                 unsupported_actions,
