@@ -3087,6 +3087,89 @@ def compile_r28_story(blob):
     )
 
 
+def compile_r29_story(blob):
+    return compile_r_story(
+        blob,
+        "R_29.eex",
+        21,
+        22,
+        "S_29.eex",
+    )
+
+
+def extract_r29_departure_variants(blob):
+    variants = []
+    if blob is None or not blob.startswith(b"EEX"):
+        return variants
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 22:
+        return variants
+
+    departure = scenes[21]
+    section = next(
+        (
+            row for row in departure["sections"]
+            if row["section"] == 2
+        ),
+        None,
+    )
+    if section is None:
+        return variants
+
+    def collect_mode1_roster(node):
+        ids = []
+        stack = list(node["children"])
+        while stack:
+            child = stack.pop()
+            if (
+                child["commandId"] == 0x06
+                and len(child["params"]) >= 3
+                and int(child["params"][0]) == 1
+            ):
+                for value in child["params"][2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in ids
+                    ):
+                        ids.append(int(value))
+            stack.extend(child["children"])
+        return ids
+
+    stack = list(section["commands"])
+    while stack:
+        node = stack.pop()
+        if node["commandId"] == 0x05 and len(node["params"]) >= 2:
+            first = (
+                [int(v) for v in node["params"][0]]
+                if isinstance(node["params"][0], list)
+                else []
+            )
+            second = (
+                [int(v) for v in node["params"][1]]
+                if isinstance(node["params"][1], list)
+                else []
+            )
+            if 1051 in first or 1051 in second:
+                roster = [0] + collect_mode1_roster(node)
+                dedup = []
+                for cid in roster:
+                    if cid not in dedup:
+                        dedup.append(cid)
+                variants.append({
+                    "requireTrueVariables": [1051] if 1051 in first else [],
+                    "requireFalseVariables": [1051] if 1051 in second else [],
+                    "characterIds": dedup,
+                })
+        stack.extend(node["children"])
+
+    variants.sort(
+        key=lambda row: 0 if row["requireTrueVariables"] else 1
+    )
+    return variants
+
+
 def extract_r28_departure_players(blob):
     # R28 Scene 15 exposes four selectable companions through 0x2D.
     # The native deployment UI is not yet generalized, so preserve source
@@ -7800,9 +7883,372 @@ def main(argv):
                 ],
             }
 
+    r29 = next_r_after28_blob
+    s29 = next_s_after28_blob
+    r29_story = compile_r29_story(r29)
+    r29_player_variants = extract_r29_departure_variants(r29)
+
+    if (
+        next_r_after28 is None
+        or int(next_r_after28["number"]) != 29
+        or next_s_after28 is None
+        or int(next_s_after28["number"]) != 29
+    ):
+        raise SystemExit(
+            "Expected R_29/S_29 after S28, got "
+            + repr({
+                "nextR": next_r_after28,
+                "nextS": next_s_after28,
+            })
+        )
+    if not post28_map_probe.get("valid"):
+        raise SystemExit(
+            "M029 map probe invalid: " + repr(post28_map_probe)
+        )
+    if not r29_story.get("supported"):
+        raise SystemExit(
+            "R29 story unsupported: "
+            + repr(r29_story.get("unsupportedActionIds", []))
+        )
+    if len(r29_player_variants) != 2:
+        raise SystemExit(
+            "R29 expected two variable-1051 deployment variants, got "
+            + repr(r29_player_variants)
+        )
+
+    s29_init_probe = probe_s01_initialization(s29)
+    s29_init_probe["map"] = post28_map_probe
+    s29_scenes = parse_scenario_tree(s29)
+    s29_event_probe = extract_scene2_native_events(s29_scenes)
+    s29_terminal_sections = set(range(50, 62)) | {70, 71, 72}
+    s29_native_events = [
+        event for event in s29_event_probe
+        if event["section"] not in s29_terminal_sections
+    ]
+    s29_defeat_sections = {
+        0: 50,
+        2: 51,
+        4: 52,
+        1: 53,
+        13: 54,
+        15: 55,
+        16: 56,
+        26: 57,
+        27: 58,
+        29: 59,
+        25: 60,
+        28: 61,
+    }
+    s29_outcome_events = {
+        "defeatByCharacter": {
+            str(cid): compile_scenario_section_actions(
+                s29_scenes, 2, section
+            )
+            for cid, section in s29_defeat_sections.items()
+        },
+        "victory": compile_scenario_section_actions(
+            s29_scenes, 2, 70
+        ),
+        "genericVictory": compile_scenario_section_actions(
+            s29_scenes, 2, 71
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s29_scenes, 2, 72
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s29_scenes, 3, 1
+        ),
+    }
+    s29_outcome_probe = probe_battle_outcome_candidates(s29_scenes)
+
+    s29_player_slot_groups = []
+    current_slots = []
+    for row in s29_init_probe.get("playerSlots", []):
+        if int(row["slot"]) == 0 and current_slots:
+            s29_player_slot_groups.append(current_slots)
+            current_slots = []
+        current_slots.append(row)
+    if current_slots:
+        s29_player_slot_groups.append(current_slots)
+
+    if len(s29_player_slot_groups) != 2:
+        raise SystemExit(
+            "S29 expected two player-slot groups, got "
+            + repr(s29_player_slot_groups)
+        )
+
+    s29_skipped_actors = []
+    s29_nonplayer_units = []
+    s29_character_ids = set()
+    s29_reserved_player_ids = {
+        int(cid)
+        for variant in r29_player_variants
+        for cid in variant["characterIds"]
+    }
+
+    def make_s29_record(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s29_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            return None
+        profile = combat_profile_of(cid, deploy_level)
+        return {
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        }
+
+    s29_player_variants = []
+    slot_groups_by_count = {
+        len(group): group
+        for group in s29_player_slot_groups
+    }
+    for variant_index, variant in enumerate(r29_player_variants):
+        ids = variant["characterIds"]
+        slots = slot_groups_by_count.get(len(ids))
+        if slots is None:
+            raise SystemExit(
+                f"S29 no slot group for {len(ids)} players: "
+                + repr(s29_player_slot_groups)
+            )
+        variant_units = []
+        for slot, cid in zip(slots, ids):
+            record = make_s29_record(
+                cid,
+                PLAYER,
+                bool(slot.get("flag", 0)),
+                slot["x"],
+                slot["y"],
+                slot["direction"],
+                None,
+                None,
+                0,
+                False,
+                f"S_29:0x4B:variant{variant_index}:{slot['slot']}",
+                battle_number=int(slot["slot"]),
+            )
+            if record is None:
+                raise SystemExit(f"S29 player {cid} invalid sprite")
+            variant_units.append(record)
+        s29_player_variants.append({
+            "requireTrueVariables": variant["requireTrueVariables"],
+            "requireFalseVariables": variant["requireFalseVariables"],
+            "characterIds": ids,
+            "units": variant_units,
+        })
+
+    next_battle_number = max(
+        len(v["characterIds"]) for v in r29_player_variants
+    )
+    for index, row in enumerate(s29_init_probe.get("friendRecords", [])):
+        cid = int(row["person"])
+        if cid in s29_reserved_player_ids or cid in s29_character_ids:
+            continue
+        record = make_s29_record(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_29:0x46:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s29_nonplayer_units.append(record)
+            s29_character_ids.add(cid)
+            next_battle_number += 1
+
+    for index, row in enumerate(s29_init_probe.get("enemyRecords", [])):
+        cid = int(row["person"])
+        if cid in s29_reserved_player_ids or cid in s29_character_ids:
+            continue
+        record = make_s29_record(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_29:0x47:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s29_nonplayer_units.append(record)
+            s29_character_ids.add(cid)
+            next_battle_number += 1
+
+    s29_objective_text = (
+        s29_init_probe["objectiveTexts"][0]
+        if s29_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s29_popup_text = (
+        s29_init_probe["objectivePopups"][0]
+        if s29_init_probe.get("objectivePopups")
+        else ""
+    )
+    s29_turn_limit = objective_turn_limit(
+        s29_objective_text,
+        25,
+    )
+    s29_protected_ids = sorted(s29_reserved_player_ids)
+
+    s29_battle = {
+        "version": 118,
+        "source": "RS/S_29.eex",
+        "battleMode": "s29-eight-gates-breakthrough",
+        "mapId": 29,
+        "map": "m029.jpg",
+        "widthTiles": post28_map_probe["cols"],
+        "heightTiles": post28_map_probe["rows"],
+        "terrainFile": "terrain29.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s29_objective_text,
+                "popupText": s29_popup_text,
+                "turnLimit": s29_turn_limit,
+                "goal": {
+                    "type": "event-driven-three-camps",
+                    "targetCharacterId": 41,
+                },
+            },
+            "phase2": {
+                "objectiveText": s29_objective_text,
+                "popupText": s29_popup_text,
+                "turnLimit": s29_turn_limit,
+            },
+            "protectedCharacterIds": s29_protected_ids,
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in s29_protected_ids
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s29_native_events,
+        "outcomeEvents": s29_outcome_events,
+        "outcomeProbe": s29_outcome_probe,
+        "routeModel": {
+            "victoryTargetCharacterId": 41,
+            "victorySection": 70,
+            "genericVictorySection": 71,
+            "genericDefeatSection": 72,
+            "defeatByCharacterSections": {
+                str(cid): section
+                for cid, section in s29_defeat_sections.items()
+            },
+            "postBattleScene": "S03-SEC01",
+            "turnLimit": s29_turn_limit,
+            "completionVariable": 629,
+            "allPlayerDeathsDefeat": True,
+        },
+        "deploymentModel": {
+            "rosterVariable": 1051,
+            "variants": [
+                {
+                    "requireTrueVariables":
+                        variant["requireTrueVariables"],
+                    "requireFalseVariables":
+                        variant["requireFalseVariables"],
+                    "characterIds":
+                        variant["characterIds"],
+                }
+                for variant in r29_player_variants
+            ],
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s29_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s29_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s29_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s29_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "unsupportedActions":
+                        event["unsupportedActions"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported":
+                        event["nestedSupported"],
+                }
+                for event in s29_native_events
+            ],
+        },
+        "terrainIds": post28_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s29_skipped_actors,
+        "playerVariants": s29_player_variants,
+        "units": s29_nonplayer_units,
+        "openingEvents": [],
+    }
+
+    s28_battle["r29Story"] = r29_story
     s28_battle["postS28Probe"] = post_s28_probe
     (battle_dir / "battle28.json").write_text(
         json.dumps(s28_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (battle_dir / "battle29.json").write_text(
+        json.dumps(s29_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -15193,6 +15639,12 @@ def main(argv):
                     for unit in variant["units"]
                 ]
                 + s28_units
+                + s29_nonplayer_units
+                + [
+                    unit
+                    for variant in s29_player_variants
+                    for unit in variant["units"]
+                ]
             )
         }
         | s09_special_sprite_ids
