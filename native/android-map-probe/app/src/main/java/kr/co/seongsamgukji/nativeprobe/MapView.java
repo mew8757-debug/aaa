@@ -473,6 +473,7 @@ public class MapView extends View {
                     u.optInt("direction", 2));
             unit.maxMp = Math.max(0, u.optInt("mpMax", 0));
             unit.mp = unit.maxMp;
+            unit.battleNumber = u.optInt("battleNumber", -1);
             unit.aiPolicy = u.optInt("aiPolicy", unit.aiPolicy);
             units.add(unit);
             if (u.optBoolean("reinforcement", false)) {
@@ -796,6 +797,7 @@ public class MapView extends View {
                     u.optInt("direction", 2));
             unit.maxMp = Math.max(0, u.optInt("mpMax", 0));
             unit.mp = unit.maxMp;
+            unit.battleNumber = u.optInt("battleNumber", -1);
             unit.aiPolicy = u.optInt(
                     "aiPolicy",
                     unit.aiPolicy);
@@ -2636,6 +2638,17 @@ public class MapView extends View {
                     case "reveal": {
                         BattleUnit unit = findUnitByCharacterId(
                                 action.optInt("characterId", -1));
+                        if (unit != null) {
+                            unit.visible = true;
+                        }
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 100L;
+                        return true;
+                    }
+
+                    case "revealBattleNumber": {
+                        BattleUnit unit = findUnitByBattleNumber(
+                                action.optInt("battleNumber", -1));
                         if (unit != null) {
                             unit.visible = true;
                         }
@@ -10593,6 +10606,33 @@ public class MapView extends View {
             if (unit.characterId == characterId) {
                 return unit;
             }
+        }
+        return null;
+    }
+
+    private BattleUnit findUnitByBattleNumber(int battleNumber) {
+        if (battleNumber < 0) {
+            return null;
+        }
+
+        for (BattleUnit unit : units) {
+            if (unit.battleNumber == battleNumber) {
+                return unit;
+            }
+        }
+
+        // Legacy 0x4C mode=1 uses the battlefield slot number.
+        // Older generated battles did not persist that field, so preserve
+        // deterministic compatibility by falling back to player slot order.
+        int playerSlot = 0;
+        for (BattleUnit unit : units) {
+            if (!unit.isPlayer()) {
+                continue;
+            }
+            if (playerSlot == battleNumber) {
+                return unit;
+            }
+            playerSlot++;
         }
         return null;
     }
