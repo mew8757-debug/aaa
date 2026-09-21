@@ -2553,7 +2553,7 @@ def compile_r_story_leaf(node):
             "params": params,
         }
 
-    if cid in (0x6F, 0x78):
+    if cid in (0x52, 0x6F, 0x78):
         action = native_action_from_node(node)
         if action is not None:
             return action
