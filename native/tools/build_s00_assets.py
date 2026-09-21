@@ -7036,6 +7036,74 @@ def main(argv):
             probe_battle_outcome_candidates(post27_scenes)
         )
 
+        post27_flat = flatten_scenario_nodes(post27_scenes)
+        route_sections = set()
+        route_rows = []
+        for row in post27_flat:
+            if row["scene"] != 2:
+                continue
+            cid = row["commandId"]
+            params = row["params"]
+
+            include = False
+            if row["depth"] == 0 and cid in {
+                0x25, 0x26, 0x2E, 0x36,
+                0x3F, 0x40, 0x41, 0x42, 0x43,
+            }:
+                include = True
+                route_sections.add((2, row["section"]))
+
+            if cid == 0x0B and len(params) >= 2:
+                if int(params[0]) in {
+                    0, 1, 2, 3, 6, 8, 9, 628,
+                }:
+                    include = True
+                    route_sections.add((2, row["section"]))
+
+            if cid == 0x05 and len(params) >= 2:
+                values = []
+                for group in params[:2]:
+                    if isinstance(group, list):
+                        values.extend(
+                            int(v) for v in group
+                            if isinstance(v, int)
+                        )
+                if any(
+                    v in {0, 1, 2, 3, 6, 8, 9, 628}
+                    for v in values
+                ):
+                    include = True
+                    route_sections.add((2, row["section"]))
+
+            if cid in {0x19, 0x1A, 0x5B, 0x5D, 0x78}:
+                include = True
+                route_sections.add((2, row["section"]))
+
+            if include:
+                route_rows.append({
+                    "scene": row["scene"],
+                    "section": row["section"],
+                    "depth": row["depth"],
+                    "commandId": cid,
+                    "commandHex": f"0x{cid:02X}",
+                    "params": params,
+                    "childCommandIds": row["childCommandIds"],
+                })
+
+        post_s27_probe["nextSRouteProbe"] = (
+            probe_selected_scenario_sections(
+                post27_scenes,
+                sorted(route_sections),
+            )
+        )
+        post_s27_probe["nextSRouteRows"] = route_rows
+        post_s27_probe["nextSSection9"] = (
+            probe_selected_scenario_sections(
+                post27_scenes,
+                [(2, 9)],
+            ).get("S02-SEC09", [])
+        )
+
     if (
         next_r_after27_blob
         and next_r_after27_blob.startswith(b"EEX")
