@@ -13575,7 +13575,7 @@ def main(argv):
             }
 
     s26_battle = {
-        "version": 105,
+        "version": 106,
         "source": "RS/S_26.eex",
         "battleMode": "s26-escape-or-annihilation",
         "mapId": 26,
