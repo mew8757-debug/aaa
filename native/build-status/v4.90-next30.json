@@ -1,0 +1,5884 @@
+{
+  "version": "4.90.0",
+  "status": "success",
+  "found": true,
+  "inventoryAfter30": [
+    {
+      "kind": "R",
+      "number": 31,
+      "filename": "R_31.eex"
+    },
+    {
+      "kind": "S",
+      "number": 31,
+      "filename": "S_31.eex"
+    },
+    {
+      "kind": "R",
+      "number": 32,
+      "filename": "R_32.eex"
+    },
+    {
+      "kind": "S",
+      "number": 32,
+      "filename": "S_32.eex"
+    },
+    {
+      "kind": "R",
+      "number": 33,
+      "filename": "R_33.eex"
+    },
+    {
+      "kind": "S",
+      "number": 33,
+      "filename": "S_33.eex"
+    },
+    {
+      "kind": "R",
+      "number": 34,
+      "filename": "R_34.eex"
+    },
+    {
+      "kind": "S",
+      "number": 34,
+      "filename": "S_34.eex"
+    },
+    {
+      "kind": "R",
+      "number": 35,
+      "filename": "R_35.eex"
+    },
+    {
+      "kind": "S",
+      "number": 35,
+      "filename": "S_35.eex"
+    },
+    {
+      "kind": "R",
+      "number": 36,
+      "filename": "R_36.eex"
+    },
+    {
+      "kind": "S",
+      "number": 36,
+      "filename": "S_36.eex"
+    },
+    {
+      "kind": "R",
+      "number": 37,
+      "filename": "R_37.eex"
+    },
+    {
+      "kind": "S",
+      "number": 37,
+      "filename": "S_37.eex"
+    },
+    {
+      "kind": "R",
+      "number": 38,
+      "filename": "R_38.eex"
+    },
+    {
+      "kind": "S",
+      "number": 38,
+      "filename": "S_38.eex"
+    },
+    {
+      "kind": "R",
+      "number": 39,
+      "filename": "R_39.eex"
+    },
+    {
+      "kind": "S",
+      "number": 39,
+      "filename": "S_39.eex"
+    },
+    {
+      "kind": "R",
+      "number": 40,
+      "filename": "R_40.eex"
+    },
+    {
+      "kind": "S",
+      "number": 40,
+      "filename": "S_40.eex"
+    },
+    {
+      "kind": "R",
+      "number": 41,
+      "filename": "R_41.eex"
+    },
+    {
+      "kind": "S",
+      "number": 41,
+      "filename": "S_41.eex"
+    },
+    {
+      "kind": "R",
+      "number": 42,
+      "filename": "R_42.eex"
+    },
+    {
+      "kind": "S",
+      "number": 42,
+      "filename": "S_42.eex"
+    },
+    {
+      "kind": "R",
+      "number": 43,
+      "filename": "R_43.eex"
+    },
+    {
+      "kind": "S",
+      "number": 43,
+      "filename": "S_43.eex"
+    },
+    {
+      "kind": "R",
+      "number": 44,
+      "filename": "R_44.eex"
+    },
+    {
+      "kind": "S",
+      "number": 44,
+      "filename": "S_44.eex"
+    },
+    {
+      "kind": "R",
+      "number": 45,
+      "filename": "R_45.eex"
+    },
+    {
+      "kind": "S",
+      "number": 45,
+      "filename": "S_45.eex"
+    },
+    {
+      "kind": "R",
+      "number": 46,
+      "filename": "R_46.eex"
+    },
+    {
+      "kind": "S",
+      "number": 46,
+      "filename": "S_46.eex"
+    },
+    {
+      "kind": "R",
+      "number": 47,
+      "filename": "R_47.eex"
+    },
+    {
+      "kind": "S",
+      "number": 47,
+      "filename": "S_47.eex"
+    },
+    {
+      "kind": "R",
+      "number": 48,
+      "filename": "R_48.eex"
+    },
+    {
+      "kind": "S",
+      "number": 48,
+      "filename": "S_48.eex"
+    },
+    {
+      "kind": "R",
+      "number": 49,
+      "filename": "R_49.eex"
+    },
+    {
+      "kind": "S",
+      "number": 49,
+      "filename": "S_49.eex"
+    },
+    {
+      "kind": "R",
+      "number": 50,
+      "filename": "R_50.eex"
+    },
+    {
+      "kind": "S",
+      "number": 50,
+      "filename": "S_50.eex"
+    },
+    {
+      "kind": "R",
+      "number": 51,
+      "filename": "R_51.eex"
+    },
+    {
+      "kind": "S",
+      "number": 51,
+      "filename": "S_51.eex"
+    },
+    {
+      "kind": "R",
+      "number": 52,
+      "filename": "R_52.eex"
+    },
+    {
+      "kind": "S",
+      "number": 52,
+      "filename": "S_52.eex"
+    },
+    {
+      "kind": "R",
+      "number": 53,
+      "filename": "R_53.eex"
+    },
+    {
+      "kind": "S",
+      "number": 53,
+      "filename": "S_53.eex"
+    },
+    {
+      "kind": "R",
+      "number": 54,
+      "filename": "R_54.eex"
+    },
+    {
+      "kind": "S",
+      "number": 54,
+      "filename": "S_54.eex"
+    },
+    {
+      "kind": "R",
+      "number": 55,
+      "filename": "R_55.eex"
+    },
+    {
+      "kind": "S",
+      "number": 55,
+      "filename": "S_55.eex"
+    },
+    {
+      "kind": "R",
+      "number": 56,
+      "filename": "R_56.eex"
+    },
+    {
+      "kind": "S",
+      "number": 56,
+      "filename": "S_56.eex"
+    },
+    {
+      "kind": "R",
+      "number": 57,
+      "filename": "R_57.eex"
+    },
+    {
+      "kind": "S",
+      "number": 57,
+      "filename": "S_57.eex"
+    },
+    {
+      "kind": "R",
+      "number": 58,
+      "filename": "R_58.eex"
+    },
+    {
+      "kind": "S",
+      "number": 58,
+      "filename": "S_58.eex"
+    },
+    {
+      "kind": "R",
+      "number": 59,
+      "filename": "R_59.eex"
+    },
+    {
+      "kind": "S",
+      "number": 59,
+      "filename": "S_59.eex"
+    },
+    {
+      "kind": "R",
+      "number": 60,
+      "filename": "R_60.eex"
+    },
+    {
+      "kind": "S",
+      "number": 60,
+      "filename": "S_60.eex"
+    },
+    {
+      "kind": "R",
+      "number": 61,
+      "filename": "R_61.eex"
+    },
+    {
+      "kind": "S",
+      "number": 61,
+      "filename": "S_61.eex"
+    },
+    {
+      "kind": "R",
+      "number": 62,
+      "filename": "R_62.eex"
+    },
+    {
+      "kind": "S",
+      "number": 62,
+      "filename": "S_62.eex"
+    },
+    {
+      "kind": "R",
+      "number": 63,
+      "filename": "R_63.eex"
+    },
+    {
+      "kind": "S",
+      "number": 63,
+      "filename": "S_63.eex"
+    },
+    {
+      "kind": "R",
+      "number": 64,
+      "filename": "R_64.eex"
+    },
+    {
+      "kind": "S",
+      "number": 64,
+      "filename": "S_64.eex"
+    },
+    {
+      "kind": "R",
+      "number": 65,
+      "filename": "R_65.eex"
+    },
+    {
+      "kind": "S",
+      "number": 65,
+      "filename": "S_65.eex"
+    },
+    {
+      "kind": "R",
+      "number": 66,
+      "filename": "R_66.eex"
+    },
+    {
+      "kind": "S",
+      "number": 66,
+      "filename": "S_66.eex"
+    },
+    {
+      "kind": "R",
+      "number": 67,
+      "filename": "R_67.eex"
+    },
+    {
+      "kind": "S",
+      "number": 67,
+      "filename": "S_67.eex"
+    },
+    {
+      "kind": "R",
+      "number": 68,
+      "filename": "R_68.eex"
+    },
+    {
+      "kind": "S",
+      "number": 68,
+      "filename": "S_68.eex"
+    },
+    {
+      "kind": "R",
+      "number": 69,
+      "filename": "R_69.eex"
+    },
+    {
+      "kind": "S",
+      "number": 69,
+      "filename": "S_69.eex"
+    },
+    {
+      "kind": "R",
+      "number": 70,
+      "filename": "R_70.eex"
+    },
+    {
+      "kind": "S",
+      "number": 70,
+      "filename": "S_70.eex"
+    },
+    {
+      "kind": "R",
+      "number": 71,
+      "filename": "R_71.eex"
+    },
+    {
+      "kind": "S",
+      "number": 71,
+      "filename": "S_71.eex"
+    },
+    {
+      "kind": "R",
+      "number": 72,
+      "filename": "R_72.eex"
+    },
+    {
+      "kind": "S",
+      "number": 72,
+      "filename": "S_72.eex"
+    },
+    {
+      "kind": "R",
+      "number": 73,
+      "filename": "R_73.eex"
+    },
+    {
+      "kind": "S",
+      "number": 73,
+      "filename": "S_73.eex"
+    },
+    {
+      "kind": "R",
+      "number": 74,
+      "filename": "R_74.eex"
+    },
+    {
+      "kind": "R",
+      "number": 75,
+      "filename": "R_75.eex"
+    },
+    {
+      "kind": "S",
+      "number": 75,
+      "filename": "S_75.eex"
+    },
+    {
+      "kind": "R",
+      "number": 76,
+      "filename": "R_76.eex"
+    },
+    {
+      "kind": "S",
+      "number": 76,
+      "filename": "S_76.eex"
+    },
+    {
+      "kind": "R",
+      "number": 77,
+      "filename": "R_77.eex"
+    },
+    {
+      "kind": "S",
+      "number": 77,
+      "filename": "S_77.eex"
+    },
+    {
+      "kind": "R",
+      "number": 78,
+      "filename": "R_78.eex"
+    },
+    {
+      "kind": "S",
+      "number": 78,
+      "filename": "S_78.eex"
+    },
+    {
+      "kind": "R",
+      "number": 79,
+      "filename": "R_79.eex"
+    },
+    {
+      "kind": "S",
+      "number": 79,
+      "filename": "S_79.eex"
+    },
+    {
+      "kind": "R",
+      "number": 80,
+      "filename": "R_80.eex"
+    }
+  ],
+  "nextR": {
+    "kind": "R",
+    "number": 31,
+    "filename": "R_31.eex",
+    "probe": {
+      "filename": "R_31.eex",
+      "found": true,
+      "validEex": true,
+      "size": 59353,
+      "sceneCount": 19,
+      "sectionCounts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        9
+      ],
+      "commandCount": 1508,
+      "commandCounts": {
+        "0x02": 36,
+        "0x00": 81,
+        "0x0A": 1,
+        "0x2F": 18,
+        "0x08": 3,
+        "0x24": 24,
+        "0x23": 18,
+        "0x27": 21,
+        "0x30": 121,
+        "0x18": 18,
+        "0x17": 17,
+        "0x1C": 19,
+        "0x09": 367,
+        "0x32": 47,
+        "0x34": 140,
+        "0x14": 296,
+        "0x31": 16,
+        "0x1E": 11,
+        "0x33": 127,
+        "0x1D": 19,
+        "0x2C": 5,
+        "0x01": 27,
+        "0x77": 6,
+        "0x78": 4,
+        "0x69": 1,
+        "0x20": 1,
+        "0x05": 17,
+        "0x3B": 10,
+        "0x3E": 1,
+        "0x75": 1,
+        "0x28": 2,
+        "0x07": 1,
+        "0x06": 4,
+        "0x0D": 1,
+        "0x2D": 8,
+        "0x04": 1,
+        "0x4B": 10,
+        "0x0B": 8
+      },
+      "flowCommands": [
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 1,
+          "commandId": 8,
+          "commandHex": "0x08",
+          "params": [
+            0
+          ]
+        },
+        {
+          "scene": 11,
+          "section": 1,
+          "depth": 2,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            0,
+            2,
+            0,
+            441
+          ]
+        },
+        {
+          "scene": 11,
+          "section": 1,
+          "depth": 2,
+          "commandId": 120,
+          "commandHex": "0x78",
+          "params": [
+            0,
+            1,
+            76,
+            1
+          ]
+        },
+        {
+          "scene": 13,
+          "section": 1,
+          "depth": 2,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            0,
+            2,
+            0,
+            437
+          ]
+        },
+        {
+          "scene": 13,
+          "section": 1,
+          "depth": 2,
+          "commandId": 120,
+          "commandHex": "0x78",
+          "params": [
+            0,
+            1,
+            36,
+            1
+          ]
+        },
+        {
+          "scene": 13,
+          "section": 1,
+          "depth": 2,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            0,
+            2,
+            0,
+            180
+          ]
+        },
+        {
+          "scene": 13,
+          "section": 1,
+          "depth": 2,
+          "commandId": 120,
+          "commandHex": "0x78",
+          "params": [
+            0,
+            1,
+            36,
+            0
+          ]
+        },
+        {
+          "scene": 14,
+          "section": 1,
+          "depth": 2,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            0,
+            2,
+            0,
+            162
+          ]
+        },
+        {
+          "scene": 14,
+          "section": 1,
+          "depth": 2,
+          "commandId": 120,
+          "commandHex": "0x78",
+          "params": [
+            0,
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 18,
+          "section": 1,
+          "depth": 2,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              1051
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 18,
+          "section": 1,
+          "depth": 2,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              1026
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 18,
+          "section": 1,
+          "depth": 1,
+          "commandId": 8,
+          "commandHex": "0x08",
+          "params": [
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 1,
+          "depth": 0,
+          "commandId": 7,
+          "commandHex": "0x07",
+          "params": []
+        },
+        {
+          "scene": 19,
+          "section": 1,
+          "depth": 2,
+          "commandId": 8,
+          "commandHex": "0x08",
+          "params": [
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 1,
+          "depth": 2,
+          "commandId": 6,
+          "commandHex": "0x06",
+          "params": [
+            0,
+            0,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 1,
+          "depth": 2,
+          "commandId": 13,
+          "commandHex": "0x0D",
+          "params": []
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 0,
+          "commandId": 45,
+          "commandHex": "0x2D",
+          "params": [
+            2
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              248
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              20
+            ],
+            [
+              248
+            ]
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 2,
+          "commandId": 4,
+          "commandHex": "0x04",
+          "params": [
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 3,
+          "commandId": 6,
+          "commandHex": "0x06",
+          "params": [
+            1,
+            10,
+            2,
+            3,
+            9,
+            14,
+            17,
+            4,
+            -1,
+            -1,
+            -1,
+            -1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 3,
+          "commandId": 6,
+          "commandHex": "0x06",
+          "params": [
+            1,
+            10,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 3,
+          "commandId": 6,
+          "commandHex": "0x06",
+          "params": [
+            1,
+            10,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1,
+            -1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            4076,
+            2,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            4057,
+            2,
+            0,
+            31
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            0,
+            20,
+            9,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            1,
+            23,
+            9,
+            1,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            2,
+            18,
+            11,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            3,
+            8,
+            12,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            4,
+            9,
+            13,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            5,
+            19,
+            7,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            6,
+            7,
+            13,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            7,
+            24,
+            10,
+            1,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            8,
+            22,
+            12,
+            1,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 4,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            9,
+            15,
+            10,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 3,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            248,
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              20
+            ]
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 2,
+          "depth": 2,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            20,
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 3,
+          "depth": 0,
+          "commandId": 45,
+          "commandHex": "0x2D",
+          "params": [
+            3
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 3,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              21
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 3,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              21
+            ]
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 3,
+          "depth": 2,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            21,
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 4,
+          "depth": 0,
+          "commandId": 45,
+          "commandHex": "0x2D",
+          "params": [
+            29
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 4,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              22
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 4,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              22
+            ]
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 4,
+          "depth": 2,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            22,
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 5,
+          "depth": 0,
+          "commandId": 45,
+          "commandHex": "0x2D",
+          "params": [
+            14
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 5,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              23
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 5,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              23
+            ]
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 5,
+          "depth": 2,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            23,
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 6,
+          "depth": 0,
+          "commandId": 45,
+          "commandHex": "0x2D",
+          "params": [
+            27
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 6,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              24
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 6,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              24
+            ]
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 6,
+          "depth": 2,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            24,
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 7,
+          "depth": 0,
+          "commandId": 45,
+          "commandHex": "0x2D",
+          "params": [
+            26
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 7,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              25
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 7,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              25
+            ]
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 7,
+          "depth": 2,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            25,
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 8,
+          "depth": 0,
+          "commandId": 45,
+          "commandHex": "0x2D",
+          "params": [
+            9
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 8,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              26
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 8,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              26
+            ]
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 8,
+          "depth": 2,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            26,
+            1
+          ]
+        },
+        {
+          "scene": 19,
+          "section": 9,
+          "depth": 0,
+          "commandId": 45,
+          "commandHex": "0x2D",
+          "params": [
+            17
+          ]
+        }
+      ],
+      "textSamples": [
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 24,
+          "commandHex": "0x18",
+          "text": "한 줄기 살길"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 23,
+          "commandHex": "0x17",
+          "text": "신야 좌장군부"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유봉\n아버님, 강하에서 소식이 왔습니다.\n유 공자가 무사히 하구에 도착하여\n병마를 모으고 있다고 합니다.\n\n&유비\n알았다. 물러가거라.\n\n&유봉\n예, 아버님."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&서서\n위문장이 주공의 믿음에 보답했군요.\n\n&유비\n유기가 군대를 모은다면,\n훗날 조조와 싸울 때\n큰 도움이 될 것이오."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&제갈량\n유기는 멀리 강하에 있어\n후원은 할 수 있어도,\n\n&제갈량\n한수에서 조조와 맞서는 주공을\n직접 돕기에는 힘이 미치지 못합니다.\n\n&제갈량\n오히려 위연이 훗날\n우리 군의 살길을 열어 줄지 모릅니다."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&장비\n어째서요?\n위가에게 무슨 남다른 재주가 있소?"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&제갈량\n장산현은 남군 동부의 요충지로,\n강하와 남군의 경계이며\n한진 나루도 장악하고 있습니다.\n\n&제갈량\n장산 현위는 낮은 벼슬이나,\n한 현의 군무와 치안을 맡고\n한진 나루의 통제권도 쥐고 있습니다.\n\n&제갈량\n강릉 수군이 북상하든,\n오림에 주둔한 장윤이 북상하든,\n한진은 반드시 거쳐야 하는 곳입니다."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&관우\n정말 형세가 달라진다 한들,\n그 사람의 힘으로\n형주 수군을 막을 수 있겠소?"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&제갈량\n물론 못 막습니다.\n허나 형주 북부에서 전황이 나빠지면,\n번성을 버리고 한수를 건너야겠지요.\n\n&제갈량\n그때 북에서는 조조군이 쫓고,\n남쪽 강릉군은 아군인지 알 수 없습니다.\n\n&제갈량\n유기 공자의 도움을 받아\n한수를 동쪽으로 건너는 것만이\n살길이 될 것입니다.\n\n&제갈량\n그런 막다른 형편에 이르면,\n한진 나루가 가장 중요한\n요충지가 됩니다.\n\n&제갈량\n그때 위문장이 우리 전군의 목숨을\n구할지도 모릅니다……"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n……공명의 깊은 생각은\n누구도 따르지 못하겠소!"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&손건\n주공, 양양의 주목부에서\n유경승이 뵙기를 청한다는\n전갈이 왔습니다.\n\n&유비\n오?"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 24,
+          "commandHex": "0x18",
+          "text": "유표의 부름"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 23,
+          "commandHex": "0x17",
+          "text": "양양 주목부"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&채모\n좌장군 겸 예주목 유비께서\n진남장군을 뵈러 오셨습니다!"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n……"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유표\n현덕이 왔는가?\n이 형은 이번 고비를 못 넘길 듯하네.\n아우에게 못 볼 꼴을 보이는군……"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n형님, 어찌 그런 말씀을 하십니까?"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유표\n우리 형제끼리\n그리 서먹하게 굴 것 있나.\n어서 앉게."
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유표\n자네가 형주에 온 지도\n어느덧 칠 년이 되었네.\n자네는 예처럼 늠름한데, 나는……"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유표\n콜록…… 현덕, 그 나이에\n어찌 어린아이처럼 구는가?\n\n&유표\n오늘 자네를 부른 것은\n중요한 일을 맡기기 위해서지,\n통곡하는 모습을 보려는 게 아닐세."
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n형님은 편히 요양하십시오.\n제가 있는 한 조맹덕이\n쉽게 한수를 넘게 두지 않겠습니다!"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유표\n내가 예전처럼 건강하여\n양양에서 직접 자네를 뒷받침한다면,\n천하에 무엇이 두렵겠나?\n\n&유표\n허나 병이 깊어 목숨이 얼마 안 남았네.\n내가 떠난 뒤 자네 홀로 전선에서\n조조군과 목숨 걸고 싸워야 한다면……\n\n&유표\n콜록…… 콜록……"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n그리 아시니 더욱 몸을 보살피셔야지요.\n형님이 계셔야 형주가 한마음으로\n사나운 적을 막지요. 그러지 않으면……\n\n&유표\n아아, 나는 아무래도 안 될 듯하네……"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유표\n내 두 아들을 자네도 알지 않나.\n기는 나약하고 무능하며,\n종은 총명하나 아직 어리네.\n\n&유표\n콜록…… 채덕규와 괴이도는\n모두 속을 알 수 없는 자들이네.\n내가 살아 있으면 통제하겠지만……\n\n&유표\n내가 세상을 떠난다면,\n그 형제의 재주로 어찌\n저 범과 여우들을 억누르겠는가?\n\n&유표\n자네가…… 자네가 형주를 맡아야 하네.\n그 명망과 재능이라면\n형주의 사족들을 누를 수 있네.\n\n&유표\n형주를 조맹덕에게 넘기지 않고,\n내 못난 두 아이의……\n두 아이의 목숨도 지켜 주겠지!\n\n&유표\n도공조가 세 번 서주를 양보했듯,\n나도 형주와 양양의 여덟 군을\n자네에게 맡기려네……"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n…………"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유표\n아우……"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n형주는 형님의 형주입니다.\n불경한 말씀이지만, 만일의 일이 생겨도\n두 공자의 형주이지요.\n\n&유비\n제가 영락하여 찾아왔을 때,\n형님은 의지할 데 없는 저를\n거리낌 없이 받아 주셨습니다.\n\n&유비\n어찌 그 은혜를 모르고,\n마음이 움직이지 않겠습니까?\n\n&유비\n저는 진작 죽었어야 할 사람입니다.\n의대조 사건이 드러났을 때\n열사들을 따라 저승에 갔어야 했지요.\n\n&유비\n허나 조적이 살아 한실이 수난 중이니,\n쓸모 있는 몸을 남기려\n구차하게 목숨을 이어 왔습니다.\n\n&유비\n재주와 힘이 모자라 거듭 패했지만,\n형님의 품에서 칠 년을 지냈으니\n하늘이 가엾이 여기신 덕분입니다.\n\n&유비\n이제 형님이 병드시고\n형주에 큰 재난이 닥치려 하는데,\n\n&유비\n이 위기를 틈타 자리를 대신한다면\n은혜를 원수로 갚는 짓이니,\n천하의 비난을 받을 것입니다!"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유표\n아우, 천하에 왕의 땅 아닌 곳이 없네.\n모두 한실의 강산인데\n어찌 네 것 내 것을 가르는가?\n\n&유표\n내가 형주를 지킨 이십 년도\n조정을 위해 한 지방을 다스렸을 뿐이네.\n\n&유표\n우리 모두 한실의 종친인데,\n잠시 주목을 맡는 것이\n무엇이 안 된다는 말인가?\n\n&유표\n자네는 성상이 친히 인정하신 황숙이며,\n좌장군에 봉하신 몸이네.\n여덟 군에 누가 자네보다 지체 높은가?\n\n&유표\n자네가 앉아야 마음 놓고 떠날 수 있네.\n기와 종의 목숨이며 가문의 부귀를\n반드시 지켜 줄 사람이 자네 아닌가!"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n더는 말씀하지 마십시오.\n주목의 자리는 결코 받지 않겠습니다!"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n조맹덕이 곧 남하할 텐데,\n형님은 어떻게 하실 생각입니까?\n\n&유표\n……자네에게 계책이 있는가?\n\n&유비\n형세가 위태로우니 당장 정해야 합니다.\n강동의 손권과 싸움을 멈추고,\n합종의 계책을 쓰시지요."
+        }
+      ],
+      "routeSections": {}
+    }
+  },
+  "nextS": {
+    "kind": "S",
+    "number": 31,
+    "filename": "S_31.eex",
+    "probe": {
+      "filename": "S_31.eex",
+      "found": true,
+      "validEex": true,
+      "size": 19510,
+      "sceneCount": 3,
+      "sectionCounts": [
+        1,
+        47,
+        1
+      ],
+      "commandCount": 685,
+      "commandCounts": {
+        "0x02": 60,
+        "0x00": 121,
+        "0x44": 1,
+        "0x45": 1,
+        "0x47": 1,
+        "0x46": 1,
+        "0x01": 23,
+        "0x4B": 10,
+        "0x48": 2,
+        "0x27": 1,
+        "0x1C": 1,
+        "0x24": 3,
+        "0x09": 28,
+        "0x50": 18,
+        "0x14": 48,
+        "0x4F": 18,
+        "0x6E": 2,
+        "0x0B": 53,
+        "0x03": 2,
+        "0x19": 1,
+        "0x1A": 1,
+        "0x5B": 1,
+        "0x05": 52,
+        "0x77": 19,
+        "0x16": 4,
+        "0x23": 3,
+        "0x69": 8,
+        "0x5A": 1,
+        "0x08": 2,
+        "0x3F": 3,
+        "0x40": 4,
+        "0x4C": 12,
+        "0x26": 22,
+        "0x31": 22,
+        "0x51": 1,
+        "0x15": 1,
+        "0x79": 2,
+        "0x59": 2,
+        "0x49": 3,
+        "0x0D": 3,
+        "0x55": 24,
+        "0x25": 1,
+        "0x3D": 2,
+        "0x2E": 2,
+        "0x4D": 2,
+        "0x68": 1,
+        "0x60": 2,
+        "0x64": 18,
+        "0x63": 7,
+        "0x61": 1,
+        "0x65": 11,
+        "0x66": 4,
+        "0x5F": 1,
+        "0x36": 17,
+        "0x1B": 10,
+        "0x53": 17,
+        "0x0E": 2,
+        "0x43": 1,
+        "0x1D": 1
+      },
+      "flowCommands": [
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 1,
+          "commandId": 68,
+          "commandHex": "0x44",
+          "params": []
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            0,
+            20,
+            9,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            1,
+            23,
+            9,
+            1,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            2,
+            18,
+            11,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            3,
+            8,
+            12,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            4,
+            9,
+            13,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            5,
+            19,
+            7,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            6,
+            7,
+            13,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            7,
+            24,
+            10,
+            1,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            8,
+            22,
+            12,
+            1,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 75,
+          "commandHex": "0x4B",
+          "params": [
+            9,
+            15,
+            10,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 3,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            101,
+            1
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 4,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            102,
+            1
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 4,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            103,
+            1
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 1,
+          "commandId": 25,
+          "commandHex": "0x19",
+          "params": [
+            "승리 조건\n★·유비 퇴각!\n\n패배 조건\n☆·유비 사망.\n☆·20턴 초과."
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 1,
+          "commandId": 26,
+          "commandHex": "0x1A",
+          "params": [
+            "유비 퇴각!"
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 2,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              1001
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 3,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            4071,
+            2,
+            0,
+            255
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 3,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            4071,
+            2,
+            0,
+            255
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 1,
+          "commandId": 90,
+          "commandHex": "0x5A",
+          "params": []
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 1,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            110,
+            2,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            531,
+            1
+          ]
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "depth": 1,
+          "commandId": 8,
+          "commandHex": "0x08",
+          "params": [
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              2
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            2,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 2,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              3
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 2,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            3,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              0
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 3,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              1001
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 4,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            4071,
+            2,
+            0,
+            255
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 2,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            4080,
+            2,
+            0,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 2,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            4080,
+            2,
+            0,
+            0
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 3,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              1001
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 4,
+          "commandId": 119,
+          "commandHex": "0x77",
+          "params": [
+            2,
+            4071,
+            2,
+            0,
+            255
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            0,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            631,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "depth": 1,
+          "commandId": 13,
+          "commandHex": "0x0D",
+          "params": []
+        },
+        {
+          "scene": 2,
+          "section": 4,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              5
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 4,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            5,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 5,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              6
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 5,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            6,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 6,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              7
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 6,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            7,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 7,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              8
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 7,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            8,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 8,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              9
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 8,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            9,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 9,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              10
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 9,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            10,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 10,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              11
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 10,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            11,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 11,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              12
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 11,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            12,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 12,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              13
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 12,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            13,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 13,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              14
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 13,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            14,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 14,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              14
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 14,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            14,
+            0
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 15,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              20
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 15,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              101
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 15,
+          "depth": 2,
+          "commandId": 61,
+          "commandHex": "0x3D",
+          "params": [
+            93,
+            1,
+            1,
+            1025
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 15,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              102
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 15,
+          "depth": 2,
+          "commandId": 61,
+          "commandHex": "0x3D",
+          "params": [
+            96,
+            0,
+            1,
+            1025
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 15,
+          "depth": 1,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [
+              103
+            ],
+            []
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 15,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            20,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 16,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              30
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 16,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            30,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 17,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              31
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 17,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            31,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 17,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            773,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 18,
+          "depth": 1,
+          "commandId": 13,
+          "commandHex": "0x0D",
+          "params": []
+        },
+        {
+          "scene": 2,
+          "section": 19,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              50
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 19,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            50,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 20,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              51
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 20,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            51,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 21,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              52
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 21,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            52,
+            1
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 22,
+          "depth": 0,
+          "commandId": 5,
+          "commandHex": "0x05",
+          "params": [
+            [],
+            [
+              53
+            ]
+          ]
+        },
+        {
+          "scene": 2,
+          "section": 22,
+          "depth": 1,
+          "commandId": 11,
+          "commandHex": "0x0B",
+          "params": [
+            53,
+            1
+          ]
+        }
+      ],
+      "textSamples": [
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&백성1\n조조군이 온다! 어서 달아나라!"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&백성6\n살려 줘! 살려 줘!"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&백성7\n조조군에게 잡히면\n시신조차 성치 못할 게야.\n모두 유 황숙을 따라 달아나세!"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&호기병1\n도독, 적군이 백성과 뒤섞여\n대오도 갖추지 못했으니\n단번에 무너뜨릴 수 있습니다.\n\n&호기병1\n다만 유비가 그 속에 숨어 있어\n찾아내기가 어렵습니다……"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&조순\n전군에 샅샅이 수색하라 전하라!\n저항하는 자는 모조리 죽여라!\n\n&호기병1\n명을 받듭니다!\n(온 산과 들에 사람이 가득하니,\n죽여도 끝이 없겠구나……)"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n호표기라…… 조맹덕이 내 목을\n얻으려 아낌없이 쏟아붓는구나."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&제갈량\n주공, 어둠이 가려 주고 있으니\n조조군도 당장은 주공의 행방을\n알아낼 수 없을 것입니다.\n\n&제갈량\n서둘러 남쪽 숲으로 가십시오.\n초목이 우거진 곳이니, 적도\n감히 깊이 쫓아오지 못할 겁니다."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n수많은 백성이 조조군의 말발굽에\n짓밟히는데, 어찌 차마\n그들을 버릴 수 있겠소……\n\n&제갈량\n외람되나, 작은 일을 못 참으면\n큰일을 그르치게 됩니다.\n\n&제갈량\n조조군은 하나가 열을 당하는\n정예입니다. 싸움에 매달리시면\n주공께서도 벗어나기 어렵습니다.\n\n&제갈량\n적이 노리는 것은 주공입니다.\n제때 전장을 벗어나시면 백성도\n화를 면할 수 있을 것입니다."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&서서\n공명의 말이 옳습니다.\n주공, 그르치시면 안 됩니다!"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n……좋소! 다만 그대들은 힘껏\n따라온 백성들을 보호하여\n조조군의 손에 죽지 않게 하시오.\n\n&제갈량\n저희도 온 힘을 다하겠습니다."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n그대들은 나를 따라 돌파하라!"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 25,
+          "commandHex": "0x19",
+          "text": "승리 조건\n★·유비 퇴각!\n\n패배 조건\n☆·유비 사망.\n☆·20턴 초과."
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 26,
+          "commandHex": "0x1A",
+          "text": "유비 퇴각!"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 22,
+          "commandHex": "0x16",
+          "text": "111도전 11: 인의 실천<진행 중>"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 22,
+          "commandHex": "0x16",
+          "text": "211당양 전투에서 힘을 다해\n백성의 퇴각을 엄호하라!"
+        },
+        {
+          "scene": 1,
+          "section": 1,
+          "commandId": 105,
+          "commandHex": "0x69",
+          "text": "☆도전 모드☆【인의 실천】: 해금!"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&장합\n문 장군이 길을 안내해 준 덕에\n큰 귀 도적의 뒤로 돌아왔구려.\n마침 때맞춰 도착했소!\n\n&문빙\n(아아, 좌장군……)"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&장합\n모두 수고를 아끼지 마라!\n승상께서 유비를 잡는 자에게\n천금과 만호후를 내리신다!"
+        },
+        {
+          "scene": 2,
+          "section": 1,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&호기병8\n죽여라!"
+        },
+        {
+          "scene": 2,
+          "section": 2,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&주령\n유비가 정말 백성을 데리고\n남하할 줄이야. 유 예주의 인덕이\n헛된 명성은 아니었구려.\n\n&서황\n문박, 대적을 앞에 두고\n감상에 젖어 있을 때가 아니오.\n\n&주령\n공명의 말이 옳소. 다만 이 백성이\n가엾구려. 말발굽이 휩쓸고 나면\n죄 없는 이들까지 죽을 테니.\n\n&서황\n우리는 승상께 은혜를 입었고\n군명까지 받은 몸이오.\n그런 사정까지 살필 겨를은 없소.\n\n&주령\n됐소…… 그럴 수밖에 없겠구려."
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n(조조 놈, 내 목숨을\n그리 쉽게 내줄 줄 알았느냐!)"
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&유비\n싸움에 매달리지 말고\n각자 군사를 거두어 물러나라!"
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "commandId": 21,
+          "commandHex": "0x15",
+          "text": "전군은 숲과 마을을 수색하라!\n큰 귀 도적을 놓쳐서는 안 된다!"
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "commandId": 22,
+          "commandHex": "0x16",
+          "text": "111도전 11: 인의 실천【성공!】"
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "commandId": 105,
+          "commandHex": "0x69",
+          "text": "☆도전 모드☆【인의 실천】: 성공!"
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "commandId": 22,
+          "commandHex": "0x16",
+          "text": "111도전 11: 인의 실천(실패)"
+        },
+        {
+          "scene": 2,
+          "section": 3,
+          "commandId": 105,
+          "commandHex": "0x69",
+          "text": "☆도전 모드☆【인의 실천】: 실패!"
+        },
+        {
+          "scene": 2,
+          "section": 4,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&진도\n주공……"
+        },
+        {
+          "scene": 2,
+          "section": 5,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&제갈량\n호표기는 병사도 말도 강건하니\n과연 보통 군대가 아니군.\n다만…… 후후……"
+        },
+        {
+          "scene": 2,
+          "section": 6,
+          "commandId": 20,
+          "commandHex": "0x14",
+          "text": "&서서\n(어머니…… 어디 계십니까?)"
+        }
+      ],
+      "routeSections": {}
+    }
+  },
+  "nextMap": {
+    "filename": "m031.jpg",
+    "found": true,
+    "hexzmapEntry": 31,
+    "valid": true,
+    "width": 1728,
+    "height": 1536,
+    "cols": 36,
+    "rows": 32,
+    "terrainCellCount": 1152,
+    "terrainIds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      8,
+      11,
+      12,
+      21
+    ]
+  },
+  "nextSInit": {
+    "found": true,
+    "validEex": true,
+    "sceneCount": 3,
+    "sectionCounts": [
+      1,
+      47,
+      1
+    ],
+    "scene1Section1InitCommands": [
+      {
+        "depth": 1,
+        "commandId": 68,
+        "commandHex": "0x44",
+        "params": []
+      },
+      {
+        "depth": 1,
+        "commandId": 69,
+        "commandHex": "0x45",
+        "params": [
+          0,
+          0,
+          20,
+          0,
+          0,
+          -1,
+          1,
+          -1,
+          1,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "commandId": 71,
+        "commandHex": "0x47",
+        "params": [
+          45,
+          0,
+          0,
+          15,
+          1,
+          2,
+          4,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          759,
+          0,
+          0,
+          14,
+          1,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          760,
+          0,
+          0,
+          16,
+          1,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          761,
+          0,
+          0,
+          14,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          762,
+          0,
+          0,
+          15,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          763,
+          0,
+          0,
+          16,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          43,
+          0,
+          0,
+          7,
+          2,
+          2,
+          3,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          767,
+          0,
+          0,
+          6,
+          2,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          768,
+          0,
+          0,
+          8,
+          2,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          789,
+          0,
+          0,
+          6,
+          1,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          790,
+          0,
+          0,
+          7,
+          1,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          791,
+          0,
+          0,
+          8,
+          1,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          44,
+          0,
+          0,
+          34,
+          9,
+          3,
+          3,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          764,
+          0,
+          0,
+          34,
+          8,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          765,
+          0,
+          0,
+          34,
+          10,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          792,
+          0,
+          0,
+          35,
+          8,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          793,
+          0,
+          0,
+          35,
+          9,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          794,
+          0,
+          0,
+          35,
+          10,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          57,
+          0,
+          1,
+          1,
+          24,
+          1,
+          4,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          70,
+          0,
+          1,
+          1,
+          23,
+          1,
+          4,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          766,
+          0,
+          1,
+          1,
+          25,
+          1,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          769,
+          0,
+          1,
+          0,
+          23,
+          1,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          770,
+          0,
+          1,
+          0,
+          24,
+          1,
+          1,
+          2,
+          1,
+          36,
+          0,
+          0,
+          771,
+          0,
+          1,
+          0,
+          25,
+          1,
+          1,
+          2,
+          1,
+          36,
+          0,
+          0,
+          58,
+          0,
+          1,
+          34,
+          11,
+          3,
+          4,
+          2,
+          1,
+          36,
+          0,
+          0,
+          171,
+          0,
+          1,
+          34,
+          10,
+          3,
+          3,
+          2,
+          1,
+          36,
+          0,
+          0,
+          795,
+          0,
+          1,
+          34,
+          12,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          772,
+          0,
+          1,
+          35,
+          10,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          773,
+          0,
+          1,
+          35,
+          11,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          774,
+          0,
+          1,
+          35,
+          12,
+          3,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          14,
+          0,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          16,
+          0,
+          2,
+          0,
+          2,
+          1,
+          36,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          10,
+          3,
+          0,
+          2,
+          1,
+          36,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          12,
+          3,
+          0,
+          2,
+          1,
+          36,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          14,
+          0,
+          2,
+          1,
+          2,
+          1,
+          36,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          16,
+          0,
+          2,
+          1,
+          2,
+          1,
+          36,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          10,
+          3,
+          0,
+          2,
+          1,
+          36,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          12,
+          3,
+          0,
+          2,
+          1,
+          36,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          14,
+          0,
+          2,
+          0,
+          2,
+          1,
+          36,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          16,
+          0,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          10,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          12,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          14,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          16,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          10,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          12,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          14,
+          0,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          16,
+          0,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          10,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          12,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          14,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          16,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          10,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          12,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          14,
+          0,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          16,
+          0,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          10,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          12,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          14,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          16,
+          0,
+          2,
+          1,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          10,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          35,
+          12,
+          3,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          1,
+          0,
+          30,
+          20,
+          2,
+          0,
+          2,
+          2,
+          -1,
+          0,
+          0,
+          -1,
+          1,
+          0,
+          25,
+          20,
+          2,
+          0,
+          2,
+          2,
+          -1,
+          0,
+          0,
+          -1,
+          1,
+          0,
+          19,
+          17,
+          3,
+          0,
+          2,
+          2,
+          -1,
+          0,
+          0,
+          -1,
+          1,
+          0,
+          19,
+          19,
+          3,
+          0,
+          2,
+          2,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          0,
+          16,
+          1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          1,
+          15,
+          1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          30,
+          0,
+          2,
+          4,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          1,
+          33,
+          0,
+          2,
+          4,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "commandId": 70,
+        "commandHex": "0x46",
+        "params": [
+          -1,
+          0,
+          16,
+          10,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          25,
+          31,
+          650,
+          0,
+          18,
+          10,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          25,
+          31,
+          651,
+          0,
+          19,
+          11,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          25,
+          31,
+          652,
+          0,
+          24,
+          12,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          25,
+          31,
+          653,
+          0,
+          21,
+          14,
+          2,
+          0,
+          2,
+          6,
+          191,
+          25,
+          31,
+          654,
+          0,
+          10,
+          16,
+          2,
+          0,
+          2,
+          6,
+          191,
+          25,
+          31,
+          655,
+          0,
+          9,
+          18,
+          2,
+          0,
+          2,
+          6,
+          191,
+          25,
+          31,
+          656,
+          0,
+          22,
+          18,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          25,
+          31,
+          657,
+          0,
+          9,
+          6,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          25,
+          31,
+          658,
+          0,
+          34,
+          16,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          31,
+          30,
+          659,
+          0,
+          5,
+          14,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          31,
+          30,
+          660,
+          0,
+          22,
+          2,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          31,
+          30,
+          661,
+          0,
+          21,
+          7,
+          2,
+          0,
+          2,
+          6,
+          -1,
+          30,
+          30,
+          -1,
+          0,
+          6,
+          5,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          7,
+          5,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          5,
+          4,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          6,
+          4,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          7,
+          4,
+          2,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0,
+          -1,
+          0,
+          0,
+          0,
+          -1,
+          0,
+          2,
+          1,
+          -1,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          0,
+          20,
+          9,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          1,
+          23,
+          9,
+          1,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          2,
+          18,
+          11,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          3,
+          8,
+          12,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          4,
+          9,
+          13,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          5,
+          19,
+          7,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          6,
+          7,
+          13,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          7,
+          24,
+          10,
+          1,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          8,
+          22,
+          12,
+          1,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          9,
+          15,
+          10,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 72,
+        "commandHex": "0x48",
+        "params": [
+          58,
+          40,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "depth": 2,
+        "commandId": 72,
+        "commandHex": "0x48",
+        "params": [
+          45,
+          0,
+          0,
+          0,
+          0,
+          24
+        ]
+      },
+      {
+        "depth": 1,
+        "commandId": 39,
+        "commandHex": "0x27",
+        "params": [
+          3,
+          -1,
+          -1,
+          -1,
+          31
+        ]
+      },
+      {
+        "depth": 1,
+        "commandId": 36,
+        "commandHex": "0x24",
+        "params": [
+          30
+        ]
+      },
+      {
+        "depth": 1,
+        "commandId": 36,
+        "commandHex": "0x24",
+        "params": [
+          114
+        ]
+      },
+      {
+        "depth": 1,
+        "commandId": 25,
+        "commandHex": "0x19",
+        "params": [
+          "승리 조건\n★·유비 퇴각!\n\n패배 조건\n☆·유비 사망.\n☆·20턴 초과."
+        ]
+      },
+      {
+        "depth": 1,
+        "commandId": 26,
+        "commandHex": "0x1A",
+        "params": [
+          "유비 퇴각!"
+        ]
+      },
+      {
+        "depth": 1,
+        "commandId": 90,
+        "commandHex": "0x5A",
+        "params": []
+      }
+    ],
+    "forcedPlayers": [],
+    "playerSlots": [
+      {
+        "slot": 0,
+        "x": 20,
+        "y": 9,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 1,
+        "x": 23,
+        "y": 9,
+        "direction": 1,
+        "flag": 0
+      },
+      {
+        "slot": 2,
+        "x": 18,
+        "y": 11,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 3,
+        "x": 8,
+        "y": 12,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 4,
+        "x": 9,
+        "y": 13,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 5,
+        "x": 19,
+        "y": 7,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 6,
+        "x": 7,
+        "y": 13,
+        "direction": 0,
+        "flag": 0
+      },
+      {
+        "slot": 7,
+        "x": 24,
+        "y": 10,
+        "direction": 1,
+        "flag": 0
+      },
+      {
+        "slot": 8,
+        "x": 22,
+        "y": 12,
+        "direction": 1,
+        "flag": 0
+      },
+      {
+        "slot": 9,
+        "x": 15,
+        "y": 10,
+        "direction": 0,
+        "flag": 0
+      }
+    ],
+    "friendRecords": [
+      {
+        "person": 650,
+        "hidden": 0,
+        "x": 18,
+        "y": 10,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 25,
+        "targetY": 31
+      },
+      {
+        "person": 651,
+        "hidden": 0,
+        "x": 19,
+        "y": 11,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 25,
+        "targetY": 31
+      },
+      {
+        "person": 652,
+        "hidden": 0,
+        "x": 24,
+        "y": 12,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 25,
+        "targetY": 31
+      },
+      {
+        "person": 653,
+        "hidden": 0,
+        "x": 21,
+        "y": 14,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": 191,
+        "targetX": 25,
+        "targetY": 31
+      },
+      {
+        "person": 654,
+        "hidden": 0,
+        "x": 10,
+        "y": 16,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": 191,
+        "targetX": 25,
+        "targetY": 31
+      },
+      {
+        "person": 655,
+        "hidden": 0,
+        "x": 9,
+        "y": 18,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": 191,
+        "targetX": 25,
+        "targetY": 31
+      },
+      {
+        "person": 656,
+        "hidden": 0,
+        "x": 22,
+        "y": 18,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 25,
+        "targetY": 31
+      },
+      {
+        "person": 657,
+        "hidden": 0,
+        "x": 9,
+        "y": 6,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 25,
+        "targetY": 31
+      },
+      {
+        "person": 658,
+        "hidden": 0,
+        "x": 34,
+        "y": 16,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 31,
+        "targetY": 30
+      },
+      {
+        "person": 659,
+        "hidden": 0,
+        "x": 5,
+        "y": 14,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 31,
+        "targetY": 30
+      },
+      {
+        "person": 660,
+        "hidden": 0,
+        "x": 22,
+        "y": 2,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 31,
+        "targetY": 30
+      },
+      {
+        "person": 661,
+        "hidden": 0,
+        "x": 21,
+        "y": 7,
+        "direction": 2,
+        "level": 0,
+        "jobLevel": 2,
+        "ai": 6,
+        "target": -1,
+        "targetX": 30,
+        "targetY": 30
+      }
+    ],
+    "enemyRecords": [
+      {
+        "person": 45,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 15,
+        "y": 1,
+        "direction": 2,
+        "level": 4,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 759,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 14,
+        "y": 1,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 760,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 16,
+        "y": 1,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 761,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 14,
+        "y": 0,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 762,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 15,
+        "y": 0,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 763,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 16,
+        "y": 0,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 43,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 7,
+        "y": 2,
+        "direction": 2,
+        "level": 3,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 767,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 6,
+        "y": 2,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 768,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 8,
+        "y": 2,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 789,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 6,
+        "y": 1,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 790,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 7,
+        "y": 1,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 791,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 8,
+        "y": 1,
+        "direction": 2,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 44,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 34,
+        "y": 9,
+        "direction": 3,
+        "level": 3,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 764,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 34,
+        "y": 8,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 765,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 34,
+        "y": 10,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 792,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 35,
+        "y": 8,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 793,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 35,
+        "y": 9,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 794,
+        "reinforcement": 0,
+        "hidden": 0,
+        "x": 35,
+        "y": 10,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 57,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 1,
+        "y": 24,
+        "direction": 1,
+        "level": 4,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 70,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 1,
+        "y": 23,
+        "direction": 1,
+        "level": 4,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 766,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 1,
+        "y": 25,
+        "direction": 1,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 769,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 0,
+        "y": 23,
+        "direction": 1,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 770,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 0,
+        "y": 24,
+        "direction": 1,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": 36,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 771,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 0,
+        "y": 25,
+        "direction": 1,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": 36,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 58,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 34,
+        "y": 11,
+        "direction": 3,
+        "level": 4,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": 36,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 171,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 34,
+        "y": 10,
+        "direction": 3,
+        "level": 3,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": 36,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 795,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 34,
+        "y": 12,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 772,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 35,
+        "y": 10,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 773,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 35,
+        "y": 11,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      },
+      {
+        "person": 774,
+        "reinforcement": 0,
+        "hidden": 1,
+        "x": 35,
+        "y": 12,
+        "direction": 3,
+        "level": 1,
+        "jobLevel": 2,
+        "ai": 1,
+        "target": -1,
+        "targetX": 0,
+        "targetY": 0
+      }
+    ],
+    "objectiveTexts": [
+      "승리 조건\n★·유비 퇴각!\n\n패배 조건\n☆·유비 사망.\n☆·20턴 초과."
+    ],
+    "objectivePopups": [
+      "유비 퇴각!"
+    ],
+    "music": [
+      [
+        30
+      ],
+      [
+        114
+      ]
+    ],
+    "turnLimit": [],
+    "operationStart": [
+      []
+    ]
+  },
+  "nextSEventSummary": {
+    "candidateCount": 40,
+    "coreSupportedCount": 40,
+    "unsupportedSections": []
+  },
+  "nextSOutcomeProbe": {
+    "S02-SEC18": [
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 2,
+        "commandHex": "0x02",
+        "params": [
+          "증구价空"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 54,
+        "commandHex": "0x36",
+        "params": [
+          0,
+          7,
+          0,
+          2
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": [
+          80,
+          20,
+          27,
+          83,
+          105,
+          73,
+          14,
+          13,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 80,
+        "commandHex": "0x50",
+        "params": [
+          0,
+          9,
+          1,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 20,
+        "commandHex": "0x14",
+        "params": [
+          "&유비\n도원의 맹세가 물거품이 되다니……"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 27,
+        "commandHex": "0x1B",
+        "params": [
+          0,
+          0
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 83,
+        "commandHex": "0x53",
+        "params": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          6,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 105,
+        "commandHex": "0x69",
+        "params": [
+          "유비가 살해되어 아군이 패배했다."
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 73,
+        "commandHex": "0x49",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 14,
+        "commandHex": "0x0E",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 13,
+        "commandHex": "0x0D",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      }
+    ],
+    "S02-SEC47": [
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 2,
+        "commandHex": "0x02",
+        "params": [
+          ""
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 67,
+        "commandHex": "0x43",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            1
+          ]
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": [
+          105,
+          73,
+          14,
+          11,
+          13,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 105,
+        "commandHex": "0x69",
+        "params": [
+          "아군이 패배했다……"
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 73,
+        "commandHex": "0x49",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 14,
+        "commandHex": "0x0E",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          1,
+          1
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 13,
+        "commandHex": "0x0D",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      }
+    ],
+    "S03-SEC01": [
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 2,
+        "commandHex": "0x02",
+        "params": [
+          ""
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 0,
+        "kind": "Section",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": [
+          36,
+          8,
+          29,
+          0
+        ]
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 36,
+        "commandHex": "0x24",
+        "params": [
+          255
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 8,
+        "commandHex": "0x08",
+        "params": [
+          0
+        ],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 29,
+        "commandHex": "0x1D",
+        "params": [],
+        "childCommandIds": []
+      },
+      {
+        "depth": 1,
+        "kind": "Body",
+        "commandId": 0,
+        "commandHex": "0x00",
+        "params": [],
+        "childCommandIds": []
+      }
+    ]
+  },
+  "nextRDepartureProbe": {
+    "scene": 19,
+    "sectionCount": 9,
+    "commands": [
+      {
+        "section": 1,
+        "depth": 0,
+        "commandId": 7,
+        "commandHex": "0x07",
+        "params": []
+      },
+      {
+        "section": 1,
+        "depth": 2,
+        "commandId": 6,
+        "commandHex": "0x06",
+        "params": [
+          0,
+          0,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1
+        ]
+      },
+      {
+        "section": 1,
+        "depth": 2,
+        "commandId": 13,
+        "commandHex": "0x0D",
+        "params": []
+      },
+      {
+        "section": 2,
+        "depth": 0,
+        "commandId": 45,
+        "commandHex": "0x2D",
+        "params": [
+          2
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            248
+          ],
+          []
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            20
+          ],
+          [
+            248
+          ]
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 2,
+        "commandId": 4,
+        "commandHex": "0x04",
+        "params": [
+          1
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 3,
+        "commandId": 6,
+        "commandHex": "0x06",
+        "params": [
+          1,
+          10,
+          2,
+          3,
+          9,
+          14,
+          17,
+          4,
+          -1,
+          -1,
+          -1,
+          -1
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 3,
+        "commandId": 6,
+        "commandHex": "0x06",
+        "params": [
+          1,
+          10,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 3,
+        "commandId": 6,
+        "commandHex": "0x06",
+        "params": [
+          1,
+          10,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 119,
+        "commandHex": "0x77",
+        "params": [
+          2,
+          4076,
+          2,
+          0,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 119,
+        "commandHex": "0x77",
+        "params": [
+          2,
+          4057,
+          2,
+          0,
+          31
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          0,
+          20,
+          9,
+          0,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          1,
+          23,
+          9,
+          1,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          2,
+          18,
+          11,
+          0,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          3,
+          8,
+          12,
+          0,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          4,
+          9,
+          13,
+          0,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          5,
+          19,
+          7,
+          0,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          6,
+          7,
+          13,
+          0,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          7,
+          24,
+          10,
+          1,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          8,
+          22,
+          12,
+          1,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 4,
+        "commandId": 75,
+        "commandHex": "0x4B",
+        "params": [
+          9,
+          15,
+          10,
+          0,
+          0
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 3,
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          248,
+          1
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            20
+          ]
+        ]
+      },
+      {
+        "section": 2,
+        "depth": 2,
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          20,
+          1
+        ]
+      },
+      {
+        "section": 3,
+        "depth": 0,
+        "commandId": 45,
+        "commandHex": "0x2D",
+        "params": [
+          3
+        ]
+      },
+      {
+        "section": 3,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            21
+          ],
+          []
+        ]
+      },
+      {
+        "section": 3,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            21
+          ]
+        ]
+      },
+      {
+        "section": 3,
+        "depth": 2,
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          21,
+          1
+        ]
+      },
+      {
+        "section": 4,
+        "depth": 0,
+        "commandId": 45,
+        "commandHex": "0x2D",
+        "params": [
+          29
+        ]
+      },
+      {
+        "section": 4,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            22
+          ],
+          []
+        ]
+      },
+      {
+        "section": 4,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            22
+          ]
+        ]
+      },
+      {
+        "section": 4,
+        "depth": 2,
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          22,
+          1
+        ]
+      },
+      {
+        "section": 5,
+        "depth": 0,
+        "commandId": 45,
+        "commandHex": "0x2D",
+        "params": [
+          14
+        ]
+      },
+      {
+        "section": 5,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            23
+          ],
+          []
+        ]
+      },
+      {
+        "section": 5,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            23
+          ]
+        ]
+      },
+      {
+        "section": 5,
+        "depth": 2,
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          23,
+          1
+        ]
+      },
+      {
+        "section": 6,
+        "depth": 0,
+        "commandId": 45,
+        "commandHex": "0x2D",
+        "params": [
+          27
+        ]
+      },
+      {
+        "section": 6,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            24
+          ],
+          []
+        ]
+      },
+      {
+        "section": 6,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            24
+          ]
+        ]
+      },
+      {
+        "section": 6,
+        "depth": 2,
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          24,
+          1
+        ]
+      },
+      {
+        "section": 7,
+        "depth": 0,
+        "commandId": 45,
+        "commandHex": "0x2D",
+        "params": [
+          26
+        ]
+      },
+      {
+        "section": 7,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            25
+          ],
+          []
+        ]
+      },
+      {
+        "section": 7,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            25
+          ]
+        ]
+      },
+      {
+        "section": 7,
+        "depth": 2,
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          25,
+          1
+        ]
+      },
+      {
+        "section": 8,
+        "depth": 0,
+        "commandId": 45,
+        "commandHex": "0x2D",
+        "params": [
+          9
+        ]
+      },
+      {
+        "section": 8,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [
+            26
+          ],
+          []
+        ]
+      },
+      {
+        "section": 8,
+        "depth": 1,
+        "commandId": 5,
+        "commandHex": "0x05",
+        "params": [
+          [],
+          [
+            26
+          ]
+        ]
+      },
+      {
+        "section": 8,
+        "depth": 2,
+        "commandId": 11,
+        "commandHex": "0x0B",
+        "params": [
+          26,
+          1
+        ]
+      },
+      {
+        "section": 9,
+        "depth": 0,
+        "commandId": 45,
+        "commandHex": "0x2D",
+        "params": [
+          17
+        ]
+      }
+    ]
+  }
+}

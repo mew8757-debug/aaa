@@ -1,0 +1,628 @@
+{
+  "version": "4.90.0",
+  "status": "success",
+  "found": true,
+  "source": "RS/S_31.eex",
+  "battleMode": "s31-liubei-retreat",
+  "map": "m031.jpg",
+  "widthTiles": 36,
+  "heightTiles": 32,
+  "playerRoster": {
+    "characterIds": [
+      0,
+      2,
+      3,
+      9,
+      14,
+      17,
+      4,
+      29,
+      27,
+      26
+    ],
+    "selectableCandidates": [
+      2,
+      3,
+      29,
+      14,
+      27,
+      26,
+      9,
+      17
+    ],
+    "source": "R_31 Scene19 source-order 0x06 + 0x2D"
+  },
+  "objectives": {
+    "phase1": {
+      "objectiveText": "승리 조건\n★·유비 퇴각!\n\n패배 조건\n☆·유비 사망.\n☆·20턴 초과.",
+      "popupText": "유비 퇴각!",
+      "turnLimit": 20,
+      "goal": {
+        "type": "liubei-retreat",
+        "targetCharacterId": 0
+      }
+    },
+    "phase2": {
+      "objectiveText": "승리 조건\n★·유비 퇴각!\n\n패배 조건\n☆·유비 사망.\n☆·20턴 초과.",
+      "popupText": "유비 퇴각!",
+      "turnLimit": 20
+    },
+    "protectedCharacterIds": [
+      0
+    ],
+    "protectedCharacters": [
+      {
+        "characterId": 0,
+        "name": "유비"
+      }
+    ],
+    "phase1TransitionEvents": []
+  },
+  "routeModel": {
+    "targetCharacterId": 0,
+    "victorySection": 3,
+    "genericDefeatSection": 47,
+    "defeatByCharacterSections": {
+      "0": 18
+    },
+    "postBattleScene": "S03-SEC01",
+    "turnLimit": 20,
+    "escapeTriggerCandidates": [
+      {
+        "section": 3,
+        "triggers": [
+          {
+            "type": "area",
+            "personCode": 0,
+            "x1": 20,
+            "y1": 30,
+            "x2": 30,
+            "y2": 31
+          }
+        ],
+        "actions": [
+          {
+            "type": "turn",
+            "characterId": 0,
+            "targetId": -1,
+            "direction": 0
+          },
+          {
+            "type": "action",
+            "characterId": 0,
+            "value": 9
+          },
+          {
+            "type": "dialogue",
+            "speaker": "유비",
+            "text": "(조조 놈, 내 목숨을\n그리 쉽게 내줄 줄 알았느냐!)"
+          },
+          {
+            "type": "action",
+            "characterId": 0,
+            "value": 1
+          },
+          {
+            "type": "dialogue",
+            "speaker": "유비",
+            "text": "싸움에 매달리지 말고\n각자 군사를 거두어 물러나라!"
+          },
+          {
+            "type": "hideArea",
+            "x1": 0,
+            "y1": 0,
+            "x2": 30,
+            "y2": 31,
+            "camp": 0
+          },
+          {
+            "type": "action",
+            "characterId": 45,
+            "value": 7
+          },
+          {
+            "type": "dialogue",
+            "speaker": "",
+            "text": "전군은 숲과 마을을 수색하라!\n큰 귀 도적을 놓쳐서는 안 된다!"
+          },
+          {
+            "type": "conditionalIntegerCompare",
+            "variableId": 110,
+            "compare": 1,
+            "value": 7,
+            "actions": [
+              {
+                "type": "sequence",
+                "actions": [
+                  {
+                    "type": "conditionalVariables",
+                    "requireTrueVariables": [
+                      1001
+                    ],
+                    "requireFalseVariables": [],
+                    "actions": [
+                      {
+                        "type": "intVariableOp",
+                        "variableId": 4071,
+                        "operation": 2,
+                        "value": 255
+                      },
+                      {
+                        "type": "dialogue",
+                        "speaker": "",
+                        "text": "111도전 11: 인의 실천【성공!】"
+                      },
+                      {
+                        "type": "delay",
+                        "value": 3
+                      },
+                      {
+                        "type": "sound",
+                        "value": 14
+                      },
+                      {
+                        "type": "dialogue",
+                        "speaker": "",
+                        "text": "☆도전 모드☆【인의 실천】: 성공!"
+                      },
+                      {
+                        "type": "delay",
+                        "value": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "intVariableOp",
+                "variableId": 4080,
+                "operation": 2,
+                "value": 1
+              },
+              {
+                "type": "loot",
+                "category": 0,
+                "slots": [
+                  {
+                    "itemId": 45,
+                    "level": 0
+                  },
+                  {
+                    "itemId": 100,
+                    "level": 0
+                  },
+                  {
+                    "itemId": 89,
+                    "level": 0
+                  }
+                ],
+                "ending": 0
+              },
+              {
+                "type": "intVariableOp",
+                "variableId": 4080,
+                "operation": 2,
+                "value": 0
+              }
+            ]
+          },
+          {
+            "type": "conditionalIntegerCompare",
+            "variableId": 110,
+            "compare": 2,
+            "value": 6,
+            "actions": [
+              {
+                "type": "sequence",
+                "actions": [
+                  {
+                    "type": "conditionalVariables",
+                    "requireTrueVariables": [
+                      1001
+                    ],
+                    "requireFalseVariables": [],
+                    "actions": [
+                      {
+                        "type": "intVariableOp",
+                        "variableId": 4071,
+                        "operation": 2,
+                        "value": 255
+                      },
+                      {
+                        "type": "dialogue",
+                        "speaker": "",
+                        "text": "111도전 11: 인의 실천(실패)"
+                      },
+                      {
+                        "type": "delay",
+                        "value": 3
+                      },
+                      {
+                        "type": "sound",
+                        "value": 16
+                      },
+                      {
+                        "type": "dialogue",
+                        "speaker": "",
+                        "text": "☆도전 모드☆【인의 실천】: 실패!"
+                      },
+                      {
+                        "type": "delay",
+                        "value": 3
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "loot",
+                "category": 0,
+                "slots": [
+                  {
+                    "itemId": 98,
+                    "level": 0
+                  },
+                  {
+                    "itemId": 100,
+                    "level": 0
+                  },
+                  {
+                    "itemId": 89,
+                    "level": 0
+                  }
+                ],
+                "ending": 0
+              }
+            ]
+          },
+          {
+            "type": "battleEndMarker"
+          },
+          {
+            "type": "setVariable",
+            "variableId": 0,
+            "value": 1
+          },
+          {
+            "type": "setVariable",
+            "variableId": 631,
+            "value": 1
+          },
+          {
+            "type": "sceneEnd"
+          }
+        ],
+        "requireTrueVariables": [],
+        "requireFalseVariables": [
+          0
+        ]
+      }
+    ],
+    "annihilationVictory": false
+  },
+  "eventSummary": {
+    "candidateCount": 38,
+    "coreSupportedCount": 38,
+    "rawCandidateCount": 40,
+    "rawCoreSupportedCount": 40,
+    "sections": [
+      {
+        "section": 2,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 4,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 5,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 6,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 7,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 8,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 9,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 10,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 11,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 12,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 13,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 14,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 15,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 3,
+        "nestedSupported": true
+      },
+      {
+        "section": 16,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 17,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 19,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 22,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 23,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 24,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 25,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 26,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 27,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 28,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 29,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 30,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 32,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 35,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 36,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 37,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 38,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 39,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 40,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 41,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 42,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 43,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 44,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 45,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 46,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      }
+    ]
+  },
+  "outcomeKeys": [
+    "defeatByCharacter",
+    "genericDefeat",
+    "postBattle",
+    "victory"
+  ],
+  "skippedActors": [],
+  "r31Story": {
+    "supported": true,
+    "sceneCount": 19,
+    "unsupportedActionIds": [],
+    "nextBattle": "S_31.eex"
+  }
+}

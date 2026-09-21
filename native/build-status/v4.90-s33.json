@@ -1,0 +1,622 @@
+{
+  "version": "4.90.0",
+  "status": "success",
+  "found": true,
+  "source": "RS/S_33.eex",
+  "battleMode": "s33-changban-bridge",
+  "map": "m033.jpg",
+  "widthTiles": 24,
+  "heightTiles": 36,
+  "playerRoster": {
+    "characterIds": [
+      4,
+      2,
+      26
+    ],
+    "source": "S_33 Scene1 forced 0x4A roster"
+  },
+  "objectives": {
+    "phase1": {
+      "objectiveText": "승리 조건\n★장비와 합류하라!\n\n패배 조건\n☆·조운 사망.\n☆·장비 사망.\n☆·25턴 초과.",
+      "popupText": "장비와 합류하라!",
+      "turnLimit": 25,
+      "goal": {
+        "type": "changban-bridge-route",
+        "targetCharacterId": 4
+      }
+    },
+    "phase2": {
+      "objectiveText": "승리 조건\n★장비와 합류하라!\n\n패배 조건\n☆·조운 사망.\n☆·장비 사망.\n☆·25턴 초과.",
+      "popupText": "장비와 합류하라!",
+      "turnLimit": 25
+    },
+    "protectedCharacterIds": [
+      4,
+      2
+    ],
+    "protectedCharacters": [
+      {
+        "characterId": 4,
+        "name": "조운"
+      },
+      {
+        "characterId": 2,
+        "name": "장비"
+      }
+    ],
+    "phase1TransitionEvents": []
+  },
+  "routeModel": {
+    "victorySections": [
+      47,
+      67
+    ],
+    "victoryTriggerCandidates": [
+      {
+        "section": 47,
+        "triggers": [
+          {
+            "type": "campCount",
+            "camp": 3,
+            "value": 22,
+            "compare": 1,
+            "area": false,
+            "x1": 0,
+            "y1": 0,
+            "x2": 0,
+            "y2": 0
+          }
+        ],
+        "requireTrueVariables": [
+          21
+        ],
+        "requireFalseVariables": []
+      }
+    ],
+    "defeatTriggerCandidates": [
+      {
+        "section": 48,
+        "triggers": [
+          {
+            "type": "area",
+            "personCode": 1026,
+            "x1": 15,
+            "y1": 30,
+            "x2": 16,
+            "y2": 30
+          }
+        ],
+        "requireTrueVariables": [
+          13
+        ],
+        "requireFalseVariables": []
+      },
+      {
+        "section": 49,
+        "triggers": [
+          {
+            "type": "unitHpCompare",
+            "characterId": 574,
+            "value": 0,
+            "compare": 2
+          }
+        ],
+        "requireTrueVariables": [
+          6
+        ],
+        "requireFalseVariables": [
+          13
+        ]
+      },
+      {
+        "section": 50,
+        "triggers": [
+          {
+            "type": "unitHpCompare",
+            "characterId": 575,
+            "value": 0,
+            "compare": 2
+          }
+        ],
+        "requireTrueVariables": [
+          6
+        ],
+        "requireFalseVariables": [
+          13
+        ]
+      },
+      {
+        "section": 51,
+        "triggers": [
+          {
+            "type": "unitHpCompare",
+            "characterId": 576,
+            "value": 0,
+            "compare": 2
+          }
+        ],
+        "requireTrueVariables": [
+          6
+        ],
+        "requireFalseVariables": [
+          13
+        ]
+      },
+      {
+        "section": 65,
+        "triggers": [
+          {
+            "type": "unitHpCompare",
+            "characterId": 4,
+            "value": 0,
+            "compare": 2
+          }
+        ],
+        "requireTrueVariables": [],
+        "requireFalseVariables": []
+      },
+      {
+        "section": 66,
+        "triggers": [
+          {
+            "type": "unitHpCompare",
+            "characterId": 2,
+            "value": 0,
+            "compare": 2
+          }
+        ],
+        "requireTrueVariables": [],
+        "requireFalseVariables": []
+      }
+    ],
+    "genericDefeatSection": 68,
+    "postBattleScene": "S03-SEC01",
+    "turnLimit": 25,
+    "bridgeVariables": {
+      "join": 6,
+      "bridgeDefense": 13,
+      "challenge": 21
+    },
+    "genericVictory": {
+      "section": 67,
+      "type": "enemy-annihilation"
+    }
+  },
+  "eventSummary": {
+    "candidateCount": 52,
+    "coreSupportedCount": 52,
+    "rawCandidateCount": 59,
+    "rawCoreSupportedCount": 59,
+    "sections": [
+      {
+        "section": 2,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 3,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 4,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 5,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 3,
+        "nestedSupported": true
+      },
+      {
+        "section": 6,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 7,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 8,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 9,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 10,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 11,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 12,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 13,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 14,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 15,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 16,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 17,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 18,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 19,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 22,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 23,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 24,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 25,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 26,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 27,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 28,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 29,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 30,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 32,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 35,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 36,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 37,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 38,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 39,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 40,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 41,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 42,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 43,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 44,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 45,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 46,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 53,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 54,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 55,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 56,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 57,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 58,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 59,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 60,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 61,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 62,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 63,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 64,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      }
+    ]
+  },
+  "outcomeKeys": [
+    "defeatBySection",
+    "genericDefeat",
+    "postBattle",
+    "victoryBySection"
+  ],
+  "skippedActors": [],
+  "r33Story": {
+    "supported": true,
+    "sceneCount": 3,
+    "unsupportedActionIds": [],
+    "nextBattle": "S_33.eex"
+  }
+}
