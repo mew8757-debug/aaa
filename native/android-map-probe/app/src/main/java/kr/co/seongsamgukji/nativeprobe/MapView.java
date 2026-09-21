@@ -2644,6 +2644,17 @@ public class MapView extends View {
                         return true;
                     }
 
+                    case "revealBattleNumber": {
+                        BattleUnit unit = findUnitByBattleNumber(
+                                action.optInt("battleNumber", -1));
+                        if (unit != null) {
+                            unit.visible = true;
+                        }
+                        activeBattleActionIndex++;
+                        battleEventWaitUntil = now + 100L;
+                        return true;
+                    }
+
                     case "hide":
                     case "retreat": {
                         BattleUnit unit = findUnitByCharacterId(
@@ -10591,6 +10602,15 @@ public class MapView extends View {
     private BattleUnit findUnitByCharacterId(int characterId) {
         for (BattleUnit unit : units) {
             if (unit.characterId == characterId) {
+                return unit;
+            }
+        }
+        return null;
+    }
+
+    private BattleUnit findUnitByBattleNumber(int battleNumber) {
+        for (BattleUnit unit : units) {
+            if (unit.battleNumber == battleNumber) {
                 return unit;
             }
         }
