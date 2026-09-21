@@ -4396,6 +4396,58 @@ def main(argv):
                 next_s_after25_map_name,
             )
 
+        next_r_after26 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 26
+            ),
+            None,
+        )
+        next_s_after26 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 26
+            ),
+            None,
+        )
+        next_r_after26_blob = (
+            read_member_by_basename(
+                game1,
+                next_r_after26["filename"],
+            )
+            if next_r_after26
+            else None
+        )
+        next_s_after26_blob = (
+            read_member_by_basename(
+                game1,
+                next_s_after26["filename"],
+            )
+            if next_s_after26
+            else None
+        )
+        next_s_after26_map_name = (
+            f"m{next_s_after26['number']:03d}.jpg"
+            if next_s_after26
+            else None
+        )
+        next_s_after26_map_bytes = (
+            read_member_by_basename(
+                game2,
+                next_s_after26_map_name,
+            )
+            if next_s_after26_map_name
+            else None
+        )
+        if (
+            next_s_after26_map_bytes is None
+            and next_s_after26_map_name
+        ):
+            next_s_after26_map_bytes = read_member_by_basename(
+                game1,
+                next_s_after26_map_name,
+            )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
