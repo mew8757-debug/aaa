@@ -3067,6 +3067,39 @@ def compile_r26_story(blob):
     )
 
 
+def compile_r27_story(blob):
+    return compile_r_story(
+        blob,
+        "R_27.eex",
+        12,
+        13,
+        "S_27.eex",
+    )
+
+
+def extract_r27_departure_variants(blob):
+    # R27 Scene 13 preserves the same original variable-1051 conditional
+    # 13/12-player roster families as R26, with matching 0x4B slot groups.
+    return [
+        {
+            "requireTrueVariables": [1051],
+            "requireFalseVariables": [],
+            "characterIds": [
+                0, 1, 2, 4, 17, 26, 27,
+                28, 29, 25, 13, 15, 16,
+            ],
+        },
+        {
+            "requireTrueVariables": [],
+            "requireFalseVariables": [1051],
+            "characterIds": [
+                0, 1, 2, 4, 17, 26,
+                27, 28, 29, 25, 13, 15,
+            ],
+        },
+    ]
+
+
 def extract_r26_departure_variants(blob):
     # R26 Scene 9 Section 2 has two original fixed deployment variants
     # selected by scenario variable 1051. Preserve both source rosters.
@@ -6781,6 +6814,53 @@ def main(argv):
     s26 = next_s_after25_blob
     r26_story = compile_r26_story(r26)
     r26_player_variants = extract_r26_departure_variants(r26)
+
+    if (
+        next_r_after26 is None
+        or int(next_r_after26["number"]) != 27
+        or next_s_after26 is None
+        or int(next_s_after26["number"]) != 27
+    ):
+        raise SystemExit(
+            "Expected R_27/S_27 after S26, got "
+            + repr({
+                "nextR": next_r_after26,
+                "nextS": next_s_after26,
+            })
+        )
+    r27 = next_r_after26_blob
+    s27 = next_s_after26_blob
+    r27_story = compile_r27_story(r27)
+    r27_player_variants = extract_r27_departure_variants(r27)
+    s27_init_probe = probe_s01_initialization(s27)
+    s27_init_probe["map"] = post26_map_probe
+    s27_scenes = parse_scenario_tree(s27)
+    s27_event_probe = extract_scene2_native_events(s27_scenes)
+    s27_terminal_sections = {26, 37, 51, 52}
+    s27_native_events = [
+        event for event in s27_event_probe
+        if event["section"] not in s27_terminal_sections
+    ]
+    s27_outcome_events = {
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                s27_scenes, 2, 26
+            ),
+            "4": compile_scenario_section_actions(
+                s27_scenes, 2, 37
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s27_scenes, 2, 51
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s27_scenes, 2, 52
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s27_scenes, 3, 1
+        ),
+    }
+    s27_outcome_probe = probe_battle_outcome_candidates(s27_scenes)
 
     s26_init_probe = probe_s01_initialization(s26)
     s26_init_probe["map"] = post25_map_probe
@@ -13686,6 +13766,7 @@ def main(argv):
         "outcomeEvents": s26_outcome_events,
         "outcomeProbe": s26_outcome_probe,
         "postS26Probe": post_s26_probe,
+        "r27Story": r27_story,
         "routeModel": {
             "escapeCharacterId": 0,
             "escapeX": 1,
@@ -13737,6 +13818,299 @@ def main(argv):
     }
     (battle_dir / "battle26.json").write_text(
         json.dumps(s26_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # R27 -> S27: staged lure battle. Original Scene2 switches from
+    # "lure the enemy" to "defeat the enemy" by setting variable 6 or 8.
+    if not post26_map_probe.get("valid"):
+        raise SystemExit(
+            "M027 map probe invalid: " + repr(post26_map_probe)
+        )
+    if not r27_story.get("supported"):
+        raise SystemExit(
+            "R27 story unsupported: "
+            + repr(r27_story.get("unsupportedActionIds", []))
+        )
+
+    s27_player_slot_groups = []
+    current_slots = []
+    for row in s27_init_probe.get("playerSlots", []):
+        if int(row["slot"]) == 0 and current_slots:
+            s27_player_slot_groups.append(current_slots)
+            current_slots = []
+        current_slots.append(row)
+    if current_slots:
+        s27_player_slot_groups.append(current_slots)
+
+    if len(s27_player_slot_groups) < 2:
+        raise SystemExit(
+            "S27 expected two conditional player-slot groups, got "
+            + repr(s27_player_slot_groups)
+        )
+
+    s27_skipped_actors = []
+    s27_nonplayer_units = []
+    s27_character_ids = set()
+    s27_reserved_player_ids = {
+        int(cid)
+        for variant in r27_player_variants
+        for cid in variant["characterIds"]
+    }
+
+    def make_s27_record(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s27_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            return None
+
+        profile = combat_profile_of(cid, deploy_level)
+        return {
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        }
+
+    s27_player_variants = []
+    for variant_index, variant in enumerate(r27_player_variants):
+        slots = s27_player_slot_groups[variant_index]
+        ids = variant["characterIds"]
+        if len(slots) < len(ids):
+            raise SystemExit(
+                f"S27 variant {variant_index} has "
+                f"{len(slots)} slots for {len(ids)} players"
+            )
+        variant_units = []
+        for slot, cid in zip(slots, ids):
+            record = make_s27_record(
+                cid,
+                PLAYER,
+                bool(slot.get("flag", 0)),
+                slot["x"],
+                slot["y"],
+                slot["direction"],
+                None,
+                None,
+                0,
+                False,
+                f"S_27:0x4B:variant{variant_index}:{slot['slot']}",
+                battle_number=int(slot["slot"]),
+            )
+            if record is None:
+                raise SystemExit(
+                    f"S27 player {cid} invalid sprite"
+                )
+            variant_units.append(record)
+        s27_player_variants.append({
+            "requireTrueVariables":
+                variant["requireTrueVariables"],
+            "requireFalseVariables":
+                variant["requireFalseVariables"],
+            "characterIds": ids,
+            "units": variant_units,
+        })
+
+    next_battle_number = 13
+    for index, row in enumerate(
+        s27_init_probe.get("friendRecords", [])
+    ):
+        cid = int(row["person"])
+        if (
+            cid in s27_reserved_player_ids
+            or cid in s27_character_ids
+        ):
+            continue
+        record = make_s27_record(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_27:0x46:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s27_nonplayer_units.append(record)
+            s27_character_ids.add(cid)
+            next_battle_number += 1
+
+    for index, row in enumerate(
+        s27_init_probe.get("enemyRecords", [])
+    ):
+        cid = int(row["person"])
+        if (
+            cid in s27_reserved_player_ids
+            or cid in s27_character_ids
+        ):
+            continue
+        record = make_s27_record(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_27:0x47:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s27_nonplayer_units.append(record)
+            s27_character_ids.add(cid)
+            next_battle_number += 1
+
+    s27_objective_text = (
+        s27_init_probe["objectiveTexts"][0]
+        if s27_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s27_popup_text = (
+        s27_init_probe["objectivePopups"][0]
+        if s27_init_probe.get("objectivePopups")
+        else ""
+    )
+    s27_turn_limit = objective_turn_limit(
+        s27_objective_text,
+        15,
+    )
+
+    s27_battle = {
+        "version": 109,
+        "source": "RS/S_27.eex",
+        "battleMode": "s27-lure-then-annihilate",
+        "mapId": 27,
+        "map": "m027.jpg",
+        "widthTiles": post26_map_probe["cols"],
+        "heightTiles": post26_map_probe["rows"],
+        "terrainFile": "terrain27.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s27_objective_text,
+                "popupText": s27_popup_text,
+                "turnLimit": s27_turn_limit,
+                "goal": {
+                    "type": "event-driven-lure",
+                    "transitionVariables": [6, 8],
+                },
+            },
+            "phase2": {
+                "objectiveText": (
+                    "승리 조건\n★·적군 격퇴!\n\n패배 조건\n"
+                    "☆·유비 사망.\n☆·15턴 초과."
+                ),
+                "popupText": "적군을 격퇴하라!",
+                "turnLimit": s27_turn_limit,
+                "goal": {"type": "active-enemy-annihilation"},
+            },
+            "protectedCharacterIds": [0],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s27_native_events,
+        "outcomeEvents": s27_outcome_events,
+        "outcomeProbe": s27_outcome_probe,
+        "routeModel": {
+            "lureTransitionVariables": [6, 8],
+            "conditionalZhaoYunDefeatCharacterId": 4,
+            "conditionalZhaoYunDefeatSection": 37,
+            "liuBeiDefeatSection": 26,
+            "victorySection": 51,
+            "genericDefeatSection": 52,
+            "postBattleScene": "S03-SEC01",
+            "turnLimit": s27_turn_limit,
+            "victoryRule": (
+                "after variable 6 or 8 is set, defeat all currently "
+                "active enemy units"
+            ),
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s27_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s27_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s27_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s27_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "unsupportedActions":
+                        event["unsupportedActions"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported":
+                        event["nestedSupported"],
+                }
+                for event in s27_native_events
+            ],
+        },
+        "terrainIds": post26_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s27_skipped_actors,
+        "playerVariants": s27_player_variants,
+        "units": s27_nonplayer_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle27.json").write_text(
+        json.dumps(s27_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
@@ -13863,6 +14237,12 @@ def main(argv):
                 + [
                     unit
                     for variant in s26_player_variants
+                    for unit in variant["units"]
+                ]
+                + s27_nonplayer_units
+                + [
+                    unit
+                    for variant in s27_player_variants
                     for unit in variant["units"]
                 ]
             )
