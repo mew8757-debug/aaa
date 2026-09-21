@@ -1587,7 +1587,7 @@ public class MapView extends View {
                     ? ""
                     : " · " + storyTitle);
         } else if (r25StoryActive) {
-            header = "Native v4.64 | R_25 Scene 
+            header = "Native v4.64 | R_25 Scene "
                     + Math.min(
                     r25StorySceneIndex + 1,
                     r25StoryScenes == null
@@ -9575,7 +9575,6 @@ public class MapView extends View {
                 || r23StoryActive
                 || r24StoryActive
                 || r25StoryActive
-                || r26StoryActive
                 || r26StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
