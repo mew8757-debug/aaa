@@ -8660,7 +8660,7 @@ def main(argv):
         })
 
     s30_battle = {
-        "version": 122,
+        "version": 123,
         "source": "RS/S_30.eex",
         "battleMode": "s30-liuqi-escape",
         "mapId": 30,
