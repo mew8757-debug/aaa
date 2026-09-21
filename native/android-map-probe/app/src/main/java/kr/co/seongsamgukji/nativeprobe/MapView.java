@@ -7980,50 +7980,6 @@ public class MapView extends View {
             return "S_24";
         }
 
-        if (currentBattleIndex == 24) {
-            if (firedBattleSections.contains(3) && battlePhase != 2) {
-                battlePhase = 2;
-                turnLimit = phase2TurnLimit;
-                if (phase2ObjectiveText != null
-                        && !phase2ObjectiveText.isEmpty()) {
-                    objectiveText = phase2ObjectiveText;
-                }
-                if (phase2PopupText != null
-                        && !phase2PopupText.isEmpty()) {
-                    objectivePopupText = phase2PopupText;
-                }
-            }
-
-            for (int characterId : protectedCharacterIds) {
-                BattleUnit unit = findUnitByCharacterId(characterId);
-                if (unit != null && !unit.isAlive()) {
-                    startS24DefeatOutcome(
-                            characterId,
-                            unit.name + " 사망 · 원본 패배 조건");
-                    return;
-                }
-            }
-
-            if (round > turnLimit) {
-                startS24DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-            if (!hasAnyAliveFriendly()) {
-                startS24DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-
-            if (battlePhase == 2
-                    && unitAliveInArea(1, 0, 0, 22, 2)
-                    && unitAliveInArea(327, 0, 0, 22, 2)) {
-                startS24VictoryOutcome();
-            }
-            return;
-        }
 
         if (currentBattleIndex == 23) {
             return "S_23";
@@ -9136,6 +9092,52 @@ public class MapView extends View {
                 || r24StoryActive
                 || phaseTransitionActive
                 || scriptEventActive) {
+            return;
+        }
+
+
+        if (currentBattleIndex == 24) {
+            if (firedBattleSections.contains(3) && battlePhase != 2) {
+                battlePhase = 2;
+                turnLimit = phase2TurnLimit;
+                if (phase2ObjectiveText != null
+                        && !phase2ObjectiveText.isEmpty()) {
+                    objectiveText = phase2ObjectiveText;
+                }
+                if (phase2PopupText != null
+                        && !phase2PopupText.isEmpty()) {
+                    objectivePopupText = phase2PopupText;
+                }
+            }
+
+            for (int characterId : protectedCharacterIds) {
+                BattleUnit unit = findUnitByCharacterId(characterId);
+                if (unit != null && !unit.isAlive()) {
+                    startS24DefeatOutcome(
+                            characterId,
+                            unit.name + " 사망 · 원본 패배 조건");
+                    return;
+                }
+            }
+
+            if (round > turnLimit) {
+                startS24DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+            if (!hasAnyAliveFriendly()) {
+                startS24DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            if (battlePhase == 2
+                    && unitAliveInArea(1, 0, 0, 22, 2)
+                    && unitAliveInArea(327, 0, 0, 22, 2)) {
+                startS24VictoryOutcome();
+            }
             return;
         }
 
