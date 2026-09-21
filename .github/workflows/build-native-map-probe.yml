@@ -1,4 +1,4 @@
-name: Build Native Android Battle v4.57
+name: Build Native Android Battle v4.57.1
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
             /tmp/game2.zip \
             native/android-map-probe/app/src/main/assets
 
-      - name: Build native v4.57 APK
+      - name: Build native v4.57.1 APK
         working-directory: native/android-map-probe
         run: gradle --no-daemon :app:assembleDebug
 
@@ -68,19 +68,19 @@ jobs:
         run: |
           set -euo pipefail
           APK="native/android-map-probe/app/build/outputs/apk/debug/app-debug.apk"
-          OUT="SeongSamgukji-Native-Battle-v4.57.apk"
+          OUT="SeongSamgukji-Native-Battle-v4.57.1.apk"
           cp "${APK}" "${OUT}"
 
-          if gh release view native-battle-v4.57 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload native-battle-v4.57 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
+          if gh release view native-battle-v4.57.1 --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload native-battle-v4.57.1 "${OUT}" --clobber --repo "${GITHUB_REPOSITORY}"
           else
-            gh release create native-battle-v4.57 "${OUT}" --draft \
-              --title "PRIVATE - 성삼국지 Native Battle v4.57" \
-              --notes "Native v4.57은 v4.56의 R23→S23 연속 플레이를 유지하면서 S23 이후 원본 R_24.eex/S_24.eex/M024를 자동 탐색합니다. R24/S24 Scene·Section 구조, S24 초기 배치, 전장 이벤트 지원률, 승패 후보, M024 지형 메타데이터를 build-status에 기록해 다음 버전에서 추측 없이 R24→S24를 연결합니다. 공개 배포하지 마세요." \
+            gh release create native-battle-v4.57.1 "${OUT}" --draft \
+              --title "PRIVATE - 성삼국지 Native Battle v4.57.1" \
+              --notes "Native v4.57.1은 v4.57의 S23 이후 R24/S24 probe를 유지하면서 S24 핵심 미지원 Section 3/22/23과 승패 Section 83/84/102/103, Scene3 정리의 전체 원본 트리를 build-status에 추가 기록합니다. 0x04 문의 테스트와 0x4C 변형의 정확한 실행 의미를 확정한 뒤 v4.58에서 R24→S24 실제 연속 플레이로 연결합니다. 공개 배포하지 마세요." \
               --repo "${GITHUB_REPOSITORY}"
           fi
 
-      - name: Record v4.57 build status
+      - name: Record v4.57.1 build status
         if: always()
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -96,7 +96,7 @@ jobs:
           from pathlib import Path
 
           status = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "sourceCommit": os.environ["BUILD_SHA"],
               "status": os.environ["BUILD_STATUS"],
               "turnLoop": True,
@@ -917,7 +917,7 @@ jobs:
               "native/android-map-probe/app/src/main/assets/battle/battle9.json"
           )
           compact = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "sourceCommit": os.environ["GITHUB_SHA"],
               "status": os.environ["BUILD_STATUS"],
           }
@@ -2423,7 +2423,7 @@ jobs:
           post_s20 = s20_compact.get("postS20Probe", {})
           next_21 = s20_compact.get("nextScenarioProbe", {})
           r21_small = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "status": os.environ["BUILD_STATUS"],
               "r21": next_21.get("R_21.eex", {}),
               "s21": next_21.get("S_21.eex", {}),
@@ -2444,7 +2444,7 @@ jobs:
               ),
               "battle21": compact.get("s21Battle", {}),
           }
-          Path("native/build-status/v4.57-r21.json").write_text(
+          Path("native/build-status/v4.57.1-r21.json").write_text(
               json.dumps(
                   r21_small,
                   ensure_ascii=False,
@@ -2457,7 +2457,7 @@ jobs:
           post_s21 = s21_compact.get("postS21Probe", {})
           next_22 = s21_compact.get("nextScenarioProbe", {})
           r22_small = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "status": os.environ["BUILD_STATUS"],
               "r22": next_22.get("R_22.eex", {}),
               "s22": next_22.get("S_22.eex", {}),
@@ -2476,7 +2476,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57-r22.json").write_text(
+          Path("native/build-status/v4.57.1-r22.json").write_text(
               json.dumps(
                   r22_small,
                   ensure_ascii=False,
@@ -2489,7 +2489,7 @@ jobs:
           post_s22 = s22_compact.get("postS22Probe", {})
           next_23 = s22_compact.get("nextScenarioProbe", {})
           r23_small = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "status": os.environ["BUILD_STATUS"],
               "r23": next_23.get("R_23.eex", {}),
               "s23": next_23.get("S_23.eex", {}),
@@ -2521,7 +2521,7 @@ jobs:
               ),
               "battle23": compact.get("s23Battle", {}),
           }
-          Path("native/build-status/v4.57-r23.json").write_text(
+          Path("native/build-status/v4.57.1-r23.json").write_text(
               json.dumps(
                   r23_small,
                   ensure_ascii=False,
@@ -2534,7 +2534,7 @@ jobs:
           post_s23 = s23_compact.get("postS23Probe", {})
           next_24 = s23_compact.get("nextScenarioProbe", {})
           r24_small = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "status": os.environ["BUILD_STATUS"],
               "r24": next_24.get("R_24.eex", {}),
               "s24": next_24.get("S_24.eex", {}),
@@ -2548,8 +2548,12 @@ jobs:
                   "S24OutcomeProbe",
                   {},
               ),
+              "s24RouteProbe": post_s23.get(
+                  "S24RouteProbe",
+                  {},
+              ),
           }
-          Path("native/build-status/v4.57-r24.json").write_text(
+          Path("native/build-status/v4.57.1-r24.json").write_text(
               json.dumps(
                   r24_small,
                   ensure_ascii=False,
@@ -2565,7 +2569,7 @@ jobs:
           post_s19 = s19_compact.get("postS19Probe", {})
           next_20 = s19_compact.get("nextScenarioProbe", {})
           r20_small = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "status": os.environ["BUILD_STATUS"],
               "r20": next_20.get("R_20.eex", {}),
               "s20": next_20.get("S_20.eex", {}),
@@ -2584,7 +2588,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57-r20.json").write_text(
+          Path("native/build-status/v4.57.1-r20.json").write_text(
               json.dumps(
                   r20_small,
                   ensure_ascii=False,
@@ -2597,7 +2601,7 @@ jobs:
           post_s18 = s18_compact.get("postS18Probe", {})
           next_19 = s18_compact.get("nextScenarioProbe", {})
           r19_small = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "status": os.environ["BUILD_STATUS"],
               "r19": next_19.get("R_19.eex", {}),
               "s19": next_19.get("S_19.eex", {}),
@@ -2616,7 +2620,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57-r19.json").write_text(
+          Path("native/build-status/v4.57.1-r19.json").write_text(
               json.dumps(
                   r19_small,
                   ensure_ascii=False,
@@ -2628,12 +2632,12 @@ jobs:
 
           s22_compact = compact.get("s22Battle", {})
           r22_small = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "status": os.environ["BUILD_STATUS"],
               "r22Story": battle21.get("r22Story", {}) if battle21_path.exists() else {},
               "battle22": s22_compact,
           }
-          Path("native/build-status/v4.57-r22.json").write_text(
+          Path("native/build-status/v4.57.1-r22.json").write_text(
               json.dumps(
                   r22_small,
                   ensure_ascii=False,
@@ -2642,7 +2646,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.57-summary.json").write_text(
+          Path("native/build-status/v4.57.1-summary.json").write_text(
               json.dumps(
                   compact,
                   ensure_ascii=False,
@@ -2655,7 +2659,7 @@ jobs:
           post_s17 = s17_compact.get("postS17Probe", {})
           next_probe = s17_compact.get("nextScenarioProbe", {})
           r18_small = {
-              "version": "4.57.0",
+              "version": "4.57.1",
               "status": os.environ["BUILD_STATUS"],
               "r18": next_probe.get("R_18.eex", {}),
               "s18": next_probe.get("S_18.eex", {}),
@@ -2675,7 +2679,7 @@ jobs:
                   {},
               ),
           }
-          Path("native/build-status/v4.57-r18.json").write_text(
+          Path("native/build-status/v4.57.1-r18.json").write_text(
               json.dumps(
                   r18_small,
                   ensure_ascii=False,
@@ -2684,7 +2688,7 @@ jobs:
               encoding="utf-8",
           )
 
-          Path("native/build-status/v4.57.json").write_text(
+          Path("native/build-status/v4.57.1.json").write_text(
               json.dumps(status, ensure_ascii=False, separators=(",", ":")) + "\n",
               encoding="utf-8",
           )
@@ -2692,11 +2696,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add native/build-status/v4.57.json native/build-status/v4.57-summary.json native/build-status/v4.57-r18.json native/build-status/v4.57-r19.json native/build-status/v4.57-r20.json native/build-status/v4.57-r21.json native/build-status/v4.57-r22.json native/build-status/v4.57-r23.json native/build-status/v4.57-r24.json
+          git add native/build-status/v4.57.1.json native/build-status/v4.57.1-summary.json native/build-status/v4.57.1-r18.json native/build-status/v4.57.1-r19.json native/build-status/v4.57.1-r20.json native/build-status/v4.57.1-r21.json native/build-status/v4.57.1-r22.json native/build-status/v4.57.1-r23.json native/build-status/v4.57.1-r24.json
 
           if git diff --cached --quiet; then
             exit 0
           fi
 
-          git commit -m "Record native v4.57 build status"
+          git commit -m "Record native v4.57.1 build status"
           git push
