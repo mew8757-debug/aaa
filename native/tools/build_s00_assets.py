@@ -13470,6 +13470,110 @@ def main(argv):
         25,
     )
 
+    post_s26_probe = {
+        "inventoryAfter26": [
+            row
+            for row in rs_inventory
+            if row["number"] > 26
+        ],
+        "nextR": (
+            {
+                **next_r_after26,
+                "probe": build_next_scenario_probe(
+                    next_r_after26["filename"],
+                    next_r_after26_blob,
+                ),
+            }
+            if next_r_after26
+            else None
+        ),
+        "nextS": (
+            {
+                **next_s_after26,
+                "probe": build_next_scenario_probe(
+                    next_s_after26["filename"],
+                    next_s_after26_blob,
+                ),
+            }
+            if next_s_after26
+            else None
+        ),
+        "nextMap": post26_map_probe,
+        "nextSInit": (
+            probe_s01_initialization(next_s_after26_blob)
+            if next_s_after26_blob
+            else None
+        ),
+        "nextSEventSummary": None,
+        "nextSOutcomeProbe": None,
+        "nextRDepartureProbe": None,
+    }
+    if (
+        next_s_after26_blob
+        and next_s_after26_blob.startswith(b"EEX")
+    ):
+        post26_scenes = parse_scenario_tree(
+            next_s_after26_blob
+        )
+        post26_events = extract_scene2_native_events(
+            post26_scenes
+        )
+        post_s26_probe["nextSEventSummary"] = {
+            "candidateCount": len(post26_events),
+            "coreSupportedCount": sum(
+                1
+                for event in post26_events
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                }
+                for event in post26_events
+                if not event["coreSupported"]
+            ],
+        }
+        post_s26_probe["nextSOutcomeProbe"] = (
+            probe_battle_outcome_candidates(post26_scenes)
+        )
+
+    if (
+        next_r_after26_blob
+        and next_r_after26_blob.startswith(b"EEX")
+    ):
+        next_r_scenes = parse_scenario_tree(next_r_after26_blob)
+        if next_r_scenes:
+            departure_scene_number = len(next_r_scenes)
+            departure_flat = flatten_scenario_nodes(
+                [next_r_scenes[-1]]
+            )
+            post_s26_probe["nextRDepartureProbe"] = {
+                "scene": departure_scene_number,
+                "sectionCount": len(
+                    next_r_scenes[-1]["sections"]
+                ),
+                "commands": [
+                    {
+                        "section": row["section"],
+                        "depth": row["depth"],
+                        "commandId": row["commandId"],
+                        "commandHex": f"0x{row['commandId']:02X}",
+                        "params": row["params"],
+                    }
+                    for row in departure_flat
+                    if row["commandId"] in {
+                        0x06, 0x07, 0x0D, 0x11,
+                        0x12, 0x13, 0x2D,
+                    }
+                ],
+            }
+
     s26_battle = {
         "version": 105,
         "source": "RS/S_26.eex",
@@ -13510,6 +13614,7 @@ def main(argv):
         "battleEvents": s26_native_events,
         "outcomeEvents": s26_outcome_events,
         "outcomeProbe": s26_outcome_probe,
+        "postS26Probe": post_s26_probe,
         "routeModel": {
             "escapeCharacterId": 0,
             "escapeX": 1,
