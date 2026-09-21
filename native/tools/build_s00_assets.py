@@ -5288,6 +5288,16 @@ def main(argv):
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
+    post26_map_probe = {
+        "filename": next_s_after26_map_name,
+        "found": next_s_after26_map_bytes is not None,
+        "hexzmapEntry": (
+            next_s_after26["number"]
+            if next_s_after26
+            else None
+        ),
+    }
+
     post25_map_probe = {
         "filename": next_s_after25_map_name,
         "found": next_s_after25_map_bytes is not None,
@@ -5395,6 +5405,52 @@ def main(argv):
             })
         except Exception as exc:
             post25_map_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    if (
+        next_s_after26
+        and next_s_after26_map_bytes is not None
+    ):
+        try:
+            post26_map_width, post26_map_height = jpeg_dimensions(
+                next_s_after26_map_bytes
+            )
+            if (
+                post26_map_width % 48 != 0
+                or post26_map_height % 48 != 0
+            ):
+                raise ValueError(
+                    "post-S26 map dimensions not divisible by 48: "
+                    f"{post26_map_width}x{post26_map_height}"
+                )
+            post26_map_cols = post26_map_width // 48
+            post26_map_rows = post26_map_height // 48
+            post26_terrain_cells = extract_hexzmap_cells(
+                hexz,
+                next_s_after26["number"],
+                post26_map_cols,
+                post26_map_rows,
+            )
+            (map_dir / next_s_after26_map_name).write_bytes(
+                next_s_after26_map_bytes
+            )
+            (
+                battle_dir
+                / f"terrain{next_s_after26['number']}.bin"
+            ).write_bytes(post26_terrain_cells)
+            post26_map_probe.update({
+                "valid": True,
+                "width": post26_map_width,
+                "height": post26_map_height,
+                "cols": post26_map_cols,
+                "rows": post26_map_rows,
+                "terrainCellCount": len(post26_terrain_cells),
+                "terrainIds": sorted(set(post26_terrain_cells)),
+            })
+        except Exception as exc:
+            post26_map_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
