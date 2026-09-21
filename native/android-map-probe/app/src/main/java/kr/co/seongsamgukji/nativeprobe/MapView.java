@@ -8805,60 +8805,6 @@ public class MapView extends View {
             return "S_28";
         }
 
-        if (currentBattleIndex == 28) {
-            BattleUnit liuBei = findUnitByCharacterId(0);
-            if (liuBei != null && !liuBei.isAlive()) {
-                startS28DefeatOutcome(
-                        0,
-                        liuBei.name + " 체포/사망 · 원본 패배 조건");
-                return;
-            }
-
-            BattleUnit specialNpc = findUnitByCharacterId(338);
-            if (specialNpc != null && !specialNpc.isAlive()) {
-                startS28DefeatOutcome(
-                        338,
-                        specialNpc.name + " 사망 · 원본 패배 조건");
-                return;
-            }
-
-            BattleUnit caiMao = findUnitByCharacterId(156);
-            if (caiMao != null && !caiMao.isAlive()) {
-                startS28DefeatOutcome(
-                        156,
-                        caiMao.name + " 사망 · 원본 패배 조건");
-                return;
-            }
-
-            if (scenarioVariables.getOrDefault(9, 0) != 0
-                    && battlePhase != 2) {
-                battlePhase = 2;
-                turnLimit = phase2TurnLimit;
-                if (phase2ObjectiveText != null
-                        && !phase2ObjectiveText.isEmpty()) {
-                    objectiveText = phase2ObjectiveText;
-                }
-                if (phase2PopupText != null
-                        && !phase2PopupText.isEmpty()) {
-                    objectivePopupText = phase2PopupText;
-                }
-            }
-
-            if (round > turnLimit) {
-                startS28DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-
-            if (scenarioVariables.getOrDefault(0, 0) != 0) {
-                startS28VictoryOutcome();
-                return;
-            }
-
-            return;
-        }
-
         if (currentBattleIndex == 27) {
             return "S_27";
         }
