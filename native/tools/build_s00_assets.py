@@ -747,7 +747,7 @@ def native_action_from_node(node):
     if (
         cid == 0x78
         and len(params) >= 4
-        and int(params[3]) in (0, 1, 7, 8, 20, 21, 22, 32, 33, 34)
+        and int(params[3]) in (0, 1, 7, 8, 20, 21, 22, 26, 32, 33, 34)
     ):
         return {
             "type": "unitAttributeTransfer",
@@ -3075,6 +3075,52 @@ def compile_r27_story(blob):
         13,
         "S_27.eex",
     )
+
+
+def compile_r28_story(blob):
+    return compile_r_story(
+        blob,
+        "R_28.eex",
+        14,
+        15,
+        "S_28.eex",
+    )
+
+
+def extract_r28_departure_players(blob):
+    # R28 Scene 15 exposes four selectable companions through 0x2D.
+    # The native deployment UI is not yet generalized, so preserve source
+    # order and use Liu Bei + the first original candidate for the two
+    # S28 player slots. Keep the full selectable pool as metadata.
+    roster = [0]
+    selectable = []
+    if blob is None or not blob.startswith(b"EEX"):
+        return roster, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 15:
+        return roster, selectable
+
+    for section in sorted(
+        scenes[14]["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            if node["commandId"] == 0x2D and node["params"]:
+                value = node["params"][0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in selectable
+                ):
+                    selectable.append(int(value))
+            stack.extend(node["children"])
+
+    if selectable:
+        roster.append(selectable[0])
+    return roster[:2], selectable
 
 
 def extract_r27_departure_variants(blob):
@@ -7135,7 +7181,314 @@ def main(argv):
                 ],
             }
 
+
+    r28 = next_r_after27_blob
+    s28 = next_s_after27_blob
+    r28_story = compile_r28_story(r28)
+    r28_players, r28_selectable_players = (
+        extract_r28_departure_players(r28)
+    )
+
+    s28_init_probe = probe_s01_initialization(s28)
+    s28_init_probe["map"] = post27_map_probe
+    s28_scenes = parse_scenario_tree(s28)
+    s28_event_probe = extract_scene2_native_events(s28_scenes)
+    s28_terminal_sections = {55, 56, 57, 58, 59}
+    s28_native_events = [
+        event for event in s28_event_probe
+        if event["section"] not in s28_terminal_sections
+    ]
+    s28_outcome_events = {
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                s28_scenes, 2, 55
+            ),
+            "338": compile_scenario_section_actions(
+                s28_scenes, 2, 56
+            ),
+            "156": compile_scenario_section_actions(
+                s28_scenes, 2, 57
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s28_scenes, 2, 58
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s28_scenes, 2, 59
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s28_scenes, 3, 1
+        ),
+    }
+    s28_outcome_probe = probe_battle_outcome_candidates(s28_scenes)
+
+    s28_skipped_actors = []
+    s28_units = []
+    s28_character_ids = set()
+
+    def make_s28_record(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s28_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            return None
+        profile = combat_profile_of(cid, deploy_level)
+        return {
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        }
+
+    s28_slots = sorted(
+        s28_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    if len(s28_slots) < len(r28_players):
+        raise SystemExit(
+            "S28 player slots insufficient: "
+            + repr(s28_slots)
+        )
+
+    for slot, cid in zip(s28_slots, r28_players):
+        record = make_s28_record(
+            cid,
+            PLAYER,
+            bool(slot.get("flag", 0)),
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_28:0x4B:{slot['slot']}",
+            battle_number=int(slot["slot"]),
+        )
+        if record is None:
+            raise SystemExit(f"S28 player {cid} invalid sprite")
+        s28_units.append(record)
+        s28_character_ids.add(int(cid))
+
+    next_battle_number = len(r28_players)
+    for index, row in enumerate(
+        s28_init_probe.get("friendRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s28_character_ids:
+            continue
+        record = make_s28_record(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_28:0x46:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s28_units.append(record)
+            s28_character_ids.add(cid)
+            next_battle_number += 1
+
+    for index, row in enumerate(
+        s28_init_probe.get("enemyRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s28_character_ids:
+            continue
+        record = make_s28_record(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_28:0x47:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s28_units.append(record)
+            s28_character_ids.add(cid)
+            next_battle_number += 1
+
+    s28_objective_text = (
+        s28_init_probe["objectiveTexts"][0]
+        if s28_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s28_popup_text = (
+        s28_init_probe["objectivePopups"][0]
+        if s28_init_probe.get("objectivePopups")
+        else ""
+    )
+    s28_turn_limit = objective_turn_limit(
+        s28_objective_text,
+        25,
+    )
+
+    s28_battle = {
+        "version": 112,
+        "source": "RS/S_28.eex",
+        "battleMode": "s28-xiangyang-escape",
+        "mapId": 28,
+        "map": "m028.jpg",
+        "widthTiles": post27_map_probe["cols"],
+        "heightTiles": post27_map_probe["rows"],
+        "terrainFile": "terrain28.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s28_objective_text,
+                "popupText": s28_popup_text,
+                "turnLimit": s28_turn_limit,
+                "goal": {
+                    "type": "escape-area",
+                    "characterId": 0,
+                    "x1": 4,
+                    "y1": 4,
+                    "x2": 5,
+                    "y2": 5,
+                },
+            },
+            "phase2": {
+                "objectiveText": (
+                    "승리 조건\n★·양양 탈출.\n"
+                    "패배 조건\n☆·유비 체포.\n"
+                    "☆·채모 사망.\n☆·35턴 초과."
+                ),
+                "popupText": "유비를 탈출시켜라!",
+                "turnLimit": 35,
+            },
+            "protectedCharacterIds": [0],
+            "protectedCharacters": [
+                {"characterId": 0, "name": name_of(0)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s28_native_events,
+        "outcomeEvents": s28_outcome_events,
+        "outcomeProbe": s28_outcome_probe,
+        "routeModel": {
+            "escapeCharacterId": 0,
+            "escapeArea": {"x1": 4, "y1": 4, "x2": 5, "y2": 5},
+            "phase2SignalVariable": 9,
+            "victorySignalVariable": 0,
+            "completionVariable": 628,
+            "specialHorse": {
+                "attribute": 26,
+                "auxiliaryCode": 130,
+                "section": 9,
+                "interpretation": "Liu Bei auxiliary equipment == 130",
+            },
+            "liuBeiDefeatSection": 55,
+            "specialNpcDefeatCharacterId": 338,
+            "specialNpcDefeatSection": 56,
+            "caiMaoCharacterId": 156,
+            "caiMaoDefeatSection": 57,
+            "victorySection": 58,
+            "genericDefeatSection": 59,
+            "postBattleScene": "S03-SEC01",
+            "initialTurnLimit": s28_turn_limit,
+            "phase2TurnLimit": 35,
+        },
+        "deploymentModel": {
+            "defaultPlayers": r28_players,
+            "selectableCompanions": r28_selectable_players,
+            "note": (
+                "R28 Scene15 exposes four 0x2D selectable companions; "
+                "until the generic deployment-selection UI is added, "
+                "the first source-order companion fills S28 slot 1."
+            ),
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s28_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s28_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s28_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s28_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "unsupportedActions":
+                        event["unsupportedActions"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported":
+                        event["nestedSupported"],
+                }
+                for event in s28_native_events
+            ],
+        },
+        "terrainIds": post27_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s28_skipped_actors,
+        "units": s28_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle28.json").write_text(
+        json.dumps(s28_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     s26_init_probe = probe_s01_initialization(s26)
+
     s26_init_probe["map"] = post25_map_probe
     s26_scenes = parse_scenario_tree(s26)
     s26_event_probe = extract_scene2_native_events(s26_scenes)
@@ -14331,6 +14684,7 @@ def main(argv):
         "outcomeEvents": s27_outcome_events,
         "outcomeProbe": s27_outcome_probe,
         "postS27Probe": post_s27_probe,
+        "r28Story": r28_story,
         "routeModel": {
             "lureTransitionVariables": [6, 8],
             "conditionalZhaoYunDefeatCharacterId": 4,
@@ -14519,6 +14873,7 @@ def main(argv):
                     for variant in s27_player_variants
                     for unit in variant["units"]
                 ]
+                + s28_units
             )
         }
         | s09_special_sprite_ids
