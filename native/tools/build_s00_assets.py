@@ -3107,6 +3107,99 @@ def compile_r30_story(blob):
     )
 
 
+def compile_r31_story(blob):
+    return compile_r_story(
+        blob,
+        "R_31.eex",
+        18,
+        19,
+        "S_31.eex",
+    )
+
+
+def extract_r31_departure_players(blob, slot_count):
+    # R31 Scene 19 uses Liu Bei as the continuing leader, then a mode-1
+    # 0x06 list plus 0x2D selectable candidates. Preserve source order,
+    # deduplicate, and take exactly the original S31 slot count.
+    roster = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return roster[:slot_count], selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 19:
+        return roster[:slot_count], selectable
+
+    departure = scenes[18]
+    fixed = []
+    candidates = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if (
+                cid == 0x06
+                and len(params) >= 3
+                and isinstance(params[0], int)
+                and int(params[0]) == 1
+            ):
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed
+                    ):
+                        fixed.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in candidates
+                ):
+                    candidates.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed:
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    for cid in candidates:
+        if cid not in selectable:
+            selectable.append(cid)
+        if cid not in seen:
+            roster.append(cid)
+            seen.add(cid)
+
+    return roster[:slot_count], selectable
+
+
+def action_tree_contains_type(actions, wanted):
+    for action in actions or []:
+        if not isinstance(action, dict):
+            continue
+        if action.get("type") in wanted:
+            return True
+        if action_tree_contains_type(action.get("actions", []), wanted):
+            return True
+        for case in action.get("cases", []) or []:
+            if action_tree_contains_type(case.get("actions", []), wanted):
+                return True
+    return False
+
+
 def extract_forced_player_roster(blob, slot_count):
     if blob is None or not blob.startswith(b"EEX"):
         return []
