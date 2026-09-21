@@ -9778,20 +9778,21 @@ def main(argv):
                     event.get("requireFalseVariables", []),
             })
 
-    if len(s32_victory_candidates) != 1:
+    s32_victory_sections = sorted(
+        int(row["section"])
+        for row in s32_victory_candidates
+    )
+    if s32_victory_sections != [9, 10]:
         raise SystemExit(
-            "Expected exactly one S32 victory event: "
+            "Expected S32 victory sections 9/10, got "
             + repr(s32_victory_candidates)
         )
 
-    s32_victory_section = int(
-        s32_victory_candidates[0]["section"]
-    )
     s32_terminal_sections = {
         55,
         56,
         57,
-        s32_victory_section,
+        *s32_victory_sections,
     }
     s32_native_events = [
         event for event in s32_event_probe
@@ -9806,11 +9807,14 @@ def main(argv):
                 s32_scenes, 2, 56
             ),
         },
-        "victory": compile_scenario_section_actions(
-            s32_scenes,
-            2,
-            s32_victory_section,
-        ),
+        "victoryBySection": {
+            str(section): compile_scenario_section_actions(
+                s32_scenes,
+                2,
+                section,
+            )
+            for section in s32_victory_sections
+        },
         "genericDefeat": compile_scenario_section_actions(
             s32_scenes, 2, 57
         ),
@@ -10014,7 +10018,7 @@ def main(argv):
         "outcomeProbe": s32_outcome_probe,
         "routeModel": {
             "targetCharacterId": 4,
-            "victorySection": s32_victory_section,
+            "victorySections": s32_victory_sections,
             "victoryTriggerCandidates": s32_victory_candidates,
             "genericDefeatSection": 57,
             "defeatByCharacterSections": {
