@@ -3097,6 +3097,46 @@ def compile_r29_story(blob):
     )
 
 
+def compile_r30_story(blob):
+    return compile_r_story(
+        blob,
+        "R_30.eex",
+        26,
+        27,
+        "S_30.eex",
+    )
+
+
+def extract_forced_player_roster(blob, slot_count):
+    if blob is None or not blob.startswith(b"EEX"):
+        return []
+    scenes = parse_scenario_tree(blob)
+    if not scenes or not scenes[0]["sections"]:
+        return []
+
+    for section in scenes[0]["sections"]:
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            if node["commandId"] == 0x4A:
+                params = node["params"]
+                if (
+                    len(params) >= slot_count + 1
+                    and isinstance(params[0], int)
+                    and int(params[0]) == slot_count
+                ):
+                    ids = [
+                        int(value)
+                        for value in params[1:1 + slot_count]
+                        if isinstance(value, int)
+                        and 0 <= int(value) < 1024
+                    ]
+                    if len(ids) == slot_count:
+                        return ids
+            stack.extend(node["children"])
+    return []
+
+
 def extract_r29_departure_variants(blob):
     variants = []
     if blob is None or not blob.startswith(b"EEX"):
@@ -8390,6 +8430,326 @@ def main(argv):
         json.dumps(s28_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    r30 = next_r_after29_blob
+    s30 = next_s_after29_blob
+    r30_story = compile_r30_story(r30)
+
+    if (
+        next_r_after29 is None
+        or int(next_r_after29["number"]) != 30
+        or next_s_after29 is None
+        or int(next_s_after29["number"]) != 30
+    ):
+        raise SystemExit(
+            "Expected R_30/S_30 after S29, got "
+            + repr({
+                "nextR": next_r_after29,
+                "nextS": next_s_after29,
+            })
+        )
+    if not post29_map_probe.get("valid"):
+        raise SystemExit(
+            "M030 map probe invalid: " + repr(post29_map_probe)
+        )
+    if not r30_story.get("supported"):
+        raise SystemExit(
+            "R30 story unsupported: "
+            + repr(r30_story.get("unsupportedActionIds", []))
+        )
+
+    s30_init_probe = probe_s01_initialization(s30)
+    s30_init_probe["map"] = post29_map_probe
+    s30_scenes = parse_scenario_tree(s30)
+    s30_event_probe = extract_scene2_native_events(s30_scenes)
+    s30_terminal_sections = {18, 24, 25}
+    s30_native_events = [
+        event for event in s30_event_probe
+        if event["section"] not in s30_terminal_sections
+    ]
+    s30_outcome_events = {
+        "defeatByCharacter": {
+            "151": compile_scenario_section_actions(
+                s30_scenes, 2, 18
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s30_scenes, 2, 24
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s30_scenes, 2, 25
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s30_scenes, 3, 1
+        ),
+    }
+    s30_outcome_probe = probe_battle_outcome_candidates(s30_scenes)
+
+    s30_slots = sorted(
+        s30_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    s30_player_ids = extract_forced_player_roster(
+        s30,
+        len(s30_slots),
+    )
+    if len(s30_player_ids) != len(s30_slots):
+        raise SystemExit(
+            "S30 forced roster/slot mismatch: "
+            + repr({
+                "players": s30_player_ids,
+                "slots": s30_slots,
+                "forcedRaw": s30_init_probe.get("forcedPlayers", []),
+            })
+        )
+
+    s30_units = []
+    s30_skipped_actors = []
+    s30_character_ids = set()
+
+    def make_s30_record(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s30_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            return None
+        profile = combat_profile_of(cid, deploy_level)
+        return {
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        }
+
+    for slot, cid in zip(s30_slots, s30_player_ids):
+        record = make_s30_record(
+            cid,
+            PLAYER,
+            bool(slot.get("flag", 0)),
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_30:0x4B:{slot['slot']}",
+            battle_number=int(slot["slot"]),
+        )
+        if record is None:
+            raise SystemExit(f"S30 player {cid} invalid sprite")
+        s30_units.append(record)
+        s30_character_ids.add(int(cid))
+
+    next_battle_number = len(s30_units)
+    for index, row in enumerate(
+        s30_init_probe.get("friendRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s30_character_ids:
+            continue
+        record = make_s30_record(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_30:0x46:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s30_units.append(record)
+            s30_character_ids.add(cid)
+            next_battle_number += 1
+
+    for index, row in enumerate(
+        s30_init_probe.get("enemyRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s30_character_ids:
+            continue
+        record = make_s30_record(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_30:0x47:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s30_units.append(record)
+            s30_character_ids.add(cid)
+            next_battle_number += 1
+
+    s30_objective_text = (
+        s30_init_probe["objectiveTexts"][0]
+        if s30_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s30_popup_text = (
+        s30_init_probe["objectivePopups"][0]
+        if s30_init_probe.get("objectivePopups")
+        else ""
+    )
+    s30_turn_limit = objective_turn_limit(
+        s30_objective_text,
+        20,
+    )
+
+    s30_escape_candidates = []
+    for event in s30_native_events:
+        matching = [
+            trigger for trigger in event.get("triggers", [])
+            if (
+                trigger.get("type") in {"position", "area"}
+                and int(trigger.get("personCode", -1)) == 151
+            )
+        ]
+        if not matching:
+            continue
+        s30_escape_candidates.append({
+            "section": event["section"],
+            "triggers": matching,
+            "actions": event.get("actions", []),
+            "requireTrueVariables":
+                event.get("requireTrueVariables", []),
+            "requireFalseVariables":
+                event.get("requireFalseVariables", []),
+        })
+
+    s30_battle = {
+        "version": 122,
+        "source": "RS/S_30.eex",
+        "battleMode": "s30-liuqi-escape",
+        "mapId": 30,
+        "map": "m030.jpg",
+        "widthTiles": post29_map_probe["cols"],
+        "heightTiles": post29_map_probe["rows"],
+        "terrainFile": "terrain30.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s30_objective_text,
+                "popupText": s30_popup_text,
+                "turnLimit": s30_turn_limit,
+                "goal": {
+                    "type": "liuqi-escape-or-annihilation",
+                    "targetCharacterId": 151,
+                },
+            },
+            "phase2": {
+                "objectiveText": s30_objective_text,
+                "popupText": s30_popup_text,
+                "turnLimit": s30_turn_limit,
+            },
+            "protectedCharacterIds": [151],
+            "protectedCharacters": [
+                {"characterId": 151, "name": name_of(151)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s30_native_events,
+        "outcomeEvents": s30_outcome_events,
+        "outcomeProbe": s30_outcome_probe,
+        "routeModel": {
+            "targetCharacterId": 151,
+            "victorySection": 24,
+            "genericDefeatSection": 25,
+            "defeatByCharacterSections": {"151": 18},
+            "postBattleScene": "S03-SEC01",
+            "turnLimit": s30_turn_limit,
+            "escapeTriggerCandidates": s30_escape_candidates,
+            "annihilationVictory": True,
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s30_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s30_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s30_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s30_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported":
+                        event["nestedSupported"],
+                }
+                for event in s30_native_events
+            ],
+        },
+        "terrainIds": post29_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s30_skipped_actors,
+        "units": s30_units,
+        "openingEvents": [],
+        "r30Story": r30_story,
+    }
+
+    s29_battle["r30Story"] = r30_story
+    (battle_dir / "battle30.json").write_text(
+        json.dumps(s30_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
     post_s29_probe = {
         "inventoryAfter29": [
             row for row in rs_inventory if row["number"] > 29
@@ -8518,6 +8878,7 @@ def main(argv):
                 ],
             }
 
+    s29_battle["r30Story"] = r30_story
     s29_battle["postS29Probe"] = post_s29_probe
     (battle_dir / "battle29.json").write_text(
         json.dumps(s29_battle, ensure_ascii=False, indent=2),
@@ -15917,6 +16278,7 @@ def main(argv):
                     for variant in s29_player_variants
                     for unit in variant["units"]
                 ]
+                + s30_units
             )
         }
         | s09_special_sprite_ids
