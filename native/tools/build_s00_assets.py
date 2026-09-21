@@ -3004,6 +3004,79 @@ def compile_r24_story(blob):
     )
 
 
+def compile_r25_story(blob):
+    return compile_r_story(
+        blob,
+        "R_25.eex",
+        16,
+        17,
+        "S_25.eex",
+    )
+
+
+def extract_r25_departure_players(blob):
+    # R25 Scene 17 exposes nine S25 slots. Liu Bei is mandatory,
+    # fixed members are carried by 0x06 mode 1, and selectable members
+    # are exposed as 0x2D sections in original section order.
+    fixed = [0]
+    selectable = []
+    seen = {0}
+
+    if blob is None or not blob.startswith(b"EEX"):
+        return fixed, selectable
+
+    scenes = parse_scenario_tree(blob)
+    if len(scenes) < 17:
+        return fixed, selectable
+
+    departure = scenes[16]
+    fixed_from_limit = []
+    selectable_from_sections = []
+
+    for section in sorted(
+        departure["sections"],
+        key=lambda row: row["section"],
+    ):
+        stack = list(section["commands"])
+        while stack:
+            node = stack.pop()
+            cid = node["commandId"]
+            params = node["params"]
+
+            if cid == 0x06 and len(params) >= 3 and int(params[0]) == 1:
+                for value in params[2:]:
+                    if (
+                        isinstance(value, int)
+                        and 0 <= value < 1024
+                        and value not in fixed_from_limit
+                    ):
+                        fixed_from_limit.append(int(value))
+
+            if cid == 0x2D and params:
+                value = params[0]
+                if (
+                    isinstance(value, int)
+                    and 0 <= value < 1024
+                    and value not in selectable_from_sections
+                ):
+                    selectable_from_sections.append(int(value))
+
+            stack.extend(node["children"])
+
+    for cid in fixed_from_limit:
+        if cid not in seen:
+            fixed.append(cid)
+            seen.add(cid)
+
+    for cid in selectable_from_sections:
+        if cid not in seen:
+            selectable.append(cid)
+            seen.add(cid)
+
+    roster = (fixed + selectable)[:9]
+    return roster, selectable
+
+
 def extract_r23_departure_players(blob):
     fixed = [0]
     selectable = []
@@ -6221,6 +6294,67 @@ def main(argv):
         post_s24_probe["nextSOutcomeProbe"] = (
             probe_battle_outcome_candidates(post24_scenes)
         )
+
+    if (
+        next_r_after24 is None
+        or next_r_after24.get("number") != 25
+        or next_s_after24 is None
+        or next_s_after24.get("number") != 25
+    ):
+        raise SystemExit(
+            "v4.60 expected first post-S24 pair R25/S25, got "
+            + repr({
+                "R": next_r_after24,
+                "S": next_s_after24,
+            })
+        )
+
+    r25 = next_r_after24_blob
+    s25 = next_s_after24_blob
+    r25_probe = build_next_scenario_probe("R_25.eex", r25)
+    s25_probe = build_next_scenario_probe("S_25.eex", s25)
+    r25_story = compile_r25_story(r25)
+    s25_player_ids, r25_selectable_ids = (
+        extract_r25_departure_players(r25)
+    )
+    s25_init_probe = probe_s01_initialization(s25)
+    s25_init_probe["map"] = post24_map_probe
+    s25_scenes = parse_scenario_tree(s25)
+    s25_event_probe = extract_scene2_native_events(s25_scenes)
+    s25_native_events = [
+        event
+        for event in s25_event_probe
+        if event["section"] not in {10, 11, 16, 17}
+    ]
+    s25_outcome_events = {
+        "defeatByCharacter": {
+            "0": compile_scenario_section_actions(
+                s25_scenes, 2, 10
+            ),
+            "337": compile_scenario_section_actions(
+                s25_scenes, 2, 11
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s25_scenes, 2, 16
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s25_scenes, 2, 17
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s25_scenes, 3, 1
+        ),
+    }
+    s25_outcome_probe = probe_selected_scenario_sections(
+        s25_scenes,
+        [
+            (2, 10),
+            (2, 11),
+            (2, 16),
+            (2, 17),
+            (3, 1),
+        ],
+    )
 
     s21_native_events = []
     s21_outcome_events = {
