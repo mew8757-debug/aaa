@@ -629,3 +629,10 @@
 - 다음 S 초기 배치, Scene2 이벤트 지원률, 승패 후보를 자동 진단
 - 다음 S 번호에 맞는 mNNN.jpg와 Hexzmap 지형을 검증하고 probe 자산으로 미리 패키징
 - 결과를 `native/build-status/v4.87-next32.json`에 기록해 R33/S33 연속 플레이 구현 근거로 사용
+
+
+## v4.88 S33 원본 이벤트 라우트 정밀 진단
+
+- S_33.eex Scene2 이벤트의 좌표/영역/캠프 trigger와 요구 변수 조건을 compact하게 기록
+- 변수 설정, 목표 변경, 전투 종료/패배 신호, 이동·등장·퇴각 등 라우트 관련 action을 추출
+- `native/build-status/v4.88-s33-route.json`으로 장판교 전투의 정확한 승리·패배 흐름을 확정한 뒤 네이티브 연결
