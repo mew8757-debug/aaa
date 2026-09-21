@@ -196,6 +196,7 @@ public class MapView extends View {
     private JSONArray r21StoryScenes;
     private JSONArray r22StoryScenes;
     private JSONArray r23StoryScenes;
+    private JSONArray r24StoryScenes;
     private JSONObject s10AttackVictoryEvents;
     private JSONObject s18VictoryOutcomeEvents;
     private int activeBattleActionIndex = 0;
@@ -232,6 +233,7 @@ public class MapView extends View {
     private boolean r21StoryActive = false;
     private boolean r22StoryActive = false;
     private boolean r23StoryActive = false;
+    private boolean r24StoryActive = false;
     private boolean s01Ready = false;
     private boolean s02Ready = false;
     private boolean s03Ready = false;
@@ -254,6 +256,7 @@ public class MapView extends View {
     private boolean s21Ready = false;
     private boolean s22Ready = false;
     private boolean s23Ready = false;
+    private boolean s24Ready = false;
     private boolean s10DefenseRoute = false;
     private boolean s12AnnihilationRoute = false;
     private int s12RetreatVariable = 2;
@@ -294,6 +297,12 @@ public class MapView extends View {
     private int r21StorySceneIndex = 0;
     private int r22StorySceneIndex = 0;
     private int r23StorySceneIndex = 0;
+    private int r24StorySceneIndex = 0;
+    private int s24EscortVariable = 4;
+    private int s24VictoryX1 = -1;
+    private int s24VictoryY1 = -1;
+    private int s24VictoryX2 = -1;
+    private int s24VictoryY2 = -1;
     private String storyTitle = "";
     private String storyLocation = "";
     private JSONObject activeChoiceAction;
@@ -928,6 +937,7 @@ public class MapView extends View {
         r21StoryScenes = null;
         r22StoryScenes = null;
         r23StoryScenes = null;
+        r24StoryScenes = null;
         s10AttackVictoryEvents = null;
         s18VictoryOutcomeEvents = null;
         s12VictoryByRouteEvents = null;
@@ -1123,6 +1133,26 @@ public class MapView extends View {
                 && r23Story.optBoolean("supported", false)) {
             r23StoryScenes = r23Story.optJSONArray("scenes");
         }
+        JSONObject r24Story = battle.optJSONObject("r24Story");
+        if (r24Story != null
+                && r24Story.optBoolean("supported", false)) {
+            r24StoryScenes = r24Story.optJSONArray("scenes");
+        }
+
+        if (currentBattleIndex == 24) {
+            JSONObject routeModel = battle.optJSONObject("routeModel");
+            if (routeModel != null) {
+                s24EscortVariable = routeModel.optInt(
+                        "escortActivationVariable", 4);
+                JSONObject area = routeModel.optJSONObject("victoryArea");
+                if (area != null) {
+                    s24VictoryX1 = area.optInt("x1", -1);
+                    s24VictoryY1 = area.optInt("y1", -1);
+                    s24VictoryX2 = area.optInt("x2", -1);
+                    s24VictoryY2 = area.optInt("y2", -1);
+                }
+            }
+        }
 
         outcomeFlowActive = false;
         outcomeStage = "";
@@ -1148,6 +1178,7 @@ public class MapView extends View {
         r21StoryActive = false;
         r22StoryActive = false;
         r23StoryActive = false;
+        r24StoryActive = false;
         s01Ready = false;
         s02Ready = false;
         s03Ready = false;
@@ -1170,6 +1201,7 @@ public class MapView extends View {
         s21Ready = false;
         s22Ready = false;
         s23Ready = false;
+        s24Ready = false;
         r01StorySceneIndex = 0;
         r02StorySceneIndex = 0;
         r03StorySceneIndex = 0;
@@ -1192,6 +1224,7 @@ public class MapView extends View {
         r21StorySceneIndex = 0;
         r22StorySceneIndex = 0;
         r23StorySceneIndex = 0;
+        r24StorySceneIndex = 0;
         activeChoiceAction = null;
         storyTitle = "";
         storyLocation = "";
