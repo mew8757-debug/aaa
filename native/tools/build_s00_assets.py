@@ -13576,6 +13576,44 @@ def main(argv):
             )
         )
 
+        lure_rows = []
+        for row in post26_flat:
+            if row["scene"] != 2:
+                continue
+            cid = row["commandId"]
+            params = row["params"]
+            include = cid in {
+                0x19, 0x1A, 0x25, 0x26, 0x2E,
+                0x36, 0x3F, 0x40, 0x41, 0x42,
+                0x43, 0x5D,
+            }
+            if cid == 0x0B and len(params) >= 2:
+                include = int(params[0]) in {0, 1, 6, 8, 627}
+            if cid == 0x05 and len(params) >= 2:
+                variable_values = []
+                for group in params[:2]:
+                    if isinstance(group, list):
+                        variable_values.extend(
+                            int(v)
+                            for v in group
+                            if isinstance(v, int)
+                        )
+                include = include or any(
+                    value in {0, 1, 6, 8, 627}
+                    for value in variable_values
+                )
+            if include:
+                lure_rows.append({
+                    "scene": row["scene"],
+                    "section": row["section"],
+                    "depth": row["depth"],
+                    "commandId": cid,
+                    "commandHex": f"0x{cid:02X}",
+                    "params": params,
+                    "childCommandIds": row["childCommandIds"],
+                })
+        post_s26_probe["nextSLureRows"] = lure_rows
+
     if (
         next_r_after26_blob
         and next_r_after26_blob.startswith(b"EEX")
