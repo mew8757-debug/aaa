@@ -10,8 +10,8 @@ android {
         applicationId 'kr.co.seongsamgukji.nativeprobe'
         minSdk 26
         targetSdk 35
-        versionCode 119
-        versionName '4.78.0'
+        versionCode 120
+        versionName '4.79.0'
     }
 }
 
