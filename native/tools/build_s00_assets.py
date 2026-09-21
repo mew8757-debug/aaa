@@ -4481,6 +4481,58 @@ def main(argv):
                 next_s_after26_map_name,
             )
 
+        next_r_after27 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 27
+            ),
+            None,
+        )
+        next_s_after27 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 27
+            ),
+            None,
+        )
+        next_r_after27_blob = (
+            read_member_by_basename(
+                game1,
+                next_r_after27["filename"],
+            )
+            if next_r_after27
+            else None
+        )
+        next_s_after27_blob = (
+            read_member_by_basename(
+                game1,
+                next_s_after27["filename"],
+            )
+            if next_s_after27
+            else None
+        )
+        next_s_after27_map_name = (
+            f"m{next_s_after27['number']:03d}.jpg"
+            if next_s_after27
+            else None
+        )
+        next_s_after27_map_bytes = (
+            read_member_by_basename(
+                game2,
+                next_s_after27_map_name,
+            )
+            if next_s_after27_map_name
+            else None
+        )
+        if (
+            next_s_after27_map_bytes is None
+            and next_s_after27_map_name
+        ):
+            next_s_after27_map_bytes = read_member_by_basename(
+                game1,
+                next_s_after27_map_name,
+            )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -5321,6 +5373,16 @@ def main(argv):
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
+    post27_map_probe = {
+        "filename": next_s_after27_map_name,
+        "found": next_s_after27_map_bytes is not None,
+        "hexzmapEntry": (
+            next_s_after27["number"]
+            if next_s_after27
+            else None
+        ),
+    }
+
     post26_map_probe = {
         "filename": next_s_after26_map_name,
         "found": next_s_after26_map_bytes is not None,
@@ -5484,6 +5546,52 @@ def main(argv):
             })
         except Exception as exc:
             post26_map_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    if (
+        next_s_after27
+        and next_s_after27_map_bytes is not None
+    ):
+        try:
+            post27_map_width, post27_map_height = jpeg_dimensions(
+                next_s_after27_map_bytes
+            )
+            if (
+                post27_map_width % 48 != 0
+                or post27_map_height % 48 != 0
+            ):
+                raise ValueError(
+                    "post-S27 map dimensions not divisible by 48: "
+                    f"{post27_map_width}x{post27_map_height}"
+                )
+            post27_map_cols = post27_map_width // 48
+            post27_map_rows = post27_map_height // 48
+            post27_terrain_cells = extract_hexzmap_cells(
+                hexz,
+                next_s_after27["number"],
+                post27_map_cols,
+                post27_map_rows,
+            )
+            (map_dir / next_s_after27_map_name).write_bytes(
+                next_s_after27_map_bytes
+            )
+            (
+                battle_dir
+                / f"terrain{next_s_after27['number']}.bin"
+            ).write_bytes(post27_terrain_cells)
+            post27_map_probe.update({
+                "valid": True,
+                "width": post27_map_width,
+                "height": post27_map_height,
+                "cols": post27_map_cols,
+                "rows": post27_map_rows,
+                "terrainCellCount": len(post27_terrain_cells),
+                "terrainIds": sorted(set(post27_terrain_cells)),
+            })
+        except Exception as exc:
+            post27_map_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -6861,6 +6969,103 @@ def main(argv):
         ),
     }
     s27_outcome_probe = probe_battle_outcome_candidates(s27_scenes)
+
+    post_s27_probe = {
+        "inventoryAfter27": [
+            row for row in rs_inventory if row["number"] > 27
+        ],
+        "nextR": (
+            {
+                **next_r_after27,
+                "probe": build_next_scenario_probe(
+                    next_r_after27["filename"],
+                    next_r_after27_blob,
+                ),
+            }
+            if next_r_after27
+            else None
+        ),
+        "nextS": (
+            {
+                **next_s_after27,
+                "probe": build_next_scenario_probe(
+                    next_s_after27["filename"],
+                    next_s_after27_blob,
+                ),
+            }
+            if next_s_after27
+            else None
+        ),
+        "nextMap": post27_map_probe,
+        "nextSInit": (
+            probe_s01_initialization(next_s_after27_blob)
+            if next_s_after27_blob
+            else None
+        ),
+        "nextSEventSummary": None,
+        "nextSOutcomeProbe": None,
+        "nextRDepartureProbe": None,
+    }
+    if (
+        next_s_after27_blob
+        and next_s_after27_blob.startswith(b"EEX")
+    ):
+        post27_scenes = parse_scenario_tree(next_s_after27_blob)
+        post27_events = extract_scene2_native_events(post27_scenes)
+        post_s27_probe["nextSEventSummary"] = {
+            "candidateCount": len(post27_events),
+            "coreSupportedCount": sum(
+                1 for event in post27_events
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                }
+                for event in post27_events
+                if not event["coreSupported"]
+            ],
+        }
+        post_s27_probe["nextSOutcomeProbe"] = (
+            probe_battle_outcome_candidates(post27_scenes)
+        )
+
+    if (
+        next_r_after27_blob
+        and next_r_after27_blob.startswith(b"EEX")
+    ):
+        next_r_scenes = parse_scenario_tree(next_r_after27_blob)
+        if next_r_scenes:
+            departure_scene_number = len(next_r_scenes)
+            departure_flat = flatten_scenario_nodes(
+                [next_r_scenes[-1]]
+            )
+            post_s27_probe["nextRDepartureProbe"] = {
+                "scene": departure_scene_number,
+                "sectionCount": len(
+                    next_r_scenes[-1]["sections"]
+                ),
+                "commands": [
+                    {
+                        "section": row["section"],
+                        "depth": row["depth"],
+                        "commandId": row["commandId"],
+                        "commandHex": f"0x{row['commandId']:02X}",
+                        "params": row["params"],
+                    }
+                    for row in departure_flat
+                    if row["commandId"] in {
+                        0x04, 0x05, 0x06, 0x07, 0x0B, 0x0D,
+                        0x11, 0x12, 0x13, 0x2D, 0x4B, 0x77,
+                    }
+                ],
+            }
 
     s26_init_probe = probe_s01_initialization(s26)
     s26_init_probe["map"] = post25_map_probe
@@ -14016,7 +14221,7 @@ def main(argv):
     )
 
     s27_battle = {
-        "version": 109,
+        "version": 110,
         "source": "RS/S_27.eex",
         "battleMode": "s27-lure-then-annihilate",
         "mapId": 27,
@@ -14057,6 +14262,7 @@ def main(argv):
         "battleEvents": s27_native_events,
         "outcomeEvents": s27_outcome_events,
         "outcomeProbe": s27_outcome_probe,
+        "postS27Probe": post_s27_probe,
         "routeModel": {
             "lureTransitionVariables": [6, 8],
             "conditionalZhaoYunDefeatCharacterId": 4,
