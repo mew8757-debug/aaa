@@ -9184,42 +9184,6 @@ public class MapView extends View {
         if (currentBattleIndex == 30) {
             return "S_30";
         }
-        if (currentBattleIndex == 30) {
-            BattleUnit liuQi = findUnitByCharacterId(151);
-            if (liuQi != null && !liuQi.isAlive()) {
-                startS30DefeatOutcome(
-                        151,
-                        liuQi.name + " 사망 · 원본 패배 조건");
-                return;
-            }
-
-            if (round > turnLimit) {
-                startS30DefeatOutcome(
-                        -1,
-                        turnLimit + "턴 초과 · 원본 패배 조건");
-                return;
-            }
-
-            if (!hasAnyAliveFriendly()) {
-                startS30DefeatOutcome(
-                        -1,
-                        "아군 전멸 · 원본 패배 조건");
-                return;
-            }
-
-            if (firedBattleSections.contains(9)
-                    && (scenarioVariables.getOrDefault(0, 0) != 0
-                    || scenarioVariables.getOrDefault(630, 0) != 0)) {
-                startS30VictoryOutcome("escape");
-                return;
-            }
-
-            if (!hasAnyAliveEnemy()) {
-                startS30VictoryOutcome("annihilation");
-            }
-            return;
-        }
-
         if (currentBattleIndex == 29) {
             return "S_29";
         }
@@ -10478,6 +10442,45 @@ public class MapView extends View {
             return;
         }
 
+
+        if (currentBattleIndex == 30) {
+            BattleUnit liuQi = findUnitByCharacterId(151);
+            if (liuQi != null && !liuQi.isAlive()) {
+                startS30DefeatOutcome(
+                        151,
+                        liuQi.name + " 사망 · 원본 패배 조건");
+                return;
+            }
+
+            if (round > turnLimit) {
+                startS30DefeatOutcome(
+                        -1,
+                        turnLimit + "턴 초과 · 원본 패배 조건");
+                return;
+            }
+
+            if (!hasAnyAliveFriendly()) {
+                startS30DefeatOutcome(
+                        -1,
+                        "아군 전멸 · 원본 패배 조건");
+                return;
+            }
+
+            // Section 9 is the original escape ending. It hides Liu Qi,
+            // awards the route loot, sets variables 0/630 and ends the
+            // scene, so wait for that event to finish before settling.
+            if (firedBattleSections.contains(9)
+                    && (scenarioVariables.getOrDefault(0, 0) != 0
+                    || scenarioVariables.getOrDefault(630, 0) != 0)) {
+                startS30VictoryOutcome("escape");
+                return;
+            }
+
+            if (!hasAnyAliveEnemy()) {
+                startS30VictoryOutcome("annihilation");
+            }
+            return;
+        }
 
         if (currentBattleIndex == 29) {
             for (int characterId : protectedCharacterIds) {
