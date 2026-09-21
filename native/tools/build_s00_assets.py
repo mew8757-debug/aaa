@@ -3117,6 +3117,16 @@ def compile_r31_story(blob):
     )
 
 
+def compile_r32_story(blob):
+    return compile_r_story(
+        blob,
+        "R_32.eex",
+        2,
+        3,
+        "S_32.eex",
+    )
+
+
 def extract_r31_departure_players(blob, slot_count):
     # R31 Scene 19 uses Liu Bei as the continuing leader, then a mode-1
     # 0x06 list plus 0x2D selectable candidates. Preserve source order,
@@ -9711,6 +9721,358 @@ def main(argv):
     )
     (battle_dir / "battle30.json").write_text(
         json.dumps(s30_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    r32 = next_r_after31_blob
+    s32 = next_s_after31_blob
+    r32_story = compile_r32_story(r32)
+
+    if (
+        next_r_after31 is None
+        or int(next_r_after31["number"]) != 32
+        or next_s_after31 is None
+        or int(next_s_after31["number"]) != 32
+    ):
+        raise SystemExit(
+            "Expected R_32/S_32 after S31, got "
+            + repr({
+                "nextR": next_r_after31,
+                "nextS": next_s_after31,
+            })
+        )
+    if not post31_map_probe.get("valid"):
+        raise SystemExit(
+            "M032 map probe invalid: " + repr(post31_map_probe)
+        )
+    if not r32_story.get("supported"):
+        raise SystemExit(
+            "R32 story unsupported: "
+            + repr(r32_story.get("unsupportedActionIds", []))
+        )
+
+    s32_init_probe = probe_s01_initialization(s32)
+    s32_init_probe["map"] = post31_map_probe
+    s32_scenes = parse_scenario_tree(s32)
+    s32_event_probe = extract_scene2_native_events(s32_scenes)
+
+    s32_victory_candidates = []
+    for event in s32_event_probe:
+        if int(event.get("section", -1)) in {55, 56, 57}:
+            continue
+        has_end = action_tree_contains_type(
+            event.get("actions", []),
+            {"battleEndMarker"},
+        )
+        has_failure = action_tree_contains_type(
+            event.get("actions", []),
+            {"battleFailureMarker"},
+        )
+        if has_end and not has_failure:
+            s32_victory_candidates.append({
+                "section": int(event["section"]),
+                "triggers": event.get("triggers", []),
+                "requireTrueVariables":
+                    event.get("requireTrueVariables", []),
+                "requireFalseVariables":
+                    event.get("requireFalseVariables", []),
+            })
+
+    if len(s32_victory_candidates) != 1:
+        raise SystemExit(
+            "Expected exactly one S32 victory event: "
+            + repr(s32_victory_candidates)
+        )
+
+    s32_victory_section = int(
+        s32_victory_candidates[0]["section"]
+    )
+    s32_terminal_sections = {
+        55,
+        56,
+        57,
+        s32_victory_section,
+    }
+    s32_native_events = [
+        event for event in s32_event_probe
+        if int(event["section"]) not in s32_terminal_sections
+    ]
+    s32_outcome_events = {
+        "defeatByCharacter": {
+            "4": compile_scenario_section_actions(
+                s32_scenes, 2, 55
+            ),
+            "26": compile_scenario_section_actions(
+                s32_scenes, 2, 56
+            ),
+        },
+        "victory": compile_scenario_section_actions(
+            s32_scenes,
+            2,
+            s32_victory_section,
+        ),
+        "genericDefeat": compile_scenario_section_actions(
+            s32_scenes, 2, 57
+        ),
+        "postBattle": compile_scenario_section_actions(
+            s32_scenes, 3, 1
+        ),
+    }
+    s32_outcome_probe = probe_battle_outcome_candidates(s32_scenes)
+
+    s32_slots = sorted(
+        s32_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    s32_player_ids = extract_forced_player_roster(
+        s32,
+        len(s32_slots),
+    )
+    if len(s32_player_ids) != len(s32_slots):
+        raise SystemExit(
+            "S32 forced roster/slot mismatch: "
+            + repr({
+                "players": s32_player_ids,
+                "slots": s32_slots,
+                "forcedRaw": s32_init_probe.get("forcedPlayers", []),
+            })
+        )
+
+    s32_units = []
+    s32_skipped_actors = []
+    s32_character_ids = set()
+
+    def make_s32_record(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        cid = int(cid)
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s32_skipped_actors.append({
+                "characterId": cid,
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            return None
+        profile = combat_profile_of(cid, deploy_level)
+        return {
+            "characterId": cid,
+            "battleNumber": int(battle_number),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        }
+
+    for slot, cid in zip(s32_slots, s32_player_ids):
+        record = make_s32_record(
+            cid,
+            PLAYER,
+            bool(slot.get("flag", 0)),
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_32:forced:slot:{slot['slot']}",
+            battle_number=int(slot["slot"]),
+        )
+        if record is None:
+            raise SystemExit(f"S32 player {cid} invalid sprite")
+        s32_units.append(record)
+        s32_character_ids.add(int(cid))
+
+    next_battle_number = len(s32_units)
+    for index, row in enumerate(
+        s32_init_probe.get("friendRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s32_character_ids:
+            continue
+        record = make_s32_record(
+            cid,
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_32:0x46:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s32_units.append(record)
+            s32_character_ids.add(cid)
+            next_battle_number += 1
+
+    for index, row in enumerate(
+        s32_init_probe.get("enemyRecords", [])
+    ):
+        cid = int(row["person"])
+        if cid in s32_character_ids:
+            continue
+        record = make_s32_record(
+            cid,
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_32:0x47:{index}",
+            battle_number=next_battle_number,
+        )
+        if record is not None:
+            s32_units.append(record)
+            s32_character_ids.add(cid)
+            next_battle_number += 1
+
+    s32_objective_text = (
+        s32_init_probe["objectiveTexts"][0]
+        if s32_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s32_popup_text = (
+        s32_init_probe["objectivePopups"][0]
+        if s32_init_probe.get("objectivePopups")
+        else ""
+    )
+    s32_turn_limit = objective_turn_limit(
+        s32_objective_text,
+        70,
+    )
+
+    s32_battle = {
+        "version": 127,
+        "source": "RS/S_32.eex",
+        "battleMode": "s32-find-ladies",
+        "mapId": 32,
+        "map": "m032.jpg",
+        "widthTiles": post31_map_probe["cols"],
+        "heightTiles": post31_map_probe["rows"],
+        "terrainFile": "terrain32.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s32_objective_text,
+                "popupText": s32_popup_text,
+                "turnLimit": s32_turn_limit,
+                "goal": {
+                    "type": "find-ladies",
+                    "targetCharacterId": 4,
+                },
+            },
+            "phase2": {
+                "objectiveText": s32_objective_text,
+                "popupText": s32_popup_text,
+                "turnLimit": s32_turn_limit,
+            },
+            "protectedCharacterIds": [4, 26],
+            "protectedCharacters": [
+                {"characterId": 4, "name": name_of(4)},
+                {"characterId": 26, "name": name_of(26)},
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s32_native_events,
+        "outcomeEvents": s32_outcome_events,
+        "outcomeProbe": s32_outcome_probe,
+        "routeModel": {
+            "targetCharacterId": 4,
+            "victorySection": s32_victory_section,
+            "victoryTriggerCandidates": s32_victory_candidates,
+            "genericDefeatSection": 57,
+            "defeatByCharacterSections": {
+                "4": 55,
+                "26": 56,
+            },
+            "postBattleScene": "S03-SEC01",
+            "turnLimit": s32_turn_limit,
+            "annihilationVictory": False,
+        },
+        "battleEventSummary": {
+            "candidateCount": len(s32_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s32_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s32_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s32_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                    "nestedSupported":
+                        event["nestedSupported"],
+                }
+                for event in s32_native_events
+            ],
+        },
+        "terrainIds": post31_map_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s32_skipped_actors,
+        "playerRoster": {
+            "characterIds": s32_player_ids,
+            "source": "S_32 Scene1 forced 0x4A roster",
+        },
+        "units": s32_units,
+        "openingEvents": [],
+        "r32Story": r32_story,
+    }
+
+    s31_battle["r32Story"] = r32_story
+    (battle_dir / "battle32.json").write_text(
+        json.dumps(s32_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (battle_dir / "battle31.json").write_text(
+        json.dumps(s31_battle, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
