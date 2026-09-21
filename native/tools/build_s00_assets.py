@@ -12005,6 +12005,254 @@ def main(argv):
     )
 
 
+    # S24: Guan Yu's escort route. R24 fixes two battlefield slots,
+    # and the original S24 script reveals/retreats the remaining actors.
+    s24_units = []
+    s24_skipped_actors = []
+
+    def make_s24_unit(
+        cid,
+        faction,
+        hidden,
+        x,
+        y,
+        direction,
+        deploy_level,
+        deploy_job_level,
+        ai_policy,
+        reinforcement,
+        source,
+        battle_number=-1,
+    ):
+        sid = sprite_of(cid)
+        if not sprite_record_valid(sid):
+            s24_skipped_actors.append({
+                "characterId": int(cid),
+                "name": name_of(cid),
+                "faction": faction,
+                "source": source,
+                "spriteId": int(sid),
+            })
+            print(f"skip S24 actor {cid}: invalid sprite {sid}")
+            return False
+
+        profile = combat_profile_of(cid, deploy_level)
+        s24_units.append({
+            "characterId": int(cid),
+            "name": name_of(cid),
+            "spriteId": int(sid),
+            **profile,
+            "deployLevel": deploy_level,
+            "deployJobLevel": deploy_job_level,
+            "aiPolicy": int(ai_policy),
+            "battleNumber": int(battle_number),
+            "reinforcement": bool(reinforcement),
+            "faction": faction,
+            "scripted": bool(hidden),
+            "visible": not bool(hidden),
+            "x": int(x),
+            "y": int(y),
+            "direction": int(direction),
+            "source": source,
+        })
+        return True
+
+    if not map24_probe.get("valid"):
+        raise SystemExit("M024 map probe invalid: " + repr(map24_probe))
+    if not r24_story.get("supported"):
+        raise SystemExit(
+            "R24 story unsupported: "
+            + repr(r24_story.get("unsupportedActionIds", []))
+        )
+    if s24_route_model.get("victoryArea") is None:
+        raise SystemExit(
+            "S24 original 0x5B victory area not found"
+        )
+
+    s24_slots = sorted(
+        s24_init_probe.get("playerSlots", []),
+        key=lambda row: row["slot"],
+    )
+    forced_raw = [
+        int(value)
+        for value in s24_init_probe.get("forcedPlayers", [])
+        if isinstance(value, int)
+    ]
+    s24_player_count = (
+        forced_raw[0]
+        if forced_raw and 0 <= forced_raw[0] <= 10
+        else len(s24_slots)
+    )
+    s24_player_ids = forced_raw[1:1 + s24_player_count]
+    if len(s24_player_ids) != len(s24_slots):
+        raise SystemExit(
+            "S24 forced roster/slot mismatch: "
+            + repr({
+                "raw": forced_raw,
+                "players": s24_player_ids,
+                "slots": s24_slots,
+            })
+        )
+
+    for slot, cid in zip(s24_slots, s24_player_ids):
+        if not make_s24_unit(
+            cid,
+            PLAYER,
+            bool(slot.get("flag", 0)),
+            slot["x"],
+            slot["y"],
+            slot["direction"],
+            None,
+            None,
+            0,
+            False,
+            f"S_24:0x4B:{slot['slot']}",
+            battle_number=slot["slot"],
+        ):
+            raise SystemExit(
+                f"S24 player {cid} has invalid default sprite"
+            )
+
+    for index, row in enumerate(s24_init_probe.get("friendRecords", [])):
+        make_s24_unit(
+            row["person"],
+            ALLY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            False,
+            f"S_24:0x46:{index}",
+        )
+
+    for index, row in enumerate(s24_init_probe.get("enemyRecords", [])):
+        make_s24_unit(
+            row["person"],
+            ENEMY,
+            row["hidden"] != 0,
+            row["x"],
+            row["y"],
+            row["direction"],
+            row["level"],
+            row["jobLevel"],
+            row["ai"],
+            row["reinforcement"] != 0,
+            f"S_24:0x47:{index}",
+        )
+
+    if any(not event["coreSupported"] for event in s24_event_probe):
+        raise SystemExit(
+            "S24 event support incomplete after v4.58 compiler: "
+            + repr([
+                {
+                    "section": event["section"],
+                    "triggers": event["unsupportedTriggerIds"],
+                    "actions": event["unsupportedActionIds"],
+                }
+                for event in s24_event_probe
+                if not event["coreSupported"]
+            ])
+        )
+
+    s24_objective_text = (
+        s24_init_probe.get("objectiveTexts", [""])[0]
+        if s24_init_probe.get("objectiveTexts")
+        else ""
+    )
+    s24_popup_text = (
+        s24_init_probe.get("objectivePopups", [""])[0]
+        if s24_init_probe.get("objectivePopups")
+        else ""
+    )
+    s24_turn_limit = objective_turn_limit(
+        s24_objective_text,
+        10,
+    )
+
+    s24_battle = {
+        "version": 99,
+        "source": "RS/S_24.eex",
+        "battleMode": "s24-escort-area",
+        "mapId": 24,
+        "map": "m024.jpg",
+        "widthTiles": map24_probe["cols"],
+        "heightTiles": map24_probe["rows"],
+        "terrainFile": "terrain24.bin",
+        "terrainTypeCount": TERRAIN_TYPE_COUNT,
+        "movementCostFile": "movement_costs.bin",
+        "movementCostFamilyCount": JOB_FAMILY_COUNT,
+        "terrainPowerFile": "terrain_power.bin",
+        "jobRestraintFile": "job_restraint.bin",
+        "battleObjectives": {
+            "phase1": {
+                "objectiveText": s24_objective_text,
+                "popupText": s24_popup_text,
+                "turnLimit": s24_turn_limit,
+                "goal": {
+                    "type": "escort-area",
+                    "characters": [1, 327],
+                    "area": s24_route_model["victoryArea"],
+                },
+            },
+            "phase2": {
+                "objectiveText": "",
+                "popupText": "",
+                "turnLimit": 80,
+            },
+            "protectedCharacterIds": [1, 327],
+            "protectedCharacters": [
+                {"characterId": cid, "name": name_of(cid)}
+                for cid in (1, 327)
+            ],
+            "phase1TransitionEvents": [],
+        },
+        "battleEvents": s24_native_events,
+        "outcomeEvents": s24_outcome_events,
+        "outcomeProbe": s24_outcome_probe,
+        "routeModel": s24_route_model,
+        "routeProbe": s24_route_probe,
+        "battleEventSummary": {
+            "candidateCount": len(s24_native_events),
+            "coreSupportedCount": sum(
+                1 for event in s24_native_events
+                if event["coreSupported"]
+            ),
+            "rawCandidateCount": len(s24_event_probe),
+            "rawCoreSupportedCount": sum(
+                1 for event in s24_event_probe
+                if event["coreSupported"]
+            ),
+            "sections": [
+                {
+                    "section": event["section"],
+                    "coreSupported": event["coreSupported"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                    "unsupportedActions": event["unsupportedActions"],
+                    "nestedBranchCount": event["nestedBranchCount"],
+                    "nestedSupported": event["nestedSupported"],
+                }
+                for event in s24_native_events
+            ],
+        },
+        "terrainIds": map24_probe["terrainIds"],
+        "combatModel": COMBAT_MODEL,
+        "damageModel": DAMAGE_MODEL,
+        "supportedAttackRangeIds": [0, 1],
+        "skippedActors": s24_skipped_actors,
+        "r24PlayerIds": s24_player_ids,
+        "units": s24_units,
+        "openingEvents": [],
+    }
+    (battle_dir / "battle24.json").write_text(
+        json.dumps(s24_battle, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
     referenced_ids = sorted({
         e["characterId"]
         for e in events
