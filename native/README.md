@@ -10,7 +10,7 @@
 - 원작 전투/이벤트/맵 동작을 보존
 - 터치 입력, 화면 비율, 저장 경로는 Android에 맞게 재설계
 
-## 현재 구현 상태 (v4.80)
+## 현재 구현 상태 (v4.81)
 
 - 실제 첫 전투 맵 `map/m000.jpg` 네이티브 렌더링
 - `RS/S_00.eex`의 플레이어/우군/적군 초기 배치 반영
@@ -560,4 +560,15 @@
 - 공용 스프라이트 추출기가 `expected+2` 레코드의 2바이트 prefix를 제거한 뒤 표준 payload로 패키징
 - 네 인물을 S29 원본 적군/증원 배치와 전장 이벤트에 다시 포함
 - v4.79에서 확인한 다음 원본 경로는 `R_30.eex → S_30.eex`
+
+
+
+## v4.81 R30/S30 원본 자산·탈출경로 probe
+
+- `R_30.eex` Scene 1~26 스토리와 Scene 27 출전 흐름을 공용 R 스토리 컴파일러로 변환
+- `S_30.eex`를 `battle30.json`으로 패키징
+- M030 24×20 / Hexzmap entry 30 / Scene2 비종료 이벤트 20개 사용
+- 유기(151) 사망 Section 18, 승리 Section 24, 일반 패배 Section 25, Scene3 정리 보존
+- 유기 탈출의 정확한 position/area trigger를 native event에서 자동 찾아 `routeModel.escapeTriggerCandidates`로 기록
+- 다음 단계에서 이 routeModel을 Android 상태기에 연결해 `S29 → R30 → S30` 연속 플레이를 완성
 
