@@ -540,6 +540,8 @@ public class MapView extends View {
         JSONObject outcomeEvents = battle.optJSONObject("outcomeEvents");
         if (outcomeEvents != null) {
             JSONObject victory = outcomeEvents.optJSONObject("victory");
+            JSONObject genericVictory = outcomeEvents.optJSONObject(
+                    "genericVictory");
             JSONObject defeat = outcomeEvents.optJSONObject("defeat");
             JSONObject postBattle = outcomeEvents.optJSONObject("postBattle");
             if (victory != null && victory.optBoolean("supported", false)) {
@@ -942,6 +944,11 @@ public class MapView extends View {
                     "genericDefeat");
             if (victory != null && victory.optBoolean("supported", false)) {
                 victoryOutcomeActions = victory.optJSONArray("actions");
+            }
+            if (genericVictory != null
+                    && genericVictory.optBoolean("supported", false)) {
+                s23GenericVictoryActions = genericVictory.optJSONArray(
+                        "actions");
             }
             if (postBattle != null
                     && postBattle.optBoolean("supported", false)) {
