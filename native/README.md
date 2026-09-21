@@ -503,3 +503,10 @@
 - v4.73 Java 컴파일의 `missing return value` 회귀 제거
 - S28 적로 분기·탈출 영역·Section 55~59 승패 로직은 변경 없음
 - 다음 단계: S28 승리 후 실제 다음 R/S 자동 탐색 및 연속 플레이 확장
+
+
+## v4.75 S28 label 회귀 최종 수정
+
+- `currentBattleLabel()`에 남아 있던 중복 S28 승패 검사 블록 제거
+- S28 승패 검사는 `checkBattleState()` 단일 위치에서만 실행
+- Java `missing return value` 컴파일 회귀 최종 제거
