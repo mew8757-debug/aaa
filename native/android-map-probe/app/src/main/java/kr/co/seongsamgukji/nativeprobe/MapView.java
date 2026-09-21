@@ -205,7 +205,8 @@ public class MapView extends View {
     private JSONArray r30StoryScenes;
     private JSONArray r31StoryScenes;
     private JSONArray r32StoryScenes;
-    private JSONObject s32VictoryTriggerEvent;
+    private JSONArray s32VictoryTriggerEvents;
+    private JSONObject s32VictoryBySectionEvents;
     private JSONObject s10AttackVictoryEvents;
     private JSONObject s26VictoryByRouteEvents;
     private JSONObject s18VictoryOutcomeEvents;
@@ -678,11 +679,8 @@ public class MapView extends View {
         if (currentBattleIndex == 32) {
             JSONObject routeModel = battle.optJSONObject("routeModel");
             if (routeModel != null) {
-                JSONArray candidates = routeModel.optJSONArray(
+                s32VictoryTriggerEvents = routeModel.optJSONArray(
                         "victoryTriggerCandidates");
-                if (candidates != null && candidates.length() > 0) {
-                    s32VictoryTriggerEvent = candidates.optJSONObject(0);
-                }
             }
         }
 
@@ -1051,7 +1049,8 @@ public class MapView extends View {
         r30StoryScenes = null;
         r31StoryScenes = null;
         r32StoryScenes = null;
-        s32VictoryTriggerEvent = null;
+        s32VictoryTriggerEvents = null;
+        s32VictoryBySectionEvents = null;
         s10AttackVictoryEvents = null;
         s26VictoryByRouteEvents = null;
         s18VictoryOutcomeEvents = null;
@@ -1096,6 +1095,10 @@ public class MapView extends View {
             if (currentBattleIndex == 26) {
                 s26VictoryByRouteEvents = s01Outcomes.optJSONObject(
                         "victoryByRoute");
+            }
+            if (currentBattleIndex == 32) {
+                s32VictoryBySectionEvents = s01Outcomes.optJSONObject(
+                        "victoryBySection");
             }
         }
 
@@ -9479,20 +9482,29 @@ public class MapView extends View {
                 "m032.jpg", "terrain32.bin");
     }
 
-    private void startS32VictoryOutcome() {
+    private void startS32VictoryOutcome(int section) {
         if (battleEnded || outcomeFlowActive) return;
-        if (victoryOutcomeActions == null
-                || victoryOutcomeActions.length() == 0) {
+
+        JSONArray actions = null;
+        if (s32VictoryBySectionEvents != null) {
+            JSONObject entry = s32VictoryBySectionEvents.optJSONObject(
+                    String.valueOf(section));
+            if (entry != null && entry.optBoolean("supported", false)) {
+                actions = entry.optJSONArray("actions");
+            }
+        }
+        if (actions == null || actions.length() == 0) {
             endBattle(true, "부인 발견 · S_32 원본 승리 조건");
             return;
         }
+
         outcomeFlowActive = true;
         outcomeStage = "s32Victory";
         battleVictory = true;
         battleResultText = "부인 발견 · S_32 원본 승리 조건";
         stopBattleForOutcome();
-        prepareScriptActionSequence(victoryOutcomeActions);
-        lastCombatMessage = "원본 S_32 승리 정산";
+        prepareScriptActionSequence(actions);
+        lastCombatMessage = "원본 S_32 승리 정산 · Section " + section;
         combatMessageUntil = SystemClock.uptimeMillis() + 1600L;
         invalidate();
     }
@@ -10885,10 +10897,16 @@ public class MapView extends View {
                         turnLimit + "턴 초과 · 원본 패배 조건");
                 return;
             }
-            if (s32VictoryTriggerEvent != null
-                    && battleEventConditionsSatisfied(s32VictoryTriggerEvent)) {
-                startS32VictoryOutcome();
-                return;
+            if (s32VictoryTriggerEvents != null) {
+                for (int i = 0; i < s32VictoryTriggerEvents.length(); i++) {
+                    JSONObject candidate = s32VictoryTriggerEvents.optJSONObject(i);
+                    if (candidate != null
+                            && battleEventConditionsSatisfied(candidate)) {
+                        startS32VictoryOutcome(
+                                candidate.optInt("section", -1));
+                        return;
+                    }
+                }
             }
             if (!hasAnyAliveFriendly()) {
                 startS32DefeatOutcome(-1, "아군 전멸 · 원본 패배 조건");
