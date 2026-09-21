@@ -1,0 +1,330 @@
+{
+  "version": "4.91.0",
+  "status": "success",
+  "found": true,
+  "source": "RS/S_34.eex",
+  "battleMode": "s34-annihilation",
+  "map": "m034.jpg",
+  "widthTiles": 24,
+  "heightTiles": 34,
+  "playerRoster": {
+    "characterIds": [
+      0,
+      151,
+      11,
+      17,
+      10,
+      29,
+      14,
+      27,
+      26,
+      28
+    ],
+    "selectableCandidates": [
+      151,
+      10,
+      29,
+      14,
+      27,
+      26,
+      28,
+      11,
+      17
+    ],
+    "source": "R_34 Scene20 source-order 0x06 + 0x2D"
+  },
+  "objectives": {
+    "phase1": {
+      "objectiveText": "승리 조건:\n★·적군 전멸.\n\n패배 조건:\n☆·유비 사망.\n☆·유기 사망.\n☆·25턴 초과.",
+      "popupText": "적군을 전멸시켜라!",
+      "turnLimit": 25,
+      "goal": {
+        "type": "enemy-annihilation"
+      }
+    },
+    "phase2": {
+      "objectiveText": "승리 조건:\n★·적군 전멸.\n\n패배 조건:\n☆·유비 사망.\n☆·유기 사망.\n☆·25턴 초과.",
+      "popupText": "적군을 전멸시켜라!",
+      "turnLimit": 25
+    },
+    "protectedCharacterIds": [
+      0,
+      151
+    ],
+    "protectedCharacters": [
+      {
+        "characterId": 0,
+        "name": "유비"
+      },
+      {
+        "characterId": 151,
+        "name": "유기"
+      }
+    ],
+    "phase1TransitionEvents": []
+  },
+  "routeModel": {
+    "victorySection": 37,
+    "defeatByCharacterSections": {
+      "0": 32,
+      "151": 33
+    },
+    "genericDefeatSection": 38,
+    "postBattleScene": "S03-SEC01",
+    "turnLimit": 25,
+    "annihilationVictory": true
+  },
+  "eventSummary": {
+    "candidateCount": 29,
+    "coreSupportedCount": 29,
+    "rawCandidateCount": 30,
+    "rawCoreSupportedCount": 30,
+    "sections": [
+      {
+        "section": 2,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 3,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 4,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 7,
+        "nestedSupported": true
+      },
+      {
+        "section": 5,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 6,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 7,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 8,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 9,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 1,
+        "nestedSupported": true
+      },
+      {
+        "section": 10,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 11,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 12,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 13,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 14,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 15,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 2,
+        "nestedSupported": true
+      },
+      {
+        "section": 16,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 17,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 18,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 19,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 22,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 23,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 24,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 25,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 26,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 27,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 28,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 8,
+        "nestedSupported": true
+      },
+      {
+        "section": 29,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 4,
+        "nestedSupported": true
+      },
+      {
+        "section": 30,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 4,
+        "nestedSupported": true
+      },
+      {
+        "section": 35,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      },
+      {
+        "section": 36,
+        "coreSupported": true,
+        "unsupportedTriggerIds": [],
+        "unsupportedActionIds": [],
+        "nestedBranchCount": 0,
+        "nestedSupported": true
+      }
+    ]
+  },
+  "outcomeKeys": [
+    "defeatByCharacter",
+    "genericDefeat",
+    "postBattle",
+    "victory"
+  ],
+  "skippedActors": [],
+  "r34Story": {
+    "supported": true,
+    "sceneCount": 20,
+    "unsupportedActionIds": [],
+    "nextBattle": "S_34.eex"
+  }
+}
