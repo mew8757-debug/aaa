@@ -4396,6 +4396,58 @@ def main(argv):
                 next_s_after25_map_name,
             )
 
+        next_r_after26 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "R" and row["number"] > 26
+            ),
+            None,
+        )
+        next_s_after26 = next(
+            (
+                row for row in rs_inventory
+                if row["kind"] == "S" and row["number"] > 26
+            ),
+            None,
+        )
+        next_r_after26_blob = (
+            read_member_by_basename(
+                game1,
+                next_r_after26["filename"],
+            )
+            if next_r_after26
+            else None
+        )
+        next_s_after26_blob = (
+            read_member_by_basename(
+                game1,
+                next_s_after26["filename"],
+            )
+            if next_s_after26
+            else None
+        )
+        next_s_after26_map_name = (
+            f"m{next_s_after26['number']:03d}.jpg"
+            if next_s_after26
+            else None
+        )
+        next_s_after26_map_bytes = (
+            read_member_by_basename(
+                game2,
+                next_s_after26_map_name,
+            )
+            if next_s_after26_map_name
+            else None
+        )
+        if (
+            next_s_after26_map_bytes is None
+            and next_s_after26_map_name
+        ):
+            next_s_after26_map_bytes = read_member_by_basename(
+                game1,
+                next_s_after26_map_name,
+            )
+
         map1_bytes = read_member_by_basename(game2, "m001.jpg")
         map2_bytes = read_member_by_basename(game2, "m002.jpg")
         map3_bytes = read_member_by_basename(game2, "m003.jpg")
@@ -5236,6 +5288,16 @@ def main(argv):
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
+    post26_map_probe = {
+        "filename": next_s_after26_map_name,
+        "found": next_s_after26_map_bytes is not None,
+        "hexzmapEntry": (
+            next_s_after26["number"]
+            if next_s_after26
+            else None
+        ),
+    }
+
     post25_map_probe = {
         "filename": next_s_after25_map_name,
         "found": next_s_after25_map_bytes is not None,
@@ -5343,6 +5405,52 @@ def main(argv):
             })
         except Exception as exc:
             post25_map_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+    if (
+        next_s_after26
+        and next_s_after26_map_bytes is not None
+    ):
+        try:
+            post26_map_width, post26_map_height = jpeg_dimensions(
+                next_s_after26_map_bytes
+            )
+            if (
+                post26_map_width % 48 != 0
+                or post26_map_height % 48 != 0
+            ):
+                raise ValueError(
+                    "post-S26 map dimensions not divisible by 48: "
+                    f"{post26_map_width}x{post26_map_height}"
+                )
+            post26_map_cols = post26_map_width // 48
+            post26_map_rows = post26_map_height // 48
+            post26_terrain_cells = extract_hexzmap_cells(
+                hexz,
+                next_s_after26["number"],
+                post26_map_cols,
+                post26_map_rows,
+            )
+            (map_dir / next_s_after26_map_name).write_bytes(
+                next_s_after26_map_bytes
+            )
+            (
+                battle_dir
+                / f"terrain{next_s_after26['number']}.bin"
+            ).write_bytes(post26_terrain_cells)
+            post26_map_probe.update({
+                "valid": True,
+                "width": post26_map_width,
+                "height": post26_map_height,
+                "cols": post26_map_cols,
+                "rows": post26_map_rows,
+                "terrainCellCount": len(post26_terrain_cells),
+                "terrainIds": sorted(set(post26_terrain_cells)),
+            })
+        except Exception as exc:
+            post26_map_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -13362,8 +13470,112 @@ def main(argv):
         25,
     )
 
+    post_s26_probe = {
+        "inventoryAfter26": [
+            row
+            for row in rs_inventory
+            if row["number"] > 26
+        ],
+        "nextR": (
+            {
+                **next_r_after26,
+                "probe": build_next_scenario_probe(
+                    next_r_after26["filename"],
+                    next_r_after26_blob,
+                ),
+            }
+            if next_r_after26
+            else None
+        ),
+        "nextS": (
+            {
+                **next_s_after26,
+                "probe": build_next_scenario_probe(
+                    next_s_after26["filename"],
+                    next_s_after26_blob,
+                ),
+            }
+            if next_s_after26
+            else None
+        ),
+        "nextMap": post26_map_probe,
+        "nextSInit": (
+            probe_s01_initialization(next_s_after26_blob)
+            if next_s_after26_blob
+            else None
+        ),
+        "nextSEventSummary": None,
+        "nextSOutcomeProbe": None,
+        "nextRDepartureProbe": None,
+    }
+    if (
+        next_s_after26_blob
+        and next_s_after26_blob.startswith(b"EEX")
+    ):
+        post26_scenes = parse_scenario_tree(
+            next_s_after26_blob
+        )
+        post26_events = extract_scene2_native_events(
+            post26_scenes
+        )
+        post_s26_probe["nextSEventSummary"] = {
+            "candidateCount": len(post26_events),
+            "coreSupportedCount": sum(
+                1
+                for event in post26_events
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds":
+                        event["unsupportedTriggerIds"],
+                    "unsupportedActionIds":
+                        event["unsupportedActionIds"],
+                    "nestedBranchCount":
+                        event["nestedBranchCount"],
+                }
+                for event in post26_events
+                if not event["coreSupported"]
+            ],
+        }
+        post_s26_probe["nextSOutcomeProbe"] = (
+            probe_battle_outcome_candidates(post26_scenes)
+        )
+
+    if (
+        next_r_after26_blob
+        and next_r_after26_blob.startswith(b"EEX")
+    ):
+        next_r_scenes = parse_scenario_tree(next_r_after26_blob)
+        if next_r_scenes:
+            departure_scene_number = len(next_r_scenes)
+            departure_flat = flatten_scenario_nodes(
+                [next_r_scenes[-1]]
+            )
+            post_s26_probe["nextRDepartureProbe"] = {
+                "scene": departure_scene_number,
+                "sectionCount": len(
+                    next_r_scenes[-1]["sections"]
+                ),
+                "commands": [
+                    {
+                        "section": row["section"],
+                        "depth": row["depth"],
+                        "commandId": row["commandId"],
+                        "commandHex": f"0x{row['commandId']:02X}",
+                        "params": row["params"],
+                    }
+                    for row in departure_flat
+                    if row["commandId"] in {
+                        0x06, 0x07, 0x0D, 0x11,
+                        0x12, 0x13, 0x2D,
+                    }
+                ],
+            }
+
     s26_battle = {
-        "version": 105,
+        "version": 106,
         "source": "RS/S_26.eex",
         "battleMode": "s26-escape-or-annihilation",
         "mapId": 26,
@@ -13402,6 +13614,7 @@ def main(argv):
         "battleEvents": s26_native_events,
         "outcomeEvents": s26_outcome_events,
         "outcomeProbe": s26_outcome_probe,
+        "postS26Probe": post_s26_probe,
         "routeModel": {
             "escapeCharacterId": 0,
             "escapeX": 1,
