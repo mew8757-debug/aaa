@@ -601,3 +601,12 @@
 - S31 전장 이벤트 40개는 기존 명령 집합으로 전부 해석 가능
 - 유비(0) 퇴각 승리 위치/영역은 원본 event의 trigger + `battleEndMarker` 조합으로 자동 추출
 - 유비 사망, 20턴 초과, 일반 패배와 Scene3 정리를 원본 outcome 흐름으로 처리
+
+
+## v4.85 S31 이후 원본 경로 자동 탐색
+
+- S31 승리 이후 31보다 큰 첫 R/S 파일을 원본 ZIP에서 자동 탐색
+- 다음 R/S의 Scene/Section/명령 구조와 다음 R 마지막 출전 Scene 명령을 compact status에 기록
+- 다음 S 초기 배치·Scene2 이벤트 지원률·승패 후보를 자동 진단
+- 다음 S 번호에 맞는 mNNN.jpg와 Hexzmap 지형을 검증하고 probe 자산으로 미리 패키징
+- 결과를 `v4.85-next31.json`에 기록해 R32/S32 연속 플레이 구현 근거로 사용
