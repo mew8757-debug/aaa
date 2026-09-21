@@ -4043,6 +4043,8 @@ def main(argv):
         s22 = read_member_by_basename(game1, "S_22.eex")
         r23 = read_member_by_basename(game1, "R_23.eex")
         s23 = read_member_by_basename(game1, "S_23.eex")
+        r24 = read_member_by_basename(game1, "R_24.eex")
+        s24 = read_member_by_basename(game1, "S_24.eex")
 
         rs_inventory = []
         for member in game1.namelist():
@@ -4105,6 +4107,7 @@ def main(argv):
         map21_bytes = read_member_by_basename(game2, "m021.jpg")
         map22_bytes = read_member_by_basename(game2, "m022.jpg")
         map23_bytes = read_member_by_basename(game2, "m023.jpg")
+        map24_bytes = read_member_by_basename(game2, "m024.jpg")
         if map1_bytes is None:
             map1_bytes = read_member_by_basename(game1, "m001.jpg")
         if map2_bytes is None:
@@ -4151,6 +4154,8 @@ def main(argv):
             map22_bytes = read_member_by_basename(game1, "m022.jpg")
         if map23_bytes is None:
             map23_bytes = read_member_by_basename(game1, "m023.jpg")
+        if map24_bytes is None:
+            map24_bytes = read_member_by_basename(game1, "m024.jpg")
 
         hexz = read_member_by_basename(game2, "Hexzmap.e5")
         if hexz is None:
@@ -4876,6 +4881,45 @@ def main(argv):
             })
         except Exception as exc:
             map23_probe.update({
+                "valid": False,
+                "error": f"{type(exc).__name__}: {exc}",
+            })
+
+
+    map24_probe = {
+        "filename": "m024.jpg",
+        "found": map24_bytes is not None,
+        "hexzmapEntry": 24,
+    }
+    if map24_bytes is not None:
+        try:
+            map24_width, map24_height = jpeg_dimensions(map24_bytes)
+            if map24_width % 48 != 0 or map24_height % 48 != 0:
+                raise ValueError(
+                    f"m024 dimensions not divisible by 48: "
+                    f"{map24_width}x{map24_height}"
+                )
+            map24_cols = map24_width // 48
+            map24_rows = map24_height // 48
+            terrain24_cells = extract_hexzmap_cells(
+                hexz,
+                24,
+                map24_cols,
+                map24_rows,
+            )
+            (map_dir / "m024.jpg").write_bytes(map24_bytes)
+            (battle_dir / "terrain24.bin").write_bytes(terrain24_cells)
+            map24_probe.update({
+                "valid": True,
+                "width": map24_width,
+                "height": map24_height,
+                "cols": map24_cols,
+                "rows": map24_rows,
+                "terrainCellCount": len(terrain24_cells),
+                "terrainIds": sorted(set(terrain24_cells)),
+            })
+        except Exception as exc:
+            map24_probe.update({
                 "valid": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
@@ -5842,6 +5886,46 @@ def main(argv):
         },
         "R23PlayerIds": s23_player_ids,
         "R23SelectableIds": r23_selectable_ids,
+    }
+
+    r24_probe = build_next_scenario_probe("R_24.eex", r24)
+    s24_probe = build_next_scenario_probe("S_24.eex", s24)
+    s24_init_probe = {
+        "found": s24 is not None,
+        "validEex": bool(s24 and s24.startswith(b"EEX")),
+        "map": map24_probe,
+    }
+    s24_event_probe = []
+    s24_outcome_probe = {}
+    if s24 and s24.startswith(b"EEX"):
+        s24_scenes = parse_scenario_tree(s24)
+        s24_init_probe = probe_s01_initialization(s24)
+        s24_init_probe["map"] = map24_probe
+        s24_event_probe = extract_scene2_native_events(s24_scenes)
+        s24_outcome_probe = probe_battle_outcome_candidates(s24_scenes)
+
+    post_s23_probe = {
+        "R_24.eex": r24_probe,
+        "S_24.eex": s24_probe,
+        "M024": map24_probe,
+        "S24Init": s24_init_probe,
+        "S24EventSummary": {
+            "candidateCount": len(s24_event_probe),
+            "coreSupportedCount": sum(
+                1 for event in s24_event_probe
+                if event["coreSupported"]
+            ),
+            "unsupportedSections": [
+                {
+                    "section": event["section"],
+                    "unsupportedTriggerIds": event["unsupportedTriggerIds"],
+                    "unsupportedActionIds": event["unsupportedActionIds"],
+                }
+                for event in s24_event_probe
+                if not event["coreSupported"]
+            ],
+        },
+        "S24OutcomeProbe": s24_outcome_probe,
     }
 
     s21_native_events = []
@@ -11746,6 +11830,11 @@ def main(argv):
         "battleEvents": s23_native_events,
         "outcomeEvents": s23_outcome_events,
         "outcomeProbe": s23_outcome_probe,
+        "nextScenarioProbe": {
+            "R_24.eex": r24_probe,
+            "S_24.eex": s24_probe,
+        },
+        "postS23Probe": post_s23_probe,
         "routeModel": {
             "targetCharacterId": 36,
             "targetName": name_of(36),
